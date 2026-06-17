@@ -1,10 +1,10 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
+import { agregarReserva, actualizarReserva, eliminarReserva, suscribirReservas } from "./firebase";
 
 const HORA_PRECIO = 3500;
 const HORAS = Array.from({ length: 14 }, (_, i) => i + 8);
 const CONSULTORIOS = ["Consultorio 1", "Consultorio 2", "Consultorio 3"];
 const DIAS_SEMANA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
-const STORAGE_KEY = "consultorios_reservas_v2";
 
 const COLORES_PROF = [
   { bg: "linear-gradient(135deg,#667eea,#764ba2)", solid: "#764ba2", light: "#ede9fe", text: "#5b21b6" },
@@ -79,11 +79,8 @@ function exportarCSV(profesionales, reservas, mesStr) {
 }
 
 export default function App() {
-  const [reservas, setReservas] = useState(() => {
-    try { const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : []; } catch { return []; }
-  });
-  useEffect(() => { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(reservas)); } catch {} }, [reservas]);
-
+  const [reservas, setReservas] = useState([]);
+  const [cargando, setCargando] = useState(true);
   const [weekOffset, setWeekOffset] = useState(0);
   const [vista, setVista] = useState("agenda");
   const [modal, setModal] = useState(null);
@@ -91,6 +88,14 @@ export default function App() {
   const [mesOffset, setMesOffset] = useState(0);
   const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
+
+  useEffect(() => {
+    const unsub = suscribirReservas(data => {
+      setReservas(data);
+      setCargando(false);
+    });
+    return () => unsub();
+  }, []);
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
   const mesStr = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + mesOffset); return d.toISOString().slice(0, 7); }, [mesOffset]);
@@ -104,19 +109,24 @@ export default function App() {
   function openEditar(r) { setModal({ mode: "editar", consultorio: r.consultorio, fecha: new Date(r.fecha + "T12:00:00"), reservaId: r.id }); setForm({ profesional: r.profesional, horaInicio: r.horaInicio, horaFin: r.horaFin, repeteSemanal: r.repeteSemanal }); }
   function closeModal() { setModal(null); }
 
-  function guardarReserva() {
+  async function guardarReserva() {
     if (!form.profesional.trim() || form.horaFin <= form.horaInicio) return;
+    const datos = { profesional: form.profesional.trim(), consultorio: modal.consultorio, fecha: dateKey(modal.fecha), horaInicio: parseInt(form.horaInicio), horaFin: parseInt(form.horaFin), repeteSemanal: form.repeteSemanal };
     if (modal.mode === "crear") {
-      setReservas(prev => [...prev, { id: Date.now(), profesional: form.profesional.trim(), consultorio: modal.consultorio, fecha: dateKey(modal.fecha), horaInicio: parseInt(form.horaInicio), horaFin: parseInt(form.horaFin), repeteSemanal: form.repeteSemanal }]);
+      await agregarReserva(datos);
       showToast("Reserva guardada ✓");
     } else {
-      setReservas(prev => prev.map(r => r.id === modal.reservaId ? { ...r, profesional: form.profesional.trim(), consultorio: modal.consultorio, horaInicio: parseInt(form.horaInicio), horaFin: parseInt(form.horaFin), repeteSemanal: form.repeteSemanal } : r));
+      await actualizarReserva(modal.reservaId, datos);
       showToast("Reserva actualizada ✓");
     }
     closeModal();
   }
 
-  function eliminarReserva(id) { setReservas(prev => prev.filter(r => r.id !== id)); setConfirmDelete(null); showToast("Reserva eliminada", "warn"); }
+  async function borrarReserva(id) {
+    await eliminarReserva(id);
+    setConfirmDelete(null);
+    showToast("Reserva eliminada", "warn");
+  }
 
   function getReservasParaCelda(consultorio, fecha, hora) {
     const key = dateKey(fecha); const diaSemana = fecha.getDay();
@@ -135,6 +145,14 @@ export default function App() {
   const labelStyle = { display: "block", fontSize: 11, fontWeight: 700, color: "#4a5568", marginBottom: 4, textTransform: "uppercase", letterSpacing: .5 };
   const inputStyle = { width: "100%", padding: "9px 11px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, marginBottom: 14, boxSizing: "border-box", outline: "none" };
 
+  if (cargando) return (
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f0f4f8", flexDirection: "column", gap: 16 }}>
+      <div style={{ width: 48, height: 48, border: "4px solid #e2e8f0", borderTop: "4px solid #667eea", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+      <p style={{ color: "#718096", fontWeight: 600 }}>Conectando con la nube...</p>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    </div>
+  );
+
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: "#f0f4f8", color: "#1a202c", position: "relative" }}>
       {toast && <div style={{ position: "fixed", top: 16, right: 16, zIndex: 9999, background: toast.tipo === "warn" ? "#744210" : "#1a4731", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.25)" }}>{toast.msg}</div>}
@@ -144,9 +162,9 @@ export default function App() {
           <div style={{ color: "#90cdf4", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 3 }}>Gestión de espacios</div>
           <h1 style={{ color: "white", margin: 0, fontSize: 20, fontWeight: 800 }}>Consultorios Psicológicos</h1>
         </div>
-        <div style={{ display: "flex", gap: 8 }}>
-          {[["agenda", "📅 Agenda"], ["pagos", "💰 Pagos"]].map(([v, label]) => (
-            <button key={v} onClick={() => setVista(v)} style={{ padding: "8px 16px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 12, background: vista === v ? "#4299e1" : "rgba(255,255,255,0.12)", color: "white" }}>{label}</button>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+          {[["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"], ["pagos", "💰 Pagos"]].map(([v, label]) => (
+            <button key={v} onClick={() => setVista(v)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: vista === v ? "#4299e1" : "rgba(255,255,255,0.12)", color: "white" }}>{label}</button>
           ))}
         </div>
       </div>
@@ -158,6 +176,7 @@ export default function App() {
         </div>
       )}
 
+      {/* ── AGENDA POR CONSULTORIO ── */}
       {vista === "agenda" && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -188,8 +207,8 @@ export default function App() {
                           return (
                             <td key={dateKey(fecha)} onClick={() => libre && openCrear(consultorio, fecha, hora)} style={{ padding: 2, borderBottom: "1px solid #edf2f7", borderRight: "1px solid #edf2f7", verticalAlign: "top", minWidth: 72, cursor: libre ? "pointer" : "default", background: isToday && libre ? "#f0f9ff" : libre ? "white" : undefined }}>
                               {ocupadas.map(r => { const col = colorMap[r.profesional] || COLORES_PROF[0]; const esInicio = hora === r.horaInicio; return (
-                                <div key={r.id} title={`${r.profesional} · ${r.horaInicio}:00–${r.horaFin}:00`} style={{ background: col.bg, color: "white", borderRadius: esInicio ? "5px 5px 3px 3px" : "3px", padding: esInicio ? "3px 5px 2px" : "1px 5px", fontSize: 10, fontWeight: 700, marginBottom: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                  {esInicio ? <><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 60 }}>{r.profesional}</span><span style={{ display: "flex", gap: 2 }}><button onClick={e => { e.stopPropagation(); openEditar(r); }} style={{ background: "rgba(255,255,255,0.25)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✎</button><button onClick={e => { e.stopPropagation(); setConfirmDelete(r.id); }} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✕</button></span></> : <span style={{ color: "rgba(255,255,255,0.5)", fontSize: 8 }}>│</span>}
+                                <div key={r.id} style={{ background: col.bg, color: "white", borderRadius: esInicio ? "5px 5px 3px 3px" : "3px", padding: esInicio ? "3px 5px 2px" : "1px 5px", fontSize: 10, fontWeight: 700, marginBottom: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                  {esInicio ? <><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 55 }}>{r.profesional}</span><span style={{ display: "flex", gap: 2 }}><button onClick={e => { e.stopPropagation(); openEditar(r); }} style={{ background: "rgba(255,255,255,0.25)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✎</button><button onClick={e => { e.stopPropagation(); setConfirmDelete(r.id); }} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✕</button></span></> : <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 8 }}>│</span>}
                                 </div>
                               ); })}
                               {libre && <div style={{ color: "#dde8f0", fontSize: 9, textAlign: "center", paddingTop: 5 }}>+</div>}
@@ -206,6 +225,72 @@ export default function App() {
         </div>
       )}
 
+      {/* ── VISTA UNIFICADA SEMANAL ── */}
+      {vista === "unificado" && (
+        <div style={{ padding: "16px 12px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+            <button onClick={() => setWeekOffset(w => w - 1)} style={navBtn}>‹</button>
+            <span style={{ fontWeight: 700, fontSize: 13, color: "#4a5568", minWidth: 180, textAlign: "center" }}>{weekDates[0].toLocaleDateString("es-AR", { day: "numeric", month: "short" })} – {weekDates[5].toLocaleDateString("es-AR", { day: "numeric", month: "short", year: "numeric" })}</span>
+            <button onClick={() => setWeekOffset(w => w + 1)} style={navBtn}>›</button>
+            <button onClick={() => setWeekOffset(0)} style={{ ...navBtn, fontSize: 11, padding: "5px 10px", color: "#718096" }}>Hoy</button>
+          </div>
+          <div style={{ background: "white", borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...thStyle, width: 44 }}>Hora</th>
+                    {weekDates.map(fecha => {
+                      const isToday = dateKey(fecha) === todayKey;
+                      return (
+                        <th key={dateKey(fecha)} colSpan={3} style={{ ...thStyle, background: isToday ? "#ebf8ff" : "#f7fafc", color: isToday ? "#2b6cb0" : "#4a5568", borderLeft: "2px solid #e2e8f0" }}>
+                          <div style={{ fontSize: 10 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
+                          <div style={{ fontWeight: 800, fontSize: 14 }}>{fecha.getDate()}</div>
+                        </th>
+                      );
+                    })}
+                  </tr>
+                  <tr>
+                    <th style={{ ...thStyle }}></th>
+                    {weekDates.map(fecha => CONSULTORIOS.map((c, i) => (
+                      <th key={`${dateKey(fecha)}-${c}`} style={{ ...thStyle, fontSize: 9, fontWeight: 700, color: "#718096", borderLeft: i === 0 ? "2px solid #e2e8f0" : "1px solid #edf2f7", padding: "3px 2px" }}>C{i + 1}</th>
+                    )))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {HORAS.map(hora => (
+                    <tr key={hora}>
+                      <td style={{ padding: "3px 4px", textAlign: "center", fontSize: 10, color: "#a0aec0", borderRight: "1px solid #edf2f7", borderBottom: "1px solid #edf2f7", background: "#f7fafc" }}>{hora}:00</td>
+                      {weekDates.map(fecha => CONSULTORIOS.map((consultorio, i) => {
+                        const isToday = dateKey(fecha) === todayKey;
+                        const ocupadas = getReservasParaCelda(consultorio, fecha, hora);
+                        const libre = ocupadas.length === 0;
+                        return (
+                          <td key={`${dateKey(fecha)}-${consultorio}`}
+                            onClick={() => libre && openCrear(consultorio, fecha, hora)}
+                            style={{ padding: 1, borderBottom: "1px solid #edf2f7", borderLeft: i === 0 ? "2px solid #e2e8f0" : "1px solid #edf2f7", verticalAlign: "top", minWidth: 48, cursor: libre ? "pointer" : "default", background: isToday && libre ? "#f0f9ff" : libre ? "white" : undefined }}>
+                            {ocupadas.map(r => { const col = colorMap[r.profesional] || COLORES_PROF[0]; const esInicio = hora === r.horaInicio; return (
+                              <div key={r.id} title={`${r.profesional} · ${consultorio}`} style={{ background: col.bg, color: "white", borderRadius: 3, padding: esInicio ? "2px 3px" : "1px 3px", fontSize: 9, fontWeight: 700, marginBottom: 1 }}>
+                                {esInicio ? <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: 44 }}>{r.profesional}</span> : <span style={{ color: "rgba(255,255,255,0.4)" }}>│</span>}
+                              </div>
+                            ); })}
+                            {libre && <div style={{ color: "#edf2f7", fontSize: 8, textAlign: "center", paddingTop: 4 }}>·</div>}
+                          </td>
+                        );
+                      }))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div style={{ padding: "10px 14px", borderTop: "1px solid #e2e8f0", display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <span style={{ fontSize: 11, color: "#718096", fontWeight: 600 }}>C1 = Consultorio 1 · C2 = Consultorio 2 · C3 = Consultorio 3</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── PAGOS ── */}
       {vista === "pagos" && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
@@ -213,10 +298,10 @@ export default function App() {
             <span style={{ fontWeight: 700, fontSize: 14, color: "#4a5568", textTransform: "capitalize", minWidth: 160, textAlign: "center" }}>{mesLabel}</span>
             <button onClick={() => setMesOffset(m => m + 1)} style={navBtn}>›</button>
             <button onClick={() => setMesOffset(0)} style={{ ...navBtn, fontSize: 11, padding: "5px 10px", color: "#718096" }}>Este mes</button>
-            {profesionales.length > 0 && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#2d3748", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ Exportar CSV</button>}
+            {profesionales.length > 0 && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#2d3748", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
           </div>
-          {profesionales.length === 0 && <div style={{ background: "white", borderRadius: 12, padding: 36, textAlign: "center", color: "#a0aec0" }}><div style={{ fontSize: 44, marginBottom: 10 }}>📋</div><p style={{ margin: 0, fontSize: 14 }}>Aún no hay reservas. Agregá turnos desde la Agenda.</p></div>}
-          {profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: "linear-gradient(135deg,#2d3748,#1a202c)", borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total facturado {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
+          {profesionales.length === 0 && <div style={{ background: "white", borderRadius: 12, padding: 36, textAlign: "center", color: "#a0aec0" }}><div style={{ fontSize: 44, marginBottom: 10 }}>📋</div><p style={{ margin: 0 }}>Aún no hay reservas.</p></div>}
+          {profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: "linear-gradient(135deg,#2d3748,#1a202c)", borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
           {profesionales.map(prof => {
             const { totalMes, detalle } = calcularPagosProfesional(reservas, prof, mesStr);
             const col = colorMap[prof] || COLORES_PROF[0];
@@ -255,6 +340,7 @@ export default function App() {
         </div>
       )}
 
+      {/* ── MODAL CREAR/EDITAR ── */}
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
           <div style={{ background: "white", borderRadius: 18, padding: 24, width: "100%", maxWidth: 390, boxShadow: "0 24px 60px rgba(0,0,0,0.3)" }}>
@@ -280,12 +366,13 @@ export default function App() {
             </label>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={closeModal} style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontSize: 13, color: "#718096", fontWeight: 600 }}>Cancelar</button>
-              <button onClick={guardarReserva} disabled={!form.profesional.trim()} style={{ flex: 1, padding: 10, borderRadius: 8, border: "none", fontWeight: 800, fontSize: 13, cursor: form.profesional.trim() ? "pointer" : "not-allowed", color: "white", background: form.profesional.trim() ? "linear-gradient(135deg,#667eea,#764ba2)" : "#e2e8f0" }}>{modal.mode === "crear" ? "Guardar reserva" : "Actualizar"}</button>
+              <button onClick={guardarReserva} disabled={!form.profesional.trim()} style={{ flex: 1, padding: 10, borderRadius: 8, border: "none", fontWeight: 800, fontSize: 13, cursor: form.profesional.trim() ? "pointer" : "not-allowed", color: "white", background: form.profesional.trim() ? "linear-gradient(135deg,#667eea,#764ba2)" : "#e2e8f0" }}>{modal.mode === "crear" ? "Guardar" : "Actualizar"}</button>
             </div>
           </div>
         </div>
       )}
 
+      {/* ── MODAL CONFIRMAR ELIMINAR ── */}
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1010, padding: 16 }}>
           <div style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 340, width: "100%", textAlign: "center", boxShadow: "0 20px 50px rgba(0,0,0,0.3)" }}>
@@ -294,7 +381,7 @@ export default function App() {
             <p style={{ margin: "0 0 20px", fontSize: 13, color: "#718096" }}>Esta acción no se puede deshacer.</p>
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => setConfirmDelete(null)} style={{ flex: 1, padding: 10, borderRadius: 8, border: "1px solid #e2e8f0", background: "white", cursor: "pointer", fontSize: 13, fontWeight: 600, color: "#718096" }}>Cancelar</button>
-              <button onClick={() => eliminarReserva(confirmDelete)} style={{ flex: 1, padding: 10, borderRadius: 8, border: "none", background: "#fc8181", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 800 }}>Sí, eliminar</button>
+              <button onClick={() => borrarReserva(confirmDelete)} style={{ flex: 1, padding: 10, borderRadius: 8, border: "none", background: "#fc8181", color: "white", cursor: "pointer", fontSize: 13, fontWeight: 800 }}>Sí, eliminar</button>
             </div>
           </div>
         </div>

@@ -17,8 +17,6 @@ const COLORES_PROF = [
   { bg: "linear-gradient(135deg,#96fbc4,#f9f586)", solid: "#84cc16", light: "#f7fee7", text: "#3f6212" },
 ];
 
-const COL_DIAS = ["#ffffff", "#f5f7ff", "#fff8f5", "#f5fff8", "#fff5f5", "#f5f5ff"];
-
 function getWeekDates(offset = 0) {
   const today = new Date();
   const day = today.getDay();
@@ -148,21 +146,19 @@ export default function App() {
   const inputStyle = { width: "100%", padding: "9px 11px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, marginBottom: 14, boxSizing: "border-box", outline: "none" };
 
   if (cargando) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", flexDirection: "column", gap: 16 }}>
-      <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 80, objectFit: "contain", marginBottom: 8 }} />
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#000", flexDirection: "column", gap: 16 }}>
+      <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 60, objectFit: "contain", marginBottom: 8 }} />
       <div style={{ width: 40, height: 40, border: "3px solid #333", borderTop: "3px solid white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
 
   return (
-    <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: "#e8eaed", color: "#1a202c", position: "relative" }}>
-
+    <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: "#f0f4f8", color: "#1a202c", position: "relative" }}>
       {toast && <div style={{ position: "fixed", top: 16, right: 16, zIndex: 9999, background: toast.tipo === "warn" ? "#744210" : "#1a4731", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.25)" }}>{toast.msg}</div>}
 
-      {/* HEADER */}
-      <div style={{ background: "#1a1a1a", padding: "16px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <img src="/IMG_0050.jpeg" alt="GRINS Consultorios" style={{ height: 72, objectFit: "contain" }} />
+      <div style={{ background: "#000000", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <img src="/IMG_0050.jpeg" alt="GRINS Consultorios" style={{ height: 52, objectFit: "contain" }} />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {[["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"], ["pagos", "💰 Pagos"]].map(([v, label]) => (
             <button key={v} onClick={() => setVista(v)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: vista === v ? "#4299e1" : "rgba(255,255,255,0.15)", color: "white" }}>{label}</button>
@@ -170,7 +166,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* LEYENDA PROFESIONALES */}
       {profesionales.length > 0 && (
         <div style={{ background: "white", borderBottom: "1px solid #e2e8f0", padding: "8px 16px", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
           <span style={{ fontSize: 11, color: "#a0aec0", fontWeight: 600 }}>PROFESIONALES:</span>
@@ -178,7 +173,6 @@ export default function App() {
         </div>
       )}
 
-      {/* AGENDA */}
       {vista === "agenda" && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -189,45 +183,31 @@ export default function App() {
           </div>
           {CONSULTORIOS.map(consultorio => (
             <div key={consultorio} style={{ background: "white", borderRadius: 12, marginBottom: 18, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
-              <div style={{ background: "#1a1a1a", color: "white", padding: "9px 14px", fontWeight: 800, fontSize: 13 }}>🏢 {consultorio}</div>
+              <div style={{ background: "#000", color: "white", padding: "9px 14px", fontWeight: 800, fontSize: 13 }}>🏢 {consultorio}</div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
                   <thead>
                     <tr>
                       <th style={{ ...thStyle, width: 44 }}>Hora</th>
-                      {weekDates.map((fecha, idx) => {
-                        const isToday = dateKey(fecha) === todayKey;
-                        return <th key={dateKey(fecha)} style={{ ...thStyle, background: isToday ? "#dbeafe" : COL_DIAS[idx % COL_DIAS.length], color: isToday ? "#2b6cb0" : "#4a5568", borderLeft: "1px solid #e2e8f0" }}>
-                          <div style={{ fontSize: 10 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-                          <div style={{ fontWeight: 800, fontSize: 14 }}>{fecha.getDate()}</div>
-                        </th>;
-                      })}
+                      {weekDates.map(fecha => { const isToday = dateKey(fecha) === todayKey; return <th key={dateKey(fecha)} style={{ ...thStyle, background: isToday ? "#ebf8ff" : "#f7fafc", color: isToday ? "#2b6cb0" : "#4a5568" }}><div style={{ fontSize: 10 }}>{DIAS_SEMANA[fecha.getDay()]}</div><div style={{ fontWeight: 800, fontSize: 14 }}>{fecha.getDate()}</div></th>; })}
                     </tr>
                   </thead>
                   <tbody>
                     {HORAS.map(hora => (
                       <tr key={hora}>
                         <td style={{ padding: "3px 4px", textAlign: "center", fontSize: 10, color: "#a0aec0", borderRight: "1px solid #edf2f7", borderBottom: "1px solid #edf2f7", background: "#f7fafc" }}>{hora}:00</td>
-                        {weekDates.map((fecha, idx) => {
+                        {weekDates.map(fecha => {
                           const isToday = dateKey(fecha) === todayKey;
                           const ocupadas = getReservasParaCelda(consultorio, fecha, hora);
                           const libre = ocupadas.length === 0;
-                          const bgLibre = isToday ? "#eff6ff" : COL_DIAS[idx % COL_DIAS.length];
                           return (
-                            <td key={dateKey(fecha)} onClick={() => libre && openCrear(consultorio, fecha, hora)}
-                              style={{ padding: 2, borderBottom: "1px solid #edf2f7", borderLeft: "1px solid #edf2f7", verticalAlign: "top", minWidth: 72, cursor: libre ? "pointer" : "default", background: libre ? bgLibre : undefined }}>
+                            <td key={dateKey(fecha)} onClick={() => libre && openCrear(consultorio, fecha, hora)} style={{ padding: 2, borderBottom: "1px solid #edf2f7", borderRight: "1px solid #edf2f7", verticalAlign: "top", minWidth: 72, cursor: libre ? "pointer" : "default", background: isToday && libre ? "#f0f9ff" : libre ? "white" : undefined }}>
                               {ocupadas.map(r => { const col = colorMap[r.profesional] || COLORES_PROF[0]; const esInicio = hora === r.horaInicio; return (
                                 <div key={r.id} style={{ background: col.bg, color: "white", borderRadius: esInicio ? "5px 5px 3px 3px" : "3px", padding: esInicio ? "3px 5px 2px" : "1px 5px", fontSize: 10, fontWeight: 700, marginBottom: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                  {esInicio
-                                    ? <><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 55 }}>{r.profesional}</span>
-                                      <span style={{ display: "flex", gap: 2 }}>
-                                        <button onClick={e => { e.stopPropagation(); openEditar(r); }} style={{ background: "rgba(255,255,255,0.25)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✎</button>
-                                        <button onClick={e => { e.stopPropagation(); setConfirmDelete(r.id); }} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✕</button>
-                                      </span></>
-                                    : <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 8 }}>│</span>}
+                                  {esInicio ? <><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 55 }}>{r.profesional}</span><span style={{ display: "flex", gap: 2 }}><button onClick={e => { e.stopPropagation(); openEditar(r); }} style={{ background: "rgba(255,255,255,0.25)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✎</button><button onClick={e => { e.stopPropagation(); setConfirmDelete(r.id); }} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✕</button></span></> : <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 8 }}>│</span>}
                                 </div>
                               ); })}
-                              {libre && <div style={{ color: "#c0ccd8", fontSize: 9, textAlign: "center", paddingTop: 5 }}>+</div>}
+                              {libre && <div style={{ color: "#dde8f0", fontSize: 9, textAlign: "center", paddingTop: 5 }}>+</div>}
                             </td>
                           );
                         })}
@@ -241,7 +221,6 @@ export default function App() {
         </div>
       )}
 
-      {/* VISTA UNIFICADA */}
       {vista === "unificado" && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -256,18 +235,12 @@ export default function App() {
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, width: 44 }}>Hora</th>
-                    {weekDates.map((fecha, idx) => {
-                      const isToday = dateKey(fecha) === todayKey;
-                      return <th key={dateKey(fecha)} colSpan={3} style={{ ...thStyle, background: isToday ? "#dbeafe" : COL_DIAS[idx % COL_DIAS.length], color: isToday ? "#2b6cb0" : "#4a5568", borderLeft: "2px solid #d1d5db" }}>
-                        <div style={{ fontSize: 10 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-                        <div style={{ fontWeight: 800, fontSize: 14 }}>{fecha.getDate()}</div>
-                      </th>;
-                    })}
+                    {weekDates.map(fecha => { const isToday = dateKey(fecha) === todayKey; return <th key={dateKey(fecha)} colSpan={3} style={{ ...thStyle, background: isToday ? "#ebf8ff" : "#f7fafc", color: isToday ? "#2b6cb0" : "#4a5568", borderLeft: "2px solid #e2e8f0" }}><div style={{ fontSize: 10 }}>{DIAS_SEMANA[fecha.getDay()]}</div><div style={{ fontWeight: 800, fontSize: 14 }}>{fecha.getDate()}</div></th>; })}
                   </tr>
                   <tr>
                     <th style={{ ...thStyle }}></th>
-                    {weekDates.map((fecha, idx) => CONSULTORIOS.map((c, i) => (
-                      <th key={`${dateKey(fecha)}-${c}`} style={{ ...thStyle, fontSize: 9, background: COL_DIAS[idx % COL_DIAS.length], fontWeight: 700, color: "#718096", borderLeft: i === 0 ? "2px solid #d1d5db" : "1px solid #edf2f7", padding: "3px 2px" }}>C{i + 1}</th>
+                    {weekDates.map(fecha => CONSULTORIOS.map((c, i) => (
+                      <th key={`${dateKey(fecha)}-${c}`} style={{ ...thStyle, fontSize: 9, fontWeight: 700, color: "#718096", borderLeft: i === 0 ? "2px solid #e2e8f0" : "1px solid #edf2f7", padding: "3px 2px" }}>C{i + 1}</th>
                     )))}
                   </tr>
                 </thead>
@@ -275,20 +248,18 @@ export default function App() {
                   {HORAS.map(hora => (
                     <tr key={hora}>
                       <td style={{ padding: "3px 4px", textAlign: "center", fontSize: 10, color: "#a0aec0", borderRight: "1px solid #edf2f7", borderBottom: "1px solid #edf2f7", background: "#f7fafc" }}>{hora}:00</td>
-                      {weekDates.map((fecha, idx) => CONSULTORIOS.map((consultorio, i) => {
+                      {weekDates.map(fecha => CONSULTORIOS.map((consultorio, i) => {
                         const isToday = dateKey(fecha) === todayKey;
                         const ocupadas = getReservasParaCelda(consultorio, fecha, hora);
                         const libre = ocupadas.length === 0;
-                        const bgLibre = isToday ? "#eff6ff" : COL_DIAS[idx % COL_DIAS.length];
                         return (
-                          <td key={`${dateKey(fecha)}-${consultorio}`} onClick={() => libre && openCrear(consultorio, fecha, hora)}
-                            style={{ padding: 1, borderBottom: "1px solid #edf2f7", borderLeft: i === 0 ? "2px solid #d1d5db" : "1px solid #edf2f7", verticalAlign: "top", minWidth: 48, cursor: libre ? "pointer" : "default", background: libre ? bgLibre : undefined }}>
+                          <td key={`${dateKey(fecha)}-${consultorio}`} onClick={() => libre && openCrear(consultorio, fecha, hora)} style={{ padding: 1, borderBottom: "1px solid #edf2f7", borderLeft: i === 0 ? "2px solid #e2e8f0" : "1px solid #edf2f7", verticalAlign: "top", minWidth: 48, cursor: libre ? "pointer" : "default", background: isToday && libre ? "#f0f9ff" : libre ? "white" : undefined }}>
                             {ocupadas.map(r => { const col = colorMap[r.profesional] || COLORES_PROF[0]; const esInicio = hora === r.horaInicio; return (
                               <div key={r.id} title={`${r.profesional} · ${consultorio}`} style={{ background: col.bg, color: "white", borderRadius: 3, padding: esInicio ? "2px 3px" : "1px 3px", fontSize: 9, fontWeight: 700, marginBottom: 1 }}>
                                 {esInicio ? <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: 44 }}>{r.profesional}</span> : <span style={{ color: "rgba(255,255,255,0.4)" }}>│</span>}
                               </div>
                             ); })}
-                            {libre && <div style={{ color: "#d1d5db", fontSize: 8, textAlign: "center", paddingTop: 4 }}>·</div>}
+                            {libre && <div style={{ color: "#edf2f7", fontSize: 8, textAlign: "center", paddingTop: 4 }}>·</div>}
                           </td>
                         );
                       }))}
@@ -304,7 +275,6 @@ export default function App() {
         </div>
       )}
 
-      {/* PAGOS */}
       {vista === "pagos" && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
@@ -312,10 +282,10 @@ export default function App() {
             <span style={{ fontWeight: 700, fontSize: 14, color: "#4a5568", textTransform: "capitalize", minWidth: 160, textAlign: "center" }}>{mesLabel}</span>
             <button onClick={() => setMesOffset(m => m + 1)} style={navBtn}>›</button>
             <button onClick={() => setMesOffset(0)} style={{ ...navBtn, fontSize: 11, padding: "5px 10px", color: "#718096" }}>Este mes</button>
-            {profesionales.length > 0 && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#1a1a1a", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
+            {profesionales.length > 0 && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#000", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
           </div>
           {profesionales.length === 0 && <div style={{ background: "white", borderRadius: 12, padding: 36, textAlign: "center", color: "#a0aec0" }}><div style={{ fontSize: 44, marginBottom: 10 }}>📋</div><p style={{ margin: 0 }}>Aún no hay reservas.</p></div>}
-          {profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: "#1a1a1a", borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
+          {profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: "#000", borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
           {profesionales.map(prof => {
             const { totalMes, detalle } = calcularPagosProfesional(reservas, prof, mesStr);
             const col = colorMap[prof] || COLORES_PROF[0];
@@ -354,7 +324,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CREAR/EDITAR */}
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
           <div style={{ background: "white", borderRadius: 18, padding: 24, width: "100%", maxWidth: 390, boxShadow: "0 24px 60px rgba(0,0,0,0.3)" }}>
@@ -386,7 +355,6 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL ELIMINAR */}
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1010, padding: 16 }}>
           <div style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 340, width: "100%", textAlign: "center", boxShadow: "0 20px 50px rgba(0,0,0,0.3)" }}>

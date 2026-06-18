@@ -146,9 +146,9 @@ export default function App() {
   const inputStyle = { width: "100%", padding: "9px 11px", borderRadius: 8, border: "1px solid #e2e8f0", fontSize: 13, marginBottom: 14, boxSizing: "border-box", outline: "none" };
 
   if (cargando) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#f0f4f8", flexDirection: "column", gap: 16 }}>
-      <div style={{ width: 48, height: 48, border: "4px solid #e2e8f0", borderTop: "4px solid #667eea", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
-      <p style={{ color: "#718096", fontWeight: 600 }}>Conectando con la nube...</p>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#000", flexDirection: "column", gap: 16 }}>
+      <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 60, objectFit: "contain", marginBottom: 8 }} />
+      <div style={{ width: 40, height: 40, border: "3px solid #333", borderTop: "3px solid white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
@@ -157,14 +157,11 @@ export default function App() {
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: "#f0f4f8", color: "#1a202c", position: "relative" }}>
       {toast && <div style={{ position: "fixed", top: 16, right: 16, zIndex: 9999, background: toast.tipo === "warn" ? "#744210" : "#1a4731", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.25)" }}>{toast.msg}</div>}
 
-      <div style={{ background: "linear-gradient(135deg,#2d3748 0%,#1a202c 100%)", padding: "18px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
-        <div>
-          <div style={{ color: "#90cdf4", fontSize: 11, fontWeight: 700, letterSpacing: 2, textTransform: "uppercase", marginBottom: 3 }}>Gestión de espacios</div>
-          <h1 style={{ color: "white", margin: 0, fontSize: 20, fontWeight: 800 }}>Consultorios Psicológicos</h1>
-        </div>
+      <div style={{ background: "#000000", padding: "12px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
+        <img src="/IMG_0050.jpeg" alt="GRINS Consultorios" style={{ height: 52, objectFit: "contain" }} />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
           {[["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"], ["pagos", "💰 Pagos"]].map(([v, label]) => (
-            <button key={v} onClick={() => setVista(v)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: vista === v ? "#4299e1" : "rgba(255,255,255,0.12)", color: "white" }}>{label}</button>
+            <button key={v} onClick={() => setVista(v)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: vista === v ? "#4299e1" : "rgba(255,255,255,0.15)", color: "white" }}>{label}</button>
           ))}
         </div>
       </div>
@@ -176,7 +173,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ── AGENDA POR CONSULTORIO ── */}
       {vista === "agenda" && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -187,7 +183,7 @@ export default function App() {
           </div>
           {CONSULTORIOS.map(consultorio => (
             <div key={consultorio} style={{ background: "white", borderRadius: 12, marginBottom: 18, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.07)" }}>
-              <div style={{ background: "#2d3748", color: "white", padding: "9px 14px", fontWeight: 800, fontSize: 13 }}>🏢 {consultorio}</div>
+              <div style={{ background: "#000", color: "white", padding: "9px 14px", fontWeight: 800, fontSize: 13 }}>🏢 {consultorio}</div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
                   <thead>
@@ -225,7 +221,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ── VISTA UNIFICADA SEMANAL ── */}
       {vista === "unificado" && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
@@ -240,15 +235,7 @@ export default function App() {
                 <thead>
                   <tr>
                     <th style={{ ...thStyle, width: 44 }}>Hora</th>
-                    {weekDates.map(fecha => {
-                      const isToday = dateKey(fecha) === todayKey;
-                      return (
-                        <th key={dateKey(fecha)} colSpan={3} style={{ ...thStyle, background: isToday ? "#ebf8ff" : "#f7fafc", color: isToday ? "#2b6cb0" : "#4a5568", borderLeft: "2px solid #e2e8f0" }}>
-                          <div style={{ fontSize: 10 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-                          <div style={{ fontWeight: 800, fontSize: 14 }}>{fecha.getDate()}</div>
-                        </th>
-                      );
-                    })}
+                    {weekDates.map(fecha => { const isToday = dateKey(fecha) === todayKey; return <th key={dateKey(fecha)} colSpan={3} style={{ ...thStyle, background: isToday ? "#ebf8ff" : "#f7fafc", color: isToday ? "#2b6cb0" : "#4a5568", borderLeft: "2px solid #e2e8f0" }}><div style={{ fontSize: 10 }}>{DIAS_SEMANA[fecha.getDay()]}</div><div style={{ fontWeight: 800, fontSize: 14 }}>{fecha.getDate()}</div></th>; })}
                   </tr>
                   <tr>
                     <th style={{ ...thStyle }}></th>
@@ -266,9 +253,7 @@ export default function App() {
                         const ocupadas = getReservasParaCelda(consultorio, fecha, hora);
                         const libre = ocupadas.length === 0;
                         return (
-                          <td key={`${dateKey(fecha)}-${consultorio}`}
-                            onClick={() => libre && openCrear(consultorio, fecha, hora)}
-                            style={{ padding: 1, borderBottom: "1px solid #edf2f7", borderLeft: i === 0 ? "2px solid #e2e8f0" : "1px solid #edf2f7", verticalAlign: "top", minWidth: 48, cursor: libre ? "pointer" : "default", background: isToday && libre ? "#f0f9ff" : libre ? "white" : undefined }}>
+                          <td key={`${dateKey(fecha)}-${consultorio}`} onClick={() => libre && openCrear(consultorio, fecha, hora)} style={{ padding: 1, borderBottom: "1px solid #edf2f7", borderLeft: i === 0 ? "2px solid #e2e8f0" : "1px solid #edf2f7", verticalAlign: "top", minWidth: 48, cursor: libre ? "pointer" : "default", background: isToday && libre ? "#f0f9ff" : libre ? "white" : undefined }}>
                             {ocupadas.map(r => { const col = colorMap[r.profesional] || COLORES_PROF[0]; const esInicio = hora === r.horaInicio; return (
                               <div key={r.id} title={`${r.profesional} · ${consultorio}`} style={{ background: col.bg, color: "white", borderRadius: 3, padding: esInicio ? "2px 3px" : "1px 3px", fontSize: 9, fontWeight: 700, marginBottom: 1 }}>
                                 {esInicio ? <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: 44 }}>{r.profesional}</span> : <span style={{ color: "rgba(255,255,255,0.4)" }}>│</span>}
@@ -283,14 +268,13 @@ export default function App() {
                 </tbody>
               </table>
             </div>
-            <div style={{ padding: "10px 14px", borderTop: "1px solid #e2e8f0", display: "flex", gap: 12, flexWrap: "wrap" }}>
+            <div style={{ padding: "10px 14px", borderTop: "1px solid #e2e8f0" }}>
               <span style={{ fontSize: 11, color: "#718096", fontWeight: 600 }}>C1 = Consultorio 1 · C2 = Consultorio 2 · C3 = Consultorio 3</span>
             </div>
           </div>
         </div>
       )}
 
-      {/* ── PAGOS ── */}
       {vista === "pagos" && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
@@ -298,10 +282,10 @@ export default function App() {
             <span style={{ fontWeight: 700, fontSize: 14, color: "#4a5568", textTransform: "capitalize", minWidth: 160, textAlign: "center" }}>{mesLabel}</span>
             <button onClick={() => setMesOffset(m => m + 1)} style={navBtn}>›</button>
             <button onClick={() => setMesOffset(0)} style={{ ...navBtn, fontSize: 11, padding: "5px 10px", color: "#718096" }}>Este mes</button>
-            {profesionales.length > 0 && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#2d3748", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
+            {profesionales.length > 0 && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#000", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
           </div>
           {profesionales.length === 0 && <div style={{ background: "white", borderRadius: 12, padding: 36, textAlign: "center", color: "#a0aec0" }}><div style={{ fontSize: 44, marginBottom: 10 }}>📋</div><p style={{ margin: 0 }}>Aún no hay reservas.</p></div>}
-          {profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: "linear-gradient(135deg,#2d3748,#1a202c)", borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
+          {profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: "#000", borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
           {profesionales.map(prof => {
             const { totalMes, detalle } = calcularPagosProfesional(reservas, prof, mesStr);
             const col = colorMap[prof] || COLORES_PROF[0];
@@ -340,7 +324,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ── MODAL CREAR/EDITAR ── */}
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.55)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
           <div style={{ background: "white", borderRadius: 18, padding: 24, width: "100%", maxWidth: 390, boxShadow: "0 24px 60px rgba(0,0,0,0.3)" }}>
@@ -372,7 +355,6 @@ export default function App() {
         </div>
       )}
 
-      {/* ── MODAL CONFIRMAR ELIMINAR ── */}
       {confirmDelete && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.5)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1010, padding: 16 }}>
           <div style={{ background: "white", borderRadius: 16, padding: 24, maxWidth: 340, width: "100%", textAlign: "center", boxShadow: "0 20px 50px rgba(0,0,0,0.3)" }}>
@@ -390,3 +372,4 @@ export default function App() {
     </div>
   );
 }
+

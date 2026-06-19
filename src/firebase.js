@@ -1,5 +1,6 @@
 import { initializeApp } from "firebase/app";
-import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc } from "firebase/firestore";
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, getDoc } from "firebase/firestore";
+import { getAuth, signInWithEmailAndPassword, signOut, onAuthStateChanged } from "firebase/auth";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC7AktLJQamFPky_ttYA4KFNqQ_nea3nUg",
@@ -12,7 +13,25 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
+export const auth = getAuth(app);
 export const reservasCol = collection(db, "reservas");
+
+export async function loginUser(email, password) {
+  return await signInWithEmailAndPassword(auth, email, password);
+}
+
+export async function logoutUser() {
+  return await signOut(auth);
+}
+
+export function onAuthChanged(callback) {
+  return onAuthStateChanged(auth, callback);
+}
+
+export async function getUserData(email) {
+  const snap = await getDoc(doc(db, "usuarios", email));
+  return snap.exists() ? snap.data() : null;
+}
 
 export async function agregarReserva(reserva) {
   return await addDoc(reservasCol, reserva);

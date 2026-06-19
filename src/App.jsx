@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { agregarReserva, actualizarReserva, eliminarReserva, suscribirReservas } from "./firebase";
+import { agregarReserva, actualizarReserva, eliminarReserva, suscribirReservas, onAuthChanged, getUserData, logoutUser } from "./firebase";
+import Login from "./Login";
 
 const HORA_PRECIO = 3500;
 const HORAS = Array.from({ length: 14 }, (_, i) => i + 8);
@@ -16,6 +17,29 @@ const COLORES_PROF = [
   { bg: "linear-gradient(135deg,#fda085,#f6d365)", solid: "#f97316", light: "#fff7ed", text: "#c2410c" },
   { bg: "linear-gradient(135deg,#96fbc4,#f9f586)", solid: "#84cc16", light: "#f7fee7", text: "#3f6212" },
 ];
+
+const TEMA = {
+  claro: {
+    bg: "#f0f4f8", cardBg: "white", headerBg: "#1a1a1a",
+    texto: "#1a202c", textoSuave: "#718096", textoMuy: "#a0aec0",
+    borde: "#e2e8f0", bordeTabla: "#edf2f7",
+    celdaBg: "white", celdaHoy: "#eff6ff", thBg: "#f7fafc",
+    thHoy: "#dbeafe", thHoyTexto: "#2b6cb0",
+    navBg: "white", navBorde: "#cbd5e0", navTexto: "#4a5568",
+    inputBg: "white", inputBorde: "#e2e8f0",
+    previewBg: "#f7fafc", totalBg: "#1a1a1a",
+  },
+  oscuro: {
+    bg: "#0f1117", cardBg: "#1e2130", headerBg: "#0a0a0a",
+    texto: "#e2e8f0", textoSuave: "#a0aec0", textoMuy: "#718096",
+    borde: "#2d3748", bordeTabla: "#2d3748",
+    celdaBg: "#1e2130", celdaHoy: "#1a2744", thBg: "#171923",
+    thHoy: "#1a2744", thHoyTexto: "#90cdf4",
+    navBg: "#2d3748", navBorde: "#4a5568", navTexto: "#e2e8f0",
+    inputBg: "#2d3748", inputBorde: "#4a5568",
+    previewBg: "#171923", totalBg: "#0a0a0a",
+  }
+};
 
 function getWeekDates(offset = 0) {
   const today = new Date();
@@ -78,33 +102,11 @@ function exportarCSV(profesionales, reservas, mesStr) {
   URL.revokeObjectURL(url);
 }
 
-// ── Temas ────────────────────────────────────────────────────────────────────
-const TEMA = {
-  claro: {
-    bg: "#f0f4f8", cardBg: "white", headerBg: "#1a1a1a",
-    texto: "#1a202c", textoSuave: "#718096", textoMuy: "#a0aec0",
-    borde: "#e2e8f0", bordeTabla: "#edf2f7",
-    celdaBg: "white", celdaHoy: "#eff6ff", thBg: "#f7fafc",
-    thHoy: "#dbeafe", thHoyTexto: "#2b6cb0",
-    navBg: "white", navBorde: "#cbd5e0", navTexto: "#4a5568",
-    inputBg: "white", inputBorde: "#e2e8f0",
-    previewBg: "#f7fafc", totalBg: "#1a1a1a",
-  },
-  oscuro: {
-    bg: "#0f1117", cardBg: "#1e2130", headerBg: "#0a0a0a",
-    texto: "#e2e8f0", textoSuave: "#a0aec0", textoMuy: "#718096",
-    borde: "#2d3748", bordeTabla: "#2d3748",
-    celdaBg: "#1e2130", celdaHoy: "#1a2744", thBg: "#171923",
-    thHoy: "#1a2744", thHoyTexto: "#90cdf4",
-    navBg: "#2d3748", navBorde: "#4a5568", navTexto: "#e2e8f0",
-    inputBg: "#2d3748", inputBorde: "#4a5568",
-    previewBg: "#171923", totalBg: "#0a0a0a",
-  }
-};
-
 export default function App() {
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(true);
+  const [usuario, setUsuario] = useState(null);      // { email, rol, nombre }
+  const [authListo, setAuthListo] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [vista, setVista] = useState("agenda");
   const [modal, setModal] = useState(null);
@@ -115,9 +117,24 @@ export default function App() {
   const [modoOscuro, setModoOscuro] = useState(() => localStorage.getItem("grins_dark") === "1");
 
   const t = modoOscuro ? TEMA.oscuro : TEMA.claro;
+  const esAdmin = usuario?.rol === "admin";
 
   useEffect(() => { localStorage.setItem("grins_dark", modoOscuro ? "1" : "0"); }, [modoOscuro]);
 
+  // Auth listener
+  useEffect(() => {
+    return onAuthChanged(async firebaseUser => {
+      if (firebaseUser) {
+        const data = await getUserData(firebaseUser.email);
+        setUsuario({ email: firebaseUser.email, rol: data?.rol || "profesional", nombre: data?.nombre || firebaseUser.email });
+      } else {
+        setUsuario(null);
+      }
+      setAuthListo(true);
+    });
+  }, []);
+
+  // Reservas listener
   useEffect(() => {
     const unsub = suscribirReservas(data => { setReservas(data); setCargando(false); });
     return () => unsub();
@@ -126,18 +143,61 @@ export default function App() {
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
   const mesStr = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + mesOffset); return d.toISOString().slice(0, 7); }, [mesOffset]);
   const mesLabel = useMemo(() => { const [y, m] = mesStr.split("-"); return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" }); }, [mesStr]);
-  const colorMap = useMemo(() => { const map = {}; let idx = 0; reservas.forEach(r => { if (r.profesional && !map[r.profesional]) { map[r.profesional] = COLORES_PROF[idx % COLORES_PROF.length]; idx++; } }); return map; }, [reservas]);
-  const profesionales = useMemo(() => Object.keys(colorMap), [colorMap]);
+
+  // Filtrar reservas según rol
+  const reservasFiltradas = useMemo(() => {
+    if (esAdmin) return reservas;
+    return reservas.filter(r => r.profesional === usuario?.nombre);
+  }, [reservas, esAdmin, usuario]);
+
+  const colorMap = useMemo(() => {
+    const map = {};
+    let idx = 0;
+    reservas.forEach(r => {
+      if (r.profesional && !map[r.profesional]) {
+        map[r.profesional] = COLORES_PROF[idx % COLORES_PROF.length];
+        idx++;
+      }
+    });
+    return map;
+  }, [reservas]);
+
+  const profesionales = useMemo(() => {
+    if (esAdmin) return Object.keys(colorMap);
+    return usuario?.nombre ? [usuario.nombre] : [];
+  }, [colorMap, esAdmin, usuario]);
 
   const showToast = useCallback((msg, tipo = "ok") => { setToast({ msg, tipo }); setTimeout(() => setToast(null), 2800); }, []);
 
-  function openCrear(consultorio, fecha, hora) { setModal({ mode: "crear", consultorio, fecha }); setForm({ profesional: "", horaInicio: hora, horaFin: hora + 1, repeteSemanal: false }); }
-  function openEditar(r) { setModal({ mode: "editar", consultorio: r.consultorio, fecha: new Date(r.fecha + "T12:00:00"), reservaId: r.id }); setForm({ profesional: r.profesional, horaInicio: r.horaInicio, horaFin: r.horaFin, repeteSemanal: r.repeteSemanal }); }
+  function puedeEditar(r) {
+    if (esAdmin) return true;
+    return r.profesional === usuario?.nombre;
+  }
+
+  function openCrear(consultorio, fecha, hora) {
+    setModal({ mode: "crear", consultorio, fecha });
+    setForm({ profesional: esAdmin ? "" : usuario?.nombre, horaInicio: hora, horaFin: hora + 1, repeteSemanal: false });
+  }
+
+  function openEditar(r) {
+    if (!puedeEditar(r)) return;
+    setModal({ mode: "editar", consultorio: r.consultorio, fecha: new Date(r.fecha + "T12:00:00"), reservaId: r.id });
+    setForm({ profesional: r.profesional, horaInicio: r.horaInicio, horaFin: r.horaFin, repeteSemanal: r.repeteSemanal });
+  }
+
   function closeModal() { setModal(null); }
 
   async function guardarReserva() {
     if (!form.profesional.trim() || form.horaFin <= form.horaInicio) return;
-    const datos = { profesional: form.profesional.trim(), consultorio: modal.consultorio, fecha: dateKey(modal.fecha), horaInicio: parseInt(form.horaInicio), horaFin: parseInt(form.horaFin), repeteSemanal: form.repeteSemanal };
+    const datos = {
+      profesional: form.profesional.trim(),
+      consultorio: modal.consultorio,
+      fecha: dateKey(modal.fecha),
+      horaInicio: parseInt(form.horaInicio),
+      horaFin: parseInt(form.horaFin),
+      repeteSemanal: form.repeteSemanal,
+      creadoPor: usuario?.email
+    };
     if (modal.mode === "crear") { await agregarReserva(datos); showToast("Reserva guardada ✓"); }
     else { await actualizarReserva(modal.reservaId, datos); showToast("Reserva actualizada ✓"); }
     closeModal();
@@ -147,7 +207,7 @@ export default function App() {
 
   function getReservasParaCelda(consultorio, fecha, hora) {
     const key = dateKey(fecha); const diaSemana = fecha.getDay();
-    return reservas.filter(r => {
+    return reservasFiltradas.filter(r => {
       if (r.consultorio !== consultorio || hora < r.horaInicio || hora >= r.horaFin) return false;
       if (r.fecha === key) return true;
       if (r.repeteSemanal) { const orig = new Date(r.fecha + "T12:00:00"); return orig.getDay() === diaSemana && orig <= fecha; }
@@ -157,19 +217,22 @@ export default function App() {
 
   const horasRange = Array.from({ length: 14 }, (_, i) => i + 8);
   const todayKey = dateKey(new Date());
-
   const navBtn = { padding: "6px 13px", borderRadius: 8, border: `1px solid ${t.navBorde}`, background: t.navBg, cursor: "pointer", fontWeight: 800, fontSize: 15, color: t.navTexto };
   const thStyle = { padding: "7px 4px", background: t.thBg, color: t.navTexto, fontSize: 11, fontWeight: 700, borderBottom: `1px solid ${t.borde}`, textAlign: "center" };
   const labelStyle = { display: "block", fontSize: 11, fontWeight: 700, color: t.textoSuave, marginBottom: 4, textTransform: "uppercase", letterSpacing: .5 };
   const inputStyle = { width: "100%", padding: "9px 11px", borderRadius: 8, border: `1px solid ${t.inputBorde}`, fontSize: 13, marginBottom: 14, boxSizing: "border-box", outline: "none", background: t.inputBg, color: t.texto };
 
-  if (cargando) return (
+  // Pantalla de carga inicial
+  if (!authListo) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", flexDirection: "column", gap: 16 }}>
       <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 80, objectFit: "contain", marginBottom: 8 }} />
       <div style={{ width: 40, height: 40, border: "3px solid #333", borderTop: "3px solid white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
+
+  // Pantalla de login
+  if (!usuario) return <Login modoOscuro={modoOscuro} />;
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.texto, position: "relative", transition: "background .3s, color .3s" }}>
@@ -183,19 +246,22 @@ export default function App() {
           {[["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"], ["pagos", "💰 Pagos"]].map(([v, label]) => (
             <button key={v} onClick={() => setVista(v)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: vista === v ? "#4299e1" : "rgba(255,255,255,0.15)", color: "white" }}>{label}</button>
           ))}
-          <button onClick={() => setModoOscuro(m => !m)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 14, background: "rgba(255,255,255,0.1)", color: "white" }} title="Modo oscuro">
-            {modoOscuro ? "☀️" : "🌙"}
-          </button>
+          <button onClick={() => setModoOscuro(m => !m)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, background: "rgba(255,255,255,0.1)", color: "white" }}>{modoOscuro ? "☀️" : "🌙"}</button>
+          <button onClick={logoutUser} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: "rgba(255,255,255,0.1)", color: "white" }}>🚪 Salir</button>
         </div>
       </div>
 
-      {/* LEYENDA */}
-      {profesionales.length > 0 && (
-        <div style={{ background: t.cardBg, borderBottom: `1px solid ${t.borde}`, padding: "8px 16px", display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
-          <span style={{ fontSize: 11, color: t.textoMuy, fontWeight: 600 }}>PROFESIONALES:</span>
-          {profesionales.map(p => { const col = colorMap[p]; return <span key={p} style={{ background: modoOscuro ? "rgba(255,255,255,0.08)" : col.light, color: modoOscuro ? col.bg.includes("667eea") ? "#a78bfa" : "white" : col.text, border: `1px solid ${col.solid}`, borderRadius: 20, padding: "2px 10px", fontSize: 11, fontWeight: 700 }}>{p}</span>; })}
-        </div>
-      )}
+      {/* INFO USUARIO */}
+      <div style={{ background: t.cardBg, borderBottom: `1px solid ${t.borde}`, padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span style={{ fontSize: 11, color: t.textoMuy }}>
+          {esAdmin ? "👑 Admin" : `👤 ${usuario.nombre}`}
+        </span>
+        {esAdmin && profesionales.length > 0 && (
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {profesionales.map(p => { const col = colorMap[p]; return <span key={p} style={{ background: modoOscuro ? "rgba(255,255,255,0.08)" : col.light, color: col.text, border: `1px solid ${col.solid}`, borderRadius: 20, padding: "1px 8px", fontSize: 10, fontWeight: 700 }}>{p}</span>; })}
+          </div>
+        )}
+      </div>
 
       {/* AGENDA */}
       {vista === "agenda" && (
@@ -234,15 +300,22 @@ export default function App() {
                           return (
                             <td key={dateKey(fecha)} onClick={() => libre && openCrear(consultorio, fecha, hora)}
                               style={{ padding: 2, borderBottom: `1px solid ${t.bordeTabla}`, borderLeft: `1px solid ${t.bordeTabla}`, verticalAlign: "top", minWidth: 72, cursor: libre ? "pointer" : "default", background: libre ? (isToday ? t.celdaHoy : t.celdaBg) : undefined }}>
-                              {ocupadas.map(r => { const col = colorMap[r.profesional] || COLORES_PROF[0]; const esInicio = hora === r.horaInicio; return (
-                                <div key={r.id} style={{ background: col.bg, color: "white", borderRadius: esInicio ? "5px 5px 3px 3px" : "3px", padding: esInicio ? "3px 5px 2px" : "1px 5px", fontSize: 10, fontWeight: 700, marginBottom: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                                  {esInicio ? <><span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 55 }}>{r.profesional}</span>
-                                    <span style={{ display: "flex", gap: 2 }}>
-                                      <button onClick={e => { e.stopPropagation(); openEditar(r); }} style={{ background: "rgba(255,255,255,0.25)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✎</button>
-                                      <button onClick={e => { e.stopPropagation(); setConfirmDelete(r.id); }} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✕</button>
-                                    </span></> : <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 8 }}>│</span>}
-                                </div>
-                              ); })}
+                              {ocupadas.map(r => {
+                                const col = colorMap[r.profesional] || COLORES_PROF[0];
+                                const esInicio = hora === r.horaInicio;
+                                const puedeMod = puedeEditar(r);
+                                return (
+                                  <div key={r.id} style={{ background: col.bg, color: "white", borderRadius: esInicio ? "5px 5px 3px 3px" : "3px", padding: esInicio ? "3px 5px 2px" : "1px 5px", fontSize: 10, fontWeight: 700, marginBottom: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                                    {esInicio ? <>
+                                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 55 }}>{r.profesional}</span>
+                                      {puedeMod && <span style={{ display: "flex", gap: 2 }}>
+                                        <button onClick={e => { e.stopPropagation(); openEditar(r); }} style={{ background: "rgba(255,255,255,0.25)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✎</button>
+                                        <button onClick={e => { e.stopPropagation(); setConfirmDelete(r.id); }} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✕</button>
+                                      </span>}
+                                    </> : <span style={{ color: "rgba(255,255,255,0.4)", fontSize: 8 }}>│</span>}
+                                  </div>
+                                );
+                              })}
                               {libre && <div style={{ color: t.textoMuy, fontSize: 9, textAlign: "center", paddingTop: 5 }}>+</div>}
                             </td>
                           );
@@ -321,12 +394,12 @@ export default function App() {
             <span style={{ fontWeight: 700, fontSize: 14, color: t.navTexto, textTransform: "capitalize", minWidth: 160, textAlign: "center" }}>{mesLabel}</span>
             <button onClick={() => setMesOffset(m => m + 1)} style={navBtn}>›</button>
             <button onClick={() => setMesOffset(0)} style={{ ...navBtn, fontSize: 11, padding: "5px 10px" }}>Este mes</button>
-            {profesionales.length > 0 && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#1a1a1a", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
+            {esAdmin && profesionales.length > 0 && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#1a1a1a", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
           </div>
           {profesionales.length === 0 && <div style={{ background: t.cardBg, borderRadius: 12, padding: 36, textAlign: "center", color: t.textoMuy }}><div style={{ fontSize: 44, marginBottom: 10 }}>📋</div><p style={{ margin: 0 }}>Aún no hay reservas.</p></div>}
-          {profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: t.totalBg, borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
+          {esAdmin && profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: t.totalBg, borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
           {profesionales.map(prof => {
-            const { totalMes, detalle } = calcularPagosProfesional(reservas, prof, mesStr);
+            const { totalMes, detalle } = calcularPagosProfesional(esAdmin ? reservas : reservasFiltradas, prof, mesStr);
             const col = colorMap[prof] || COLORES_PROF[0];
             return (
               <div key={prof} style={{ background: t.cardBg, borderRadius: 12, marginBottom: 14, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}>
@@ -370,9 +443,12 @@ export default function App() {
             <h3 style={{ margin: "0 0 3px", fontSize: 17, fontWeight: 800, color: t.texto }}>{modal.mode === "crear" ? "Nueva reserva" : "Editar reserva"}</h3>
             <p style={{ margin: "0 0 18px", fontSize: 12, color: t.textoSuave }}>{modal.consultorio} · {modal.fecha.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}</p>
             <label style={labelStyle}>Profesional</label>
-            <input list="prof-list" value={form.profesional} onChange={e => setForm(f => ({ ...f, profesional: e.target.value }))} placeholder="Nombre del/la profesional" style={inputStyle} />
-            <datalist id="prof-list">{profesionales.map(p => <option key={p} value={p} />)}</datalist>
-            {modal.mode === "editar" && <><label style={labelStyle}>Consultorio</label><select value={modal.consultorio} onChange={e => setModal(m => ({ ...m, consultorio: e.target.value }))} style={inputStyle}>{CONSULTORIOS.map(c => <option key={c} value={c}>{c}</option>)}</select></>}
+            {esAdmin
+              ? <input list="prof-list" value={form.profesional} onChange={e => setForm(f => ({ ...f, profesional: e.target.value }))} placeholder="Nombre del/la profesional" style={inputStyle} />
+              : <div style={{ ...inputStyle, background: t.previewBg, color: t.textoSuave, cursor: "not-allowed", display: "flex", alignItems: "center" }}>{form.profesional}</div>
+            }
+            <datalist id="prof-list">{Object.keys(colorMap).map(p => <option key={p} value={p} />)}</datalist>
+            {modal.mode === "editar" && esAdmin && <><label style={labelStyle}>Consultorio</label><select value={modal.consultorio} onChange={e => setModal(m => ({ ...m, consultorio: e.target.value }))} style={inputStyle}>{CONSULTORIOS.map(c => <option key={c} value={c}>{c}</option>)}</select></>}
             <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
               <div style={{ flex: 1 }}><label style={labelStyle}>Desde</label><select value={form.horaInicio} onChange={e => setForm(f => ({ ...f, horaInicio: parseInt(e.target.value), horaFin: Math.max(parseInt(e.target.value) + 1, f.horaFin) }))} style={inputStyle}>{horasRange.slice(0, -1).map(h => <option key={h} value={h}>{h}:00</option>)}</select></div>
               <div style={{ flex: 1 }}><label style={labelStyle}>Hasta</label><select value={form.horaFin} onChange={e => setForm(f => ({ ...f, horaFin: parseInt(e.target.value) }))} style={inputStyle}>{horasRange.filter(h => h > form.horaInicio).map(h => <option key={h} value={h}>{h}:00</option>)}</select></div>

@@ -105,8 +105,9 @@ function exportarCSV(profesionales, reservas, mesStr) {
 export default function App() {
   const [reservas, setReservas] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [usuario, setUsuario] = useState(null);      // { email, rol, nombre }
+  const [usuario, setUsuario] = useState(null);
   const [authListo, setAuthListo] = useState(false);
+  const [mostrarLogin, setMostrarLogin] = useState(false);
   const [weekOffset, setWeekOffset] = useState(0);
   const [vista, setVista] = useState("agenda");
   const [modal, setModal] = useState(null);
@@ -115,18 +116,20 @@ export default function App() {
   const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [modoOscuro, setModoOscuro] = useState(() => localStorage.getItem("grins_dark") === "1");
+  const [errorSolapamiento, setErrorSolapamiento] = useState("");
 
   const t = modoOscuro ? TEMA.oscuro : TEMA.claro;
   const esAdmin = usuario?.rol === "admin";
+  const esPublico = !usuario;
 
   useEffect(() => { localStorage.setItem("grins_dark", modoOscuro ? "1" : "0"); }, [modoOscuro]);
 
-  // Auth listener
   useEffect(() => {
     return onAuthChanged(async firebaseUser => {
       if (firebaseUser) {
         const data = await getUserData(firebaseUser.email);
         setUsuario({ email: firebaseUser.email, rol: data?.rol || "profesional", nombre: data?.nombre || firebaseUser.email });
+        setMostrarLogin(false);
       } else {
         setUsuario(null);
       }
@@ -134,7 +137,6 @@ export default function App() {
     });
   }, []);
 
-  // Reservas listener
   useEffect(() => {
     const unsub = suscribirReservas(data => { setReservas(data); setCargando(false); });
     return () => unsub();
@@ -144,30 +146,32 @@ export default function App() {
   const mesStr = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + mesOffset); return d.toISOString().slice(0, 7); }, [mesOffset]);
   const mesLabel = useMemo(() => { const [y, m] = mesStr.split("-"); return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString("es-AR", { month: "long", year: "numeric" }); }, [mesStr]);
 
-  // Filtrar reservas según rol
-  const reservasFiltradas = useMemo(() => {
-    if (esAdmin) return reservas;
-    return reservas.filter(r => r.profesional === usuario?.nombre);
-  }, [reservas, esAdmin, usuario]);
-
   const colorMap = useMemo(() => {
-    const map = {};
-    let idx = 0;
-    reservas.forEach(r => {
-      if (r.profesional && !map[r.profesional]) {
-        map[r.profesional] = COLORES_PROF[idx % COLORES_PROF.length];
-        idx++;
-      }
-    });
+    const map = {}; let idx = 0;
+    reservas.forEach(r => { if (r.profesional && !map[r.profesional]) { map[r.profesional] = COLORES_PROF[idx % COLORES_PROF.length]; idx++; } });
     return map;
   }, [reservas]);
 
   const profesionales = useMemo(() => {
     if (esAdmin) return Object.keys(colorMap);
-    return usuario?.nombre ? [usuario.nombre] : [];
+    if (usuario?.nombre) return [usuario.nombre];
+    return [];
   }, [colorMap, esAdmin, usuario]);
 
   const showToast = useCallback((msg, tipo = "ok") => { setToast({ msg, tipo }); setTimeout(() => setToast(null), 2800); }, []);
+
+  // Verificar solapamiento
+  function hayConflicto(consultorio, fecha, horaInicio, horaFin, excludeId = null) {
+    const key = dateKey(fecha);
+    const diaSemana = fecha.getDay();
+    return reservas.some(r => {
+      if (r.id === excludeId) return false;
+      if (r.consultorio !== consultorio) return false;
+      const coincideFecha = r.fecha === key || (r.repeteSemanal && new Date(r.fecha + "T12:00:00").getDay() === diaSemana && new Date(r.fecha + "T12:00:00") <= fecha);
+      if (!coincideFecha) return false;
+      return horaInicio < r.horaFin && horaFin > r.horaInicio;
+    });
+  }
 
   function puedeEditar(r) {
     if (esAdmin) return true;
@@ -175,29 +179,26 @@ export default function App() {
   }
 
   function openCrear(consultorio, fecha, hora) {
+    if (esPublico) { setMostrarLogin(true); return; }
+    setErrorSolapamiento("");
     setModal({ mode: "crear", consultorio, fecha });
     setForm({ profesional: esAdmin ? "" : usuario?.nombre, horaInicio: hora, horaFin: hora + 1, repeteSemanal: false });
   }
 
   function openEditar(r) {
     if (!puedeEditar(r)) return;
+    setErrorSolapamiento("");
     setModal({ mode: "editar", consultorio: r.consultorio, fecha: new Date(r.fecha + "T12:00:00"), reservaId: r.id });
     setForm({ profesional: r.profesional, horaInicio: r.horaInicio, horaFin: r.horaFin, repeteSemanal: r.repeteSemanal });
   }
 
-  function closeModal() { setModal(null); }
+  function closeModal() { setModal(null); setErrorSolapamiento(""); }
 
   async function guardarReserva() {
     if (!form.profesional.trim() || form.horaFin <= form.horaInicio) return;
-    const datos = {
-      profesional: form.profesional.trim(),
-      consultorio: modal.consultorio,
-      fecha: dateKey(modal.fecha),
-      horaInicio: parseInt(form.horaInicio),
-      horaFin: parseInt(form.horaFin),
-      repeteSemanal: form.repeteSemanal,
-      creadoPor: usuario?.email
-    };
+    const conflicto = hayConflicto(modal.consultorio, modal.fecha, parseInt(form.horaInicio), parseInt(form.horaFin), modal.reservaId);
+    if (conflicto) { setErrorSolapamiento("⚠️ Ese horario ya está ocupado en este consultorio. Elegí otro horario."); return; }
+    const datos = { profesional: form.profesional.trim(), consultorio: modal.consultorio, fecha: dateKey(modal.fecha), horaInicio: parseInt(form.horaInicio), horaFin: parseInt(form.horaFin), repeteSemanal: form.repeteSemanal, creadoPor: usuario?.email };
     if (modal.mode === "crear") { await agregarReserva(datos); showToast("Reserva guardada ✓"); }
     else { await actualizarReserva(modal.reservaId, datos); showToast("Reserva actualizada ✓"); }
     closeModal();
@@ -207,7 +208,7 @@ export default function App() {
 
   function getReservasParaCelda(consultorio, fecha, hora) {
     const key = dateKey(fecha); const diaSemana = fecha.getDay();
-    return reservasFiltradas.filter(r => {
+    return reservas.filter(r => {
       if (r.consultorio !== consultorio || hora < r.horaInicio || hora >= r.horaFin) return false;
       if (r.fecha === key) return true;
       if (r.repeteSemanal) { const orig = new Date(r.fecha + "T12:00:00"); return orig.getDay() === diaSemana && orig <= fecha; }
@@ -222,8 +223,7 @@ export default function App() {
   const labelStyle = { display: "block", fontSize: 11, fontWeight: 700, color: t.textoSuave, marginBottom: 4, textTransform: "uppercase", letterSpacing: .5 };
   const inputStyle = { width: "100%", padding: "9px 11px", borderRadius: 8, border: `1px solid ${t.inputBorde}`, fontSize: 13, marginBottom: 14, boxSizing: "border-box", outline: "none", background: t.inputBg, color: t.texto };
 
-  // Pantalla de carga inicial
-  if (!authListo) return (
+  if (!authListo || cargando) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", flexDirection: "column", gap: 16 }}>
       <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 80, objectFit: "contain", marginBottom: 8 }} />
       <div style={{ width: 40, height: 40, border: "3px solid #333", borderTop: "3px solid white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
@@ -231,8 +231,11 @@ export default function App() {
     </div>
   );
 
-  // Pantalla de login
-  if (!usuario) return <Login modoOscuro={modoOscuro} />;
+  if (mostrarLogin) return <Login modoOscuro={modoOscuro} onVolver={() => setMostrarLogin(false)} />;
+
+  const vistasDisponibles = esPublico
+    ? [["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"]]
+    : [["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"], ["pagos", "💰 Pagos"]];
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.texto, position: "relative", transition: "background .3s, color .3s" }}>
@@ -243,18 +246,21 @@ export default function App() {
       <div style={{ background: t.headerBg, padding: "14px 20px", display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 10 }}>
         <img src="/IMG_0050.jpeg" alt="GRINS Consultorios" style={{ height: 64, objectFit: "contain" }} />
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
-          {[["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"], ["pagos", "💰 Pagos"]].map(([v, label]) => (
+          {vistasDisponibles.map(([v, label]) => (
             <button key={v} onClick={() => setVista(v)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: vista === v ? "#4299e1" : "rgba(255,255,255,0.15)", color: "white" }}>{label}</button>
           ))}
           <button onClick={() => setModoOscuro(m => !m)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontSize: 14, background: "rgba(255,255,255,0.1)", color: "white" }}>{modoOscuro ? "☀️" : "🌙"}</button>
-          <button onClick={logoutUser} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: "rgba(255,255,255,0.1)", color: "white" }}>🚪 Salir</button>
+          {usuario
+            ? <button onClick={logoutUser} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: "rgba(255,255,255,0.1)", color: "white" }}>🚪 Salir</button>
+            : <button onClick={() => setMostrarLogin(true)} style={{ padding: "8px 12px", borderRadius: 8, border: "none", cursor: "pointer", fontWeight: 700, fontSize: 11, background: "rgba(255,255,255,0.2)", color: "white" }}>🔑 Ingresar</button>
+          }
         </div>
       </div>
 
-      {/* INFO USUARIO */}
+      {/* BARRA DE ESTADO */}
       <div style={{ background: t.cardBg, borderBottom: `1px solid ${t.borde}`, padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: 11, color: t.textoMuy }}>
-          {esAdmin ? "👑 Admin" : `👤 ${usuario.nombre}`}
+          {esPublico ? "👁 Modo solo lectura — iniciá sesión para reservar" : esAdmin ? "👑 Admin" : `👤 ${usuario.nombre}`}
         </span>
         {esAdmin && profesionales.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
@@ -299,7 +305,7 @@ export default function App() {
                           const libre = ocupadas.length === 0;
                           return (
                             <td key={dateKey(fecha)} onClick={() => libre && openCrear(consultorio, fecha, hora)}
-                              style={{ padding: 2, borderBottom: `1px solid ${t.bordeTabla}`, borderLeft: `1px solid ${t.bordeTabla}`, verticalAlign: "top", minWidth: 72, cursor: libre ? "pointer" : "default", background: libre ? (isToday ? t.celdaHoy : t.celdaBg) : undefined }}>
+                              style={{ padding: 2, borderBottom: `1px solid ${t.bordeTabla}`, borderLeft: `1px solid ${t.bordeTabla}`, verticalAlign: "top", minWidth: 72, cursor: libre && !esPublico ? "pointer" : libre && esPublico ? "default" : "default", background: libre ? (isToday ? t.celdaHoy : t.celdaBg) : undefined }}>
                               {ocupadas.map(r => {
                                 const col = colorMap[r.profesional] || COLORES_PROF[0];
                                 const esInicio = hora === r.horaInicio;
@@ -308,7 +314,7 @@ export default function App() {
                                   <div key={r.id} style={{ background: col.bg, color: "white", borderRadius: esInicio ? "5px 5px 3px 3px" : "3px", padding: esInicio ? "3px 5px 2px" : "1px 5px", fontSize: 10, fontWeight: 700, marginBottom: 1, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                     {esInicio ? <>
                                       <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 55 }}>{r.profesional}</span>
-                                      {puedeMod && <span style={{ display: "flex", gap: 2 }}>
+                                      {puedeMod && !esPublico && <span style={{ display: "flex", gap: 2 }}>
                                         <button onClick={e => { e.stopPropagation(); openEditar(r); }} style={{ background: "rgba(255,255,255,0.25)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✎</button>
                                         <button onClick={e => { e.stopPropagation(); setConfirmDelete(r.id); }} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", cursor: "pointer", borderRadius: 3, padding: "0 3px", fontSize: 9, lineHeight: "14px" }}>✕</button>
                                       </span>}
@@ -316,7 +322,8 @@ export default function App() {
                                   </div>
                                 );
                               })}
-                              {libre && <div style={{ color: t.textoMuy, fontSize: 9, textAlign: "center", paddingTop: 5 }}>+</div>}
+                              {libre && !esPublico && <div style={{ color: t.textoMuy, fontSize: 9, textAlign: "center", paddingTop: 5 }}>+</div>}
+                              {libre && esPublico && <div style={{ color: t.bordeTabla, fontSize: 9, textAlign: "center", paddingTop: 5 }}>·</div>}
                             </td>
                           );
                         })}
@@ -364,7 +371,7 @@ export default function App() {
                         const libre = ocupadas.length === 0;
                         return (
                           <td key={`${dateKey(fecha)}-${consultorio}`} onClick={() => libre && openCrear(consultorio, fecha, hora)}
-                            style={{ padding: 1, borderBottom: `1px solid ${t.bordeTabla}`, borderLeft: i === 0 ? `2px solid ${t.borde}` : `1px solid ${t.bordeTabla}`, verticalAlign: "top", minWidth: 48, cursor: libre ? "pointer" : "default", background: libre ? (isToday ? t.celdaHoy : t.celdaBg) : undefined }}>
+                            style={{ padding: 1, borderBottom: `1px solid ${t.bordeTabla}`, borderLeft: i === 0 ? `2px solid ${t.borde}` : `1px solid ${t.bordeTabla}`, verticalAlign: "top", minWidth: 48, cursor: libre && !esPublico ? "pointer" : "default", background: libre ? (isToday ? t.celdaHoy : t.celdaBg) : undefined }}>
                             {ocupadas.map(r => { const col = colorMap[r.profesional] || COLORES_PROF[0]; const esInicio = hora === r.horaInicio; return (
                               <div key={r.id} title={`${r.profesional} · ${consultorio}`} style={{ background: col.bg, color: "white", borderRadius: 3, padding: esInicio ? "2px 3px" : "1px 3px", fontSize: 9, fontWeight: 700, marginBottom: 1 }}>
                                 {esInicio ? <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "block", maxWidth: 44 }}>{r.profesional}</span> : <span style={{ color: "rgba(255,255,255,0.4)" }}>│</span>}
@@ -386,20 +393,20 @@ export default function App() {
         </div>
       )}
 
-      {/* PAGOS */}
-      {vista === "pagos" && (
+      {/* PAGOS — solo usuarios logueados */}
+      {vista === "pagos" && !esPublico && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
             <button onClick={() => setMesOffset(m => m - 1)} style={navBtn}>‹</button>
             <span style={{ fontWeight: 700, fontSize: 14, color: t.navTexto, textTransform: "capitalize", minWidth: 160, textAlign: "center" }}>{mesLabel}</span>
             <button onClick={() => setMesOffset(m => m + 1)} style={navBtn}>›</button>
             <button onClick={() => setMesOffset(0)} style={{ ...navBtn, fontSize: 11, padding: "5px 10px" }}>Este mes</button>
-            {esAdmin && profesionales.length > 0 && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#1a1a1a", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
+            {esAdmin && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#1a1a1a", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
           </div>
           {profesionales.length === 0 && <div style={{ background: t.cardBg, borderRadius: 12, padding: 36, textAlign: "center", color: t.textoMuy }}><div style={{ fontSize: 44, marginBottom: 10 }}>📋</div><p style={{ margin: 0 }}>Aún no hay reservas.</p></div>}
           {esAdmin && profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: t.totalBg, borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
           {profesionales.map(prof => {
-            const { totalMes, detalle } = calcularPagosProfesional(esAdmin ? reservas : reservasFiltradas, prof, mesStr);
+            const { totalMes, detalle } = calcularPagosProfesional(reservas, prof, mesStr);
             const col = colorMap[prof] || COLORES_PROF[0];
             return (
               <div key={prof} style={{ background: t.cardBg, borderRadius: 12, marginBottom: 14, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}>
@@ -450,8 +457,8 @@ export default function App() {
             <datalist id="prof-list">{Object.keys(colorMap).map(p => <option key={p} value={p} />)}</datalist>
             {modal.mode === "editar" && esAdmin && <><label style={labelStyle}>Consultorio</label><select value={modal.consultorio} onChange={e => setModal(m => ({ ...m, consultorio: e.target.value }))} style={inputStyle}>{CONSULTORIOS.map(c => <option key={c} value={c}>{c}</option>)}</select></>}
             <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
-              <div style={{ flex: 1 }}><label style={labelStyle}>Desde</label><select value={form.horaInicio} onChange={e => setForm(f => ({ ...f, horaInicio: parseInt(e.target.value), horaFin: Math.max(parseInt(e.target.value) + 1, f.horaFin) }))} style={inputStyle}>{horasRange.slice(0, -1).map(h => <option key={h} value={h}>{h}:00</option>)}</select></div>
-              <div style={{ flex: 1 }}><label style={labelStyle}>Hasta</label><select value={form.horaFin} onChange={e => setForm(f => ({ ...f, horaFin: parseInt(e.target.value) }))} style={inputStyle}>{horasRange.filter(h => h > form.horaInicio).map(h => <option key={h} value={h}>{h}:00</option>)}</select></div>
+              <div style={{ flex: 1 }}><label style={labelStyle}>Desde</label><select value={form.horaInicio} onChange={e => { setForm(f => ({ ...f, horaInicio: parseInt(e.target.value), horaFin: Math.max(parseInt(e.target.value) + 1, f.horaFin) })); setErrorSolapamiento(""); }}  style={inputStyle}>{horasRange.slice(0, -1).map(h => <option key={h} value={h}>{h}:00</option>)}</select></div>
+              <div style={{ flex: 1 }}><label style={labelStyle}>Hasta</label><select value={form.horaFin} onChange={e => { setForm(f => ({ ...f, horaFin: parseInt(e.target.value) })); setErrorSolapamiento(""); }} style={inputStyle}>{horasRange.filter(h => h > form.horaInicio).map(h => <option key={h} value={h}>{h}:00</option>)}</select></div>
             </div>
             <div style={{ background: t.previewBg, borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
               <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, color: t.textoSuave }}>
@@ -459,6 +466,11 @@ export default function App() {
                 <span style={{ fontWeight: 800, color: t.texto, fontSize: 15 }}>{formatCurrency((form.horaFin - form.horaInicio) * HORA_PRECIO)}</span>
               </div>
             </div>
+            {errorSolapamiento && (
+              <div style={{ background: "#fff5f5", border: "1px solid #fc8181", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: "#c53030", fontWeight: 600 }}>
+                {errorSolapamiento}
+              </div>
+            )}
             <label style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer", marginBottom: 20 }}>
               <input type="checkbox" checked={form.repeteSemanal} onChange={e => setForm(f => ({ ...f, repeteSemanal: e.target.checked }))} style={{ width: 16, height: 16 }} />
               <span style={{ fontSize: 13, color: t.texto }}>Repetir semanalmente</span>

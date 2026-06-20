@@ -30,7 +30,7 @@ const TEMA = {
     previewBg: "#f7fafc", totalBg: "#1a1a1a",
   },
   oscuro: {
-    bg: "#0f1117", cardBg: "#1e2130", headerBg: "#0a0a0a",
+    bg: "#0a0a0a", cardBg: "#111318", headerBg: "#000000",
     texto: "#e2e8f0", textoSuave: "#a0aec0", textoMuy: "#718096",
     borde: "#2d3748", bordeTabla: "#2d3748",
     celdaBg: "#1e2130", celdaHoy: "#1a2744", thBg: "#171923",
@@ -115,7 +115,7 @@ export default function App() {
   const [mesOffset, setMesOffset] = useState(0);
   const [toast, setToast] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
-  const [modoOscuro, setModoOscuro] = useState(() => localStorage.getItem("grins_dark") === "1");
+  const [modoOscuro, setModoOscuro] = useState(() => localStorage.getItem("grins_dark") !== "0");
   const [errorSolapamiento, setErrorSolapamiento] = useState("");
 
   const t = modoOscuro ? TEMA.oscuro : TEMA.claro;
@@ -224,7 +224,7 @@ export default function App() {
   const inputStyle = { width: "100%", padding: "9px 11px", borderRadius: 8, border: `1px solid ${t.inputBorde}`, fontSize: 13, marginBottom: 14, boxSizing: "border-box", outline: "none", background: t.inputBg, color: t.texto };
 
   if (!authListo || cargando) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#1a1a1a", flexDirection: "column", gap: 16 }}>
+    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#000000", flexDirection: "column", gap: 16 }}>
       <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 80, objectFit: "contain", marginBottom: 8 }} />
       <div style={{ width: 40, height: 40, border: "3px solid #333", borderTop: "3px solid white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>

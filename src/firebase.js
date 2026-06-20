@@ -47,6 +47,9 @@ export async function eliminarReserva(id) {
 
 export function suscribirReservas(callback) {
   return onSnapshot(reservasCol, snap => {
-    callback(snap.docs.map(d => ({ ...d.data(), id: d.id })));
+   callback(snap.docs.map(d => ({ ...d.data(), id: d.id })).sort((a, b) => {
+  if (a.fecha !== b.fecha) return a.fecha.localeCompare(b.fecha);
+  return a.horaInicio - b.horaInicio;
+}));
   });
 }

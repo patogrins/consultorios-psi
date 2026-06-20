@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { agregarReserva, actualizarReserva, eliminarReserva, suscribirReservas, onAuthChanged, getUserData, logoutUser } from "./firebase";
 import Login from "./Login";
+import Derivaciones from "./Derivaciones";
 
 const HORA_PRECIO = 3500;
 const HORAS = Array.from({ length: 14 }, (_, i) => i + 8);
@@ -245,9 +246,9 @@ export default function App() {
 
   if (mostrarLogin) return <Login modoOscuro={modoOscuro} onVolver={() => setMostrarLogin(false)} />;
 
-  const vistasDisponibles = esPublico
-    ? [["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"]]
-    : [["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"], ["pagos", "💰 Pagos"]];
+const vistasDisponibles = esPublico
+  ? [["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"]]
+  : [["agenda", "📅 Agenda"], ["unificado", "🗓 Vista general"], ["pagos", "💰 Pagos"], ["derivaciones", "🔄 Derivaciones"]];
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.texto, position: "relative", transition: "background .3s, color .3s" }}>
@@ -487,7 +488,10 @@ export default function App() {
         </div>
       )}
 
-      {/* MODAL CREAR/EDITAR */}
+      {/* DERIVACIONES */}
+{vista === "derivaciones" && !esPublico && (
+  <Derivaciones usuario={usuario} t={t} modoOscuro={modoOscuro} />
+)}
       {modal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
           <div style={{ background: t.cardBg, borderRadius: 18, padding: 24, width: "100%", maxWidth: 390, boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}>

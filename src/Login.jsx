@@ -20,7 +20,7 @@ export default function Login({ modoOscuro, onVolver }) {
 
   return (
     <div style={{ minHeight: "100vh", background: t.bg, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 24 }}>
-      <div style={{ background: "#1a1a1a", padding: "24px 32px", borderRadius: 16, marginBottom: 32, textAlign: "center" }}>
+      <div style={{ background: "#000000", padding: "24px 32px", borderRadius: 16, marginBottom: 32, textAlign: "center" }}>
         <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 70, objectFit: "contain" }} />
       </div>
       <div style={{ background: t.card, borderRadius: 18, padding: 28, width: "100%", maxWidth: 360, boxShadow: "0 8px 32px rgba(0,0,0,0.12)" }}>

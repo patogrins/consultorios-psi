@@ -20,24 +20,24 @@ const COLORES_PROF = [
 
 const TEMA = {
   claro: {
-    bg: "#f0f4f8", cardBg: "white", headerBg: "#1a1a1a",
+    bg: "#f0f4f8", cardBg: "white", headerBg: "#000000",
     texto: "#1a202c", textoSuave: "#718096", textoMuy: "#a0aec0",
     borde: "#e2e8f0", bordeTabla: "#edf2f7",
     celdaBg: "white", celdaHoy: "#eff6ff", thBg: "#f7fafc",
     thHoy: "#dbeafe", thHoyTexto: "#2b6cb0",
     navBg: "white", navBorde: "#cbd5e0", navTexto: "#4a5568",
     inputBg: "white", inputBorde: "#e2e8f0",
-    previewBg: "#f7fafc", totalBg: "#1a1a1a",
+    previewBg: "#f7fafc", totalBg: "#000000",
   },
   oscuro: {
     bg: "#0a0a0a", cardBg: "#111318", headerBg: "#000000",
     texto: "#e2e8f0", textoSuave: "#a0aec0", textoMuy: "#718096",
     borde: "#2d3748", bordeTabla: "#2d3748",
-    celdaBg: "#1e2130", celdaHoy: "#1a2744", thBg: "#171923",
+    celdaBg: "#111318", celdaHoy: "#1a2744", thBg: "#0a0a0a",
     thHoy: "#1a2744", thHoyTexto: "#90cdf4",
     navBg: "#2d3748", navBorde: "#4a5568", navTexto: "#e2e8f0",
     inputBg: "#2d3748", inputBorde: "#4a5568",
-    previewBg: "#171923", totalBg: "#0a0a0a",
+    previewBg: "#0a0a0a", totalBg: "#000000",
   }
 };
 
@@ -117,12 +117,25 @@ export default function App() {
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [modoOscuro, setModoOscuro] = useState(() => localStorage.getItem("grins_dark") !== "0");
   const [errorSolapamiento, setErrorSolapamiento] = useState("");
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [mostrarBannerIOS, setMostrarBannerIOS] = useState(() => {
+    const isIOS = /iphone|ipad|ipod/i.test(navigator.userAgent);
+    const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
+    const yaVisto = localStorage.getItem("grins_ios_banner") === "1";
+    return isIOS && !isStandalone && !yaVisto;
+  });
 
   const t = modoOscuro ? TEMA.oscuro : TEMA.claro;
   const esAdmin = usuario?.rol === "admin";
   const esPublico = !usuario;
 
   useEffect(() => { localStorage.setItem("grins_dark", modoOscuro ? "1" : "0"); }, [modoOscuro]);
+
+  useEffect(() => {
+    const handler = e => { e.preventDefault(); setInstallPrompt(e); };
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
+  }, []);
 
   useEffect(() => {
     return onAuthChanged(async firebaseUser => {
@@ -160,7 +173,6 @@ export default function App() {
 
   const showToast = useCallback((msg, tipo = "ok") => { setToast({ msg, tipo }); setTimeout(() => setToast(null), 2800); }, []);
 
-  // Verificar solapamiento
   function hayConflicto(consultorio, fecha, horaInicio, horaFin, excludeId = null) {
     const key = dateKey(fecha);
     const diaSemana = fecha.getDay();
@@ -226,7 +238,7 @@ export default function App() {
   if (!authListo || cargando) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#000000", flexDirection: "column", gap: 16 }}>
       <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 80, objectFit: "contain", marginBottom: 8 }} />
-      <div style={{ width: 40, height: 40, border: "3px solid #333", borderTop: "3px solid white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+      <div style={{ width: 40, height: 40, border: "3px solid #222", borderTop: "3px solid white", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
@@ -239,6 +251,38 @@ export default function App() {
 
   return (
     <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.texto, position: "relative", transition: "background .3s, color .3s" }}>
+
+      {/* BANNER ANDROID/PC */}
+      {installPrompt && (
+        <div style={{ position: "fixed", bottom: 20, left: 16, right: 16, zIndex: 9998, background: "linear-gradient(135deg,#667eea,#764ba2)", borderRadius: 14, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+          <div>
+            <div style={{ color: "white", fontWeight: 800, fontSize: 13 }}>📲 Instalá GRINS como app</div>
+            <div style={{ color: "rgba(255,255,255,0.8)", fontSize: 11, marginTop: 2 }}>Accedé más rápido desde tu pantalla de inicio</div>
+          </div>
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <button onClick={() => setInstallPrompt(null)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "transparent", color: "white", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Ahora no</button>
+            <button onClick={async () => { installPrompt.prompt(); const { outcome } = await installPrompt.userChoice; if (outcome === "accepted") setInstallPrompt(null); }} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "white", color: "#764ba2", fontSize: 11, cursor: "pointer", fontWeight: 800 }}>Instalar ✓</button>
+          </div>
+        </div>
+      )}
+
+      {/* BANNER IOS */}
+      {mostrarBannerIOS && (
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9998, background: "#111318", borderTop: "1px solid #2d3748", padding: "16px 20px 36px", boxShadow: "0 -8px 32px rgba(0,0,0,0.5)" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <span style={{ color: "white", fontWeight: 800, fontSize: 14 }}>📲 Instalá GRINS en tu iPhone</span>
+            <button onClick={() => { setMostrarBannerIOS(false); localStorage.setItem("grins_ios_banner", "1"); }} style={{ background: "none", border: "none", color: "#a0aec0", fontSize: 22, cursor: "pointer", lineHeight: 1 }}>✕</button>
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {[["1", "Tocá el botón Compartir ⎋ en la barra de Safari"], ["2", 'Elegí "Agregar a pantalla de inicio"'], ["3", 'Tocá "Agregar" y listo 🎉']].map(([n, txt]) => (
+              <div key={n} style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ width: 28, height: 28, background: "#2d3748", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{n}</div>
+                <span style={{ color: "#e2e8f0", fontSize: 13 }} dangerouslySetInnerHTML={{ __html: txt.replace(/(".*?")/g, '<strong style="color:white">$1</strong>') }} />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {toast && <div style={{ position: "fixed", top: 16, right: 16, zIndex: 9999, background: toast.tipo === "warn" ? "#744210" : "#1a4731", color: "white", padding: "10px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 20px rgba(0,0,0,0.25)" }}>{toast.msg}</div>}
 
@@ -257,7 +301,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* BARRA DE ESTADO */}
+      {/* BARRA ESTADO */}
       <div style={{ background: t.cardBg, borderBottom: `1px solid ${t.borde}`, padding: "6px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ fontSize: 11, color: t.textoMuy }}>
           {esPublico ? "👁 Modo solo lectura — iniciá sesión para reservar" : esAdmin ? "👑 Admin" : `👤 ${usuario.nombre}`}
@@ -279,8 +323,8 @@ export default function App() {
             <button onClick={() => setWeekOffset(0)} style={{ ...navBtn, fontSize: 11, padding: "5px 10px" }}>Hoy</button>
           </div>
           {CONSULTORIOS.map(consultorio => (
-            <div key={consultorio} style={{ background: t.cardBg, borderRadius: 12, marginBottom: 18, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}>
-              <div style={{ background: modoOscuro ? "#0a0a0a" : "#1a1a1a", color: "white", padding: "9px 14px", fontWeight: 800, fontSize: 13 }}>🏢 {consultorio}</div>
+            <div key={consultorio} style={{ background: t.cardBg, borderRadius: 12, marginBottom: 18, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
+              <div style={{ background: "#000000", color: "white", padding: "9px 14px", fontWeight: 800, fontSize: 13 }}>🏢 {consultorio}</div>
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 540 }}>
                   <thead>
@@ -305,7 +349,7 @@ export default function App() {
                           const libre = ocupadas.length === 0;
                           return (
                             <td key={dateKey(fecha)} onClick={() => libre && openCrear(consultorio, fecha, hora)}
-                              style={{ padding: 2, borderBottom: `1px solid ${t.bordeTabla}`, borderLeft: `1px solid ${t.bordeTabla}`, verticalAlign: "top", minWidth: 72, cursor: libre && !esPublico ? "pointer" : libre && esPublico ? "default" : "default", background: libre ? (isToday ? t.celdaHoy : t.celdaBg) : undefined }}>
+                              style={{ padding: 2, borderBottom: `1px solid ${t.bordeTabla}`, borderLeft: `1px solid ${t.bordeTabla}`, verticalAlign: "top", minWidth: 72, cursor: libre && !esPublico ? "pointer" : "default", background: libre ? (isToday ? t.celdaHoy : t.celdaBg) : undefined }}>
                               {ocupadas.map(r => {
                                 const col = colorMap[r.profesional] || COLORES_PROF[0];
                                 const esInicio = hora === r.horaInicio;
@@ -346,7 +390,7 @@ export default function App() {
             <button onClick={() => setWeekOffset(w => w + 1)} style={navBtn}>›</button>
             <button onClick={() => setWeekOffset(0)} style={{ ...navBtn, fontSize: 11, padding: "5px 10px" }}>Hoy</button>
           </div>
-          <div style={{ background: t.cardBg, borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}>
+          <div style={{ background: t.cardBg, borderRadius: 12, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 600 }}>
                 <thead>
@@ -393,7 +437,7 @@ export default function App() {
         </div>
       )}
 
-      {/* PAGOS — solo usuarios logueados */}
+      {/* PAGOS */}
       {vista === "pagos" && !esPublico && (
         <div style={{ padding: "16px 12px" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 16 }}>
@@ -401,7 +445,7 @@ export default function App() {
             <span style={{ fontWeight: 700, fontSize: 14, color: t.navTexto, textTransform: "capitalize", minWidth: 160, textAlign: "center" }}>{mesLabel}</span>
             <button onClick={() => setMesOffset(m => m + 1)} style={navBtn}>›</button>
             <button onClick={() => setMesOffset(0)} style={{ ...navBtn, fontSize: 11, padding: "5px 10px" }}>Este mes</button>
-            {esAdmin && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#1a1a1a", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
+            {esAdmin && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ marginLeft: "auto", padding: "7px 14px", borderRadius: 8, border: "none", background: "#000000", color: "white", fontSize: 12, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
           </div>
           {profesionales.length === 0 && <div style={{ background: t.cardBg, borderRadius: 12, padding: 36, textAlign: "center", color: t.textoMuy }}><div style={{ fontSize: 44, marginBottom: 10 }}>📋</div><p style={{ margin: 0 }}>Aún no hay reservas.</p></div>}
           {esAdmin && profesionales.length > 0 && (() => { const totalGlobal = profesionales.reduce((acc, p) => acc + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: t.totalBg, borderRadius: 12, padding: "14px 18px", marginBottom: 16, display: "flex", justifyContent: "space-between", alignItems: "center" }}><span style={{ color: "#90cdf4", fontWeight: 700, fontSize: 13 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 22 }}>{formatCurrency(totalGlobal)}</span></div>; })()}
@@ -409,7 +453,7 @@ export default function App() {
             const { totalMes, detalle } = calcularPagosProfesional(reservas, prof, mesStr);
             const col = colorMap[prof] || COLORES_PROF[0];
             return (
-              <div key={prof} style={{ background: t.cardBg, borderRadius: 12, marginBottom: 14, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.12)" }}>
+              <div key={prof} style={{ background: t.cardBg, borderRadius: 12, marginBottom: 14, overflow: "hidden", boxShadow: "0 2px 8px rgba(0,0,0,0.2)" }}>
                 <div style={{ background: col.bg, padding: "11px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                   <span style={{ color: "white", fontWeight: 800, fontSize: 14 }}>👤 {prof}</span>
                   <span style={{ color: "white", fontWeight: 900, fontSize: 19 }}>{formatCurrency(totalMes)}</span>
@@ -445,8 +489,8 @@ export default function App() {
 
       {/* MODAL CREAR/EDITAR */}
       {modal && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
-          <div style={{ background: t.cardBg, borderRadius: 18, padding: 24, width: "100%", maxWidth: 390, boxShadow: "0 24px 60px rgba(0,0,0,0.4)" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000, padding: 16 }}>
+          <div style={{ background: t.cardBg, borderRadius: 18, padding: 24, width: "100%", maxWidth: 390, boxShadow: "0 24px 60px rgba(0,0,0,0.5)" }}>
             <h3 style={{ margin: "0 0 3px", fontSize: 17, fontWeight: 800, color: t.texto }}>{modal.mode === "crear" ? "Nueva reserva" : "Editar reserva"}</h3>
             <p style={{ margin: "0 0 18px", fontSize: 12, color: t.textoSuave }}>{modal.consultorio} · {modal.fecha.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}</p>
             <label style={labelStyle}>Profesional</label>
@@ -457,7 +501,7 @@ export default function App() {
             <datalist id="prof-list">{Object.keys(colorMap).map(p => <option key={p} value={p} />)}</datalist>
             {modal.mode === "editar" && esAdmin && <><label style={labelStyle}>Consultorio</label><select value={modal.consultorio} onChange={e => setModal(m => ({ ...m, consultorio: e.target.value }))} style={inputStyle}>{CONSULTORIOS.map(c => <option key={c} value={c}>{c}</option>)}</select></>}
             <div style={{ display: "flex", gap: 12, marginBottom: 14 }}>
-              <div style={{ flex: 1 }}><label style={labelStyle}>Desde</label><select value={form.horaInicio} onChange={e => { setForm(f => ({ ...f, horaInicio: parseInt(e.target.value), horaFin: Math.max(parseInt(e.target.value) + 1, f.horaFin) })); setErrorSolapamiento(""); }}  style={inputStyle}>{horasRange.slice(0, -1).map(h => <option key={h} value={h}>{h}:00</option>)}</select></div>
+              <div style={{ flex: 1 }}><label style={labelStyle}>Desde</label><select value={form.horaInicio} onChange={e => { setForm(f => ({ ...f, horaInicio: parseInt(e.target.value), horaFin: Math.max(parseInt(e.target.value) + 1, f.horaFin) })); setErrorSolapamiento(""); }} style={inputStyle}>{horasRange.slice(0, -1).map(h => <option key={h} value={h}>{h}:00</option>)}</select></div>
               <div style={{ flex: 1 }}><label style={labelStyle}>Hasta</label><select value={form.horaFin} onChange={e => { setForm(f => ({ ...f, horaFin: parseInt(e.target.value) })); setErrorSolapamiento(""); }} style={inputStyle}>{horasRange.filter(h => h > form.horaInicio).map(h => <option key={h} value={h}>{h}:00</option>)}</select></div>
             </div>
             <div style={{ background: t.previewBg, borderRadius: 10, padding: "10px 14px", marginBottom: 14 }}>
@@ -467,7 +511,7 @@ export default function App() {
               </div>
             </div>
             {errorSolapamiento && (
-              <div style={{ background: "#fff5f5", border: "1px solid #fc8181", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: "#c53030", fontWeight: 600 }}>
+              <div style={{ background: "#2d1010", border: "1px solid #fc8181", borderRadius: 8, padding: "8px 12px", marginBottom: 14, fontSize: 12, color: "#fc8181", fontWeight: 600 }}>
                 {errorSolapamiento}
               </div>
             )}
@@ -485,8 +529,8 @@ export default function App() {
 
       {/* MODAL ELIMINAR */}
       {confirmDelete && (
-        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1010, padding: 16 }}>
-          <div style={{ background: t.cardBg, borderRadius: 16, padding: 24, maxWidth: 340, width: "100%", textAlign: "center", boxShadow: "0 20px 50px rgba(0,0,0,0.4)" }}>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.75)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1010, padding: 16 }}>
+          <div style={{ background: t.cardBg, borderRadius: 16, padding: 24, maxWidth: 340, width: "100%", textAlign: "center", boxShadow: "0 20px 50px rgba(0,0,0,0.5)" }}>
             <div style={{ fontSize: 36, marginBottom: 10 }}>🗑️</div>
             <h3 style={{ margin: "0 0 8px", fontSize: 16, fontWeight: 800, color: t.texto }}>¿Eliminar esta reserva?</h3>
             <p style={{ margin: "0 0 20px", fontSize: 13, color: t.textoSuave }}>Esta acción no se puede deshacer.</p>

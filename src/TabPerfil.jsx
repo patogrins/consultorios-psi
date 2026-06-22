@@ -1,11 +1,37 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
+import { db } from "./firebase";
+import { doc, updateDoc, getDoc } from "firebase/firestore";
 
 function dateKey(date) { return date.toISOString().slice(0, 10); }
 function formatCurrency(n) { return "$" + n.toLocaleString("es-AR"); }
 
 export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, onLogin, onLogout }) {
-
   const mesStr = new Date().toISOString().slice(0, 7);
+  const [telefono, setTelefono] = useState("");
+  const [telefonoEdit, setTelefonoEdit] = useState("");
+  const [editando, setEditando] = useState(false);
+  const [guardando, setGuardando] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  useEffect(() => {
+    if (!usuario) return;
+    getDoc(doc(db, "usuarios", usuario.email)).then(snap => {
+      if (snap.exists()) {
+        setTelefono(snap.data().telefono || "");
+        setTelefonoEdit(snap.data().telefono || "");
+      }
+    });
+  }, [usuario]);
+
+  async function guardarTelefono() {
+    setGuardando(true);
+    await updateDoc(doc(db, "usuarios", usuario.email), { telefono: telefonoEdit.trim() });
+    setTelefono(telefonoEdit.trim());
+    setEditando(false);
+    setGuardando(false);
+    setToast("Teléfono guardado ✓");
+    setTimeout(() => setToast(null), 2500);
+  }
 
   const misReservas = useMemo(() => {
     if (!usuario) return [];
@@ -57,6 +83,8 @@ export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, on
   return (
     <div className="tab-content" style={{ minHeight: "100vh", background: t.bg }}>
 
+      {toast && <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: "#14532d", color: "white", padding: "10px 20px", borderRadius: 30, fontSize: 13, fontWeight: 600, whiteSpace: "nowrap" }}>{toast}</div>}
+
       {/* HEADER */}
       <div style={{ padding: "56px 20px 24px", background: "linear-gradient(180deg,#0d0d1a 0%,#000 100%)" }}>
         <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 28, objectFit: "contain", marginBottom: 20, opacity: 0.8 }} />
@@ -66,7 +94,7 @@ export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, on
           </div>
           <div>
             <h1 style={{ margin: "0 0 4px", fontSize: 22, fontWeight: 800, color: "white" }}>{usuario.nombre}</h1>
-            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
               <span style={{ fontSize: 12, color: t.textoSuave }}>{usuario.email}</span>
               {esAdmin && <span style={{ background: "linear-gradient(135deg,#667eea,#764ba2)", color: "white", borderRadius: 20, padding: "2px 10px", fontSize: 10, fontWeight: 700 }}>👑 Admin</span>}
             </div>
@@ -80,12 +108,12 @@ export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, on
         {!esAdmin && (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 10, marginBottom: 20 }}>
             {[
-              { label: "Horas este mes", value: horasMes, suffix: "h" },
-              { label: "Facturado", value: formatCurrency(montoMes), suffix: "" },
-              { label: "Reservas activas", value: misReservas.length, suffix: "" },
-            ].map(({ label, value, suffix }) => (
-              <div key={label} style={{ background: t.bgCard, borderRadius: 14, padding: "14px 12px", border: `1px solid ${t.borde}`, textAlign: "center" }}>
-                <div style={{ fontSize: 18, fontWeight: 900, color: t.texto, marginBottom: 4 }}>{value}{suffix}</div>
+              { label: "Horas este mes", value: `${horasMes}h` },
+              { label: "Facturado", value: formatCurrency(montoMes) },
+              { label: "Reservas activas", value: misReservas.length },
+            ].map(({ label, value }) => (
+              <div key={label} style={{ background: t.bgCard, borderRadius: 14, padding: "14px 10px", border: `1px solid ${t.borde}`, textAlign: "center" }}>
+                <div style={{ fontSize: 17, fontWeight: 900, color: t.texto, marginBottom: 4 }}>{value}</div>
                 <div style={{ fontSize: 10, color: t.textoMuy, lineHeight: 1.3 }}>{label}</div>
               </div>
             ))}
@@ -94,7 +122,7 @@ export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, on
 
         {/* PRÓXIMA RESERVA */}
         {!esAdmin && proximaReserva && (
-          <div style={{ background: t.bgCard, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${t.borde}`, position: "relative", overflow: "hidden" }}>
+          <div style={{ background: t.bgCard, borderRadius: 16, padding: 16, marginBottom: 16, border: `1px solid ${t.borde}`, position: "relative", overflow: "hidden" }}>
             <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 3, background: "linear-gradient(135deg,#667eea,#764ba2)" }} />
             <div style={{ fontSize: 11, fontWeight: 700, color: t.acento, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Próxima reserva</div>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
@@ -113,10 +141,17 @@ export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, on
           </div>
         )}
 
-        {/* INFO CUENTA */}
+        {/* DATOS DE CONTACTO */}
         <div style={{ background: t.bgCard, borderRadius: 16, overflow: "hidden", marginBottom: 16, border: `1px solid ${t.borde}` }}>
-          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${t.borde}` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: t.textoMuy, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Cuenta</div>
+          <div style={{ padding: "12px 16px", borderBottom: `1px solid ${t.borde}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: t.textoMuy, textTransform: "uppercase", letterSpacing: 1 }}>Mis datos</span>
+            {!editando && (
+              <button onClick={() => setEditando(true)} style={{ padding: "4px 12px", borderRadius: 20, border: `1px solid ${t.acento}`, background: "transparent", color: t.acento, fontSize: 11, fontWeight: 700, cursor: "pointer" }}>
+                Editar
+              </button>
+            )}
+          </div>
+          <div style={{ padding: "12px 16px" }}>
             {[
               { label: "Nombre", value: usuario.nombre },
               { label: "Email", value: usuario.email },
@@ -127,14 +162,52 @@ export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, on
                 <span style={{ fontSize: 13, fontWeight: 600, color: t.texto }}>{value}</span>
               </div>
             ))}
+
+            {/* TELÉFONO */}
+            <div style={{ padding: "10px 0" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: editando ? 8 : 0 }}>
+                <span style={{ fontSize: 13, color: t.textoSuave }}>Teléfono</span>
+                {!editando && (
+                  <span style={{ fontSize: 13, fontWeight: 600, color: telefono ? t.texto : t.textoMuy }}>
+                    {telefono || "No cargado"}
+                  </span>
+                )}
+              </div>
+              {editando && (
+                <div>
+                  <input
+                    value={telefonoEdit}
+                    onChange={e => setTelefonoEdit(e.target.value)}
+                    placeholder="Ej: +54 11 1234-5678"
+                    style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: `1px solid ${t.acento}`, fontSize: 13, background: t.bgElevated, color: t.texto, outline: "none", boxSizing: "border-box", marginBottom: 10 }}
+                  />
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <button onClick={() => { setEditando(false); setTelefonoEdit(telefono); }} style={{ flex: 1, padding: 10, borderRadius: 10, border: `1px solid ${t.borde}`, background: "transparent", color: t.textoSuave, fontWeight: 600, fontSize: 13, cursor: "pointer" }}>
+                      Cancelar
+                    </button>
+                    <button onClick={guardarTelefono} disabled={guardando} style={{ flex: 2, padding: 10, borderRadius: 10, border: "none", background: "linear-gradient(135deg,#667eea,#764ba2)", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
+                      {guardando ? "Guardando..." : "Guardar teléfono"}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!telefono && !editando && (
+              <div style={{ background: t.bgElevated, borderRadius: 10, padding: "10px 12px", marginTop: 4, border: `1px solid ${t.borde}` }}>
+                <p style={{ margin: 0, fontSize: 12, color: t.textoMuy, lineHeight: 1.5 }}>
+                  💡 Cargá tu teléfono para que otros profesionales puedan contactarte al aceptar una derivación.
+                </p>
+              </div>
+            )}
           </div>
         </div>
 
         {/* PRÓXIMAMENTE */}
-        <div style={{ background: t.bgCard, borderRadius: 16, padding: "16px", marginBottom: 16, border: `1px solid ${t.borde}`, opacity: 0.6 }}>
+        <div style={{ background: t.bgCard, borderRadius: 16, padding: 16, marginBottom: 16, border: `1px solid ${t.borde}`, opacity: 0.5 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: t.textoMuy, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Próximamente</div>
-          {["Foto de perfil", "Especialidad y bio", "Redes y contacto", "Cambiar contraseña"].map(item => (
-            <div key={item} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: `1px solid ${t.borde}` }}>
+          {["Foto de perfil", "Especialidad y bio", "Cambiar contraseña"].map(item => (
+            <div key={item} style={{ display: "flex", justifyContent: "space-between", padding: "8px 0", borderBottom: `1px solid ${t.borde}` }}>
               <span style={{ fontSize: 13, color: t.textoSuave }}>{item}</span>
               <span style={{ fontSize: 10, color: t.acento, fontWeight: 600 }}>pronto</span>
             </div>
@@ -142,11 +215,10 @@ export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, on
         </div>
 
         {/* CERRAR SESIÓN */}
-        <button onClick={onLogout} style={{ width: "100%", padding: 14, borderRadius: 14, border: `1px solid #3d1515`, background: "rgba(239,68,68,0.08)", color: "#ef4444", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
+        <button onClick={onLogout} style={{ width: "100%", padding: 14, borderRadius: 14, border: "1px solid #3d1515", background: "rgba(239,68,68,0.08)", color: "#ef4444", fontWeight: 700, fontSize: 14, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8 }}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
           Cerrar sesión
         </button>
-
       </div>
     </div>
   );

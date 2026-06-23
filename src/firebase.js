@@ -32,7 +32,10 @@ export async function uploadProfilePhoto(email, file) {
     body: formData,
   });
 
-  if (!res.ok) throw new Error("Error al subir foto");
+  if (!res.ok) {
+  const errData = await res.json();
+  throw new Error(errData.error?.message || "Error al subir foto");
+}
   const data = await res.json();
   const url = data.secure_url;
   await updateUserProfile(email, { fotoUrl: url });

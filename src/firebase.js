@@ -16,7 +16,6 @@ export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const reservasCol = collection(db, "reservas");
 
-// ── Cloudinary ────────────────────────────────────────────────────────────────
 const CLOUDINARY_CLOUD = "dimsvpxri";
 const CLOUDINARY_PRESET = "grins_perfiles";
 
@@ -33,16 +32,16 @@ export async function uploadProfilePhoto(email, file) {
   });
 
   if (!res.ok) {
-  const errData = await res.json();
-  throw new Error(errData.error?.message || "Error al subir foto");
-}
+    const errData = await res.json();
+    throw new Error(errData.error?.message || "Error al subir foto");
+  }
+
   const data = await res.json();
   const url = data.secure_url;
   await updateUserProfile(email, { fotoUrl: url });
   return url;
 }
 
-// ── Auth ──────────────────────────────────────────────────────────────────────
 export async function loginUser(email, password) {
   return await signInWithEmailAndPassword(auth, email, password);
 }
@@ -73,7 +72,6 @@ export async function updateUserProfile(email, data) {
   await setDoc(doc(db, "usuarios", email), data, { merge: true });
 }
 
-// ── Reservas ──────────────────────────────────────────────────────────────────
 export async function agregarReserva(reserva) {
   return await addDoc(reservasCol, reserva);
 }

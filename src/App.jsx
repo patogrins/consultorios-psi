@@ -54,7 +54,15 @@ export default function App() {
     return onAuthChanged(async firebaseUser => {
       if (firebaseUser) {
         const data = await getUserData(firebaseUser.email);
-        setUsuario({ email: firebaseUser.email, rol: data?.rol || "profesional", nombre: data?.nombre || firebaseUser.email });
+        setUsuario({
+          email: firebaseUser.email,
+          rol: data?.rol || "profesional",
+          nombre: data?.nombre || firebaseUser.email,
+          fotoUrl: data?.fotoUrl || "",
+          telefono: data?.telefono || "",
+          especialidad: data?.especialidad || "",
+          bio: data?.bio || "",
+        });
         setMostrarLogin(false);
       } else {
         setUsuario(null);
@@ -65,7 +73,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = suscribirReservas(data => {
-      setReservas(data.sort((a, b) => a.fecha !== b.fecha ? a.fecha.localeCompare(b.fecha) : a.horaInicio - b.horaInicio));
+      setReservas(data);
       setCargando(false);
     });
     return () => unsub();
@@ -79,18 +87,32 @@ export default function App() {
   if (!authListo || cargando) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#000000", flexDirection: "column", gap: 16 }}>
       <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 72, objectFit: "contain", marginBottom: 8 }} />
-      <div style={{ width: 36, height: 36, border: "2px solid #222", borderTop: "2px solid #7c6aff", borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+      <div style={{ width: 36, height: 36, border: "2px solid #1e2235", borderTop: `2px solid ${t.acento}`, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
 
-  if (mostrarLogin) return <Login modoOscuro={true} onVolver={() => setMostrarLogin(false)} />;
+  if (mostrarLogin) return <Login onVolver={() => setMostrarLogin(false)} />;
 
   const tabs = [
-    { id: "inicio", label: "Inicio", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg> },
-    { id: "reservas", label: "Reservas", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> },
-    { id: "lazos", label: "Lazos", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> },
-    { id: "perfil", label: "Perfil", icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> },
+    {
+      id: "inicio", label: "Inicio",
+      icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    },
+    {
+      id: "reservas", label: "Reservas",
+      icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+    },
+    {
+      id: "lazos", label: "Lazos",
+      icon: <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+    },
+    {
+      id: "perfil", label: "Perfil",
+      icon: usuario && usuario.fotoUrl
+        ? <img src={usuario.fotoUrl} alt="perfil" style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", border: tab === "perfil" ? `2px solid ${t.acento}` : "2px solid transparent" }} />
+        : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    },
   ];
 
   return (
@@ -98,7 +120,9 @@ export default function App() {
 
       {/* TOAST */}
       {toast && (
-        <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: toast.tipo === "warn" ? "#7c2d12" : "#14532d", color: "white", padding: "10px 20px", borderRadius: 30, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 24px rgba(0,0,0,0.4)", whiteSpace: "nowrap" }}>{toast.msg}</div>
+        <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: toast.tipo === "warn" ? "#7c2d12" : "#14532d", color: "white", padding: "10px 20px", borderRadius: 30, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 24px rgba(0,0,0,0.4)", whiteSpace: "nowrap" }}>
+          {toast.msg}
+        </div>
       )}
 
       {/* BANNER ANDROID/PC */}
@@ -117,21 +141,21 @@ export default function App() {
 
       {/* BANNER IOS */}
       {mostrarBannerIOS && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9998, background: "#111318", borderTop: "1px solid #1e2235", padding: "16px 20px 36px", boxShadow: "0 -8px 32px rgba(0,0,0,0.5)" }}>
+        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9998, background: "#111318", borderTop: `1px solid ${t.borde}`, padding: "16px 20px 36px", boxShadow: "0 -8px 32px rgba(0,0,0,0.5)" }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
             <span style={{ color: "white", fontWeight: 800, fontSize: 14 }}>Instalá GRINS en tu iPhone</span>
-            <button onClick={() => { setMostrarBannerIOS(false); localStorage.setItem("grins_ios_banner", "1"); }} style={{ background: "none", border: "none", color: "#a0aec0", fontSize: 22, cursor: "pointer" }}>✕</button>
+            <button onClick={() => { setMostrarBannerIOS(false); localStorage.setItem("grins_ios_banner", "1"); }} style={{ background: "none", border: "none", color: t.textoMuy, fontSize: 22, cursor: "pointer" }}>✕</button>
           </div>
           {[["1", 'Tocá el botón <strong style="color:white">Compartir ⎋</strong> en Safari'], ["2", 'Elegí <strong style="color:white">"Agregar a pantalla de inicio"</strong>'], ["3", 'Tocá <strong style="color:white">"Agregar"</strong> y listo 🎉']].map(([n, txt]) => (
             <div key={n} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 28, height: 28, background: "#1e2235", borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{n}</div>
+              <div style={{ width: 28, height: 28, background: t.bgElevated, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{n}</div>
               <span style={{ color: "#e2e8f0", fontSize: 13 }} dangerouslySetInnerHTML={{ __html: txt }} />
             </div>
           ))}
         </div>
       )}
 
-      {/* CONTENIDO PRINCIPAL */}
+      {/* CONTENIDO */}
       <div style={{ paddingBottom: 90 }}>
         {tab === "inicio" && <TabInicio usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={() => setMostrarLogin(true)} />}
         {tab === "reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={() => setMostrarLogin(true)} />}
@@ -139,14 +163,14 @@ export default function App() {
         {tab === "perfil" && <TabPerfil usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={() => setMostrarLogin(true)} onLogout={logoutUser} />}
       </div>
 
-      {/* BOTTOM TAB BAR FLOTANTE */}
+      {/* BOTTOM TAB BAR */}
       <div style={{
         position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
         width: "calc(100% - 32px)", maxWidth: 480,
-        background: "rgba(10,10,20,0.85)",
-        backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)",
-        borderRadius: 28, border: "1px solid rgba(255,255,255,0.08)",
-        boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04)",
+        background: "rgba(10,10,20,0.88)",
+        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
+        borderRadius: 28, border: "1px solid rgba(255,255,255,0.07)",
+        boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)",
         display: "flex", alignItems: "center", justifyContent: "space-around",
         padding: "8px 8px", zIndex: 1000
       }}>
@@ -165,7 +189,7 @@ export default function App() {
               <div style={{ transition: "transform 0.25s cubic-bezier(0.34,1.56,0.64,1)", transform: active ? "scale(1.1)" : "scale(1)" }}>
                 {icon}
               </div>
-              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, letterSpacing: 0.3, transition: "all 0.2s" }}>{label}</span>
+              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, letterSpacing: 0.3 }}>{label}</span>
             </button>
           );
         })}

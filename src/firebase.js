@@ -40,22 +40,6 @@ export async function uploadProfilePhoto(email, file) {
   return url;
 }
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
-    method: "POST",
-    body: formData,
-  });
-
-  if (!res.ok) {
-    const errData = await res.json();
-    throw new Error(errData.error?.message || "Error al subir foto");
-  }
-
-  const data = await res.json();
-  const url = data.secure_url;
-  await updateUserProfile(email, { fotoUrl: url });
-  return url;
-}
-
 export async function loginUser(email, password) {
   return await signInWithEmailAndPassword(auth, email, password);
 }

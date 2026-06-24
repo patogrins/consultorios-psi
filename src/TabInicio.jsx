@@ -13,7 +13,6 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
   const [mostrarForm, setMostrarForm] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const scrollRef = useRef(null);
-  const heroRef = useRef(null);
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "mensajes_inicio"), snap => {
@@ -24,13 +23,10 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
     return () => unsub();
   }, []);
 
-  // Detectar scroll para animar el hero
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    const handleScroll = () => {
-      setScrolled(el.scrollTop > 80);
-    };
+    const handleScroll = () => setScrolled(el.scrollTop > 60);
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
   }, []);
@@ -81,7 +77,7 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
     return map;
   }, [reservas, hoyKey]);
 
-  function getBloqesLibres(consultorio) {
+  function getBloquesLibres(consultorio) {
     const ocupadas = ocupacionHoy[consultorio] || new Set();
     const bloques = [];
     let inicio = null;
@@ -96,17 +92,21 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
     return bloques;
   }
 
-  function proximoLibreTexto(consultorio) {
-    const bloques = getBloqesLibres(consultorio);
+  function proximoLibreInfo(consultorio) {
+    const bloques = getBloquesLibres(consultorio);
+    const ocupadas = ocupacionHoy[consultorio] || new Set();
+    const totalOcupadas = HORAS.filter(h => ocupadas.has(h)).length;
+
+    if (totalOcupadas === 0) return { texto: "Todo el día disponible", color: "#38a169", bg: "rgba(56,161,105,0.12)" };
+
     const futuros = bloques.filter(b => b.hasta > horaActual);
-    if (futuros.length === 0) return { texto: "Sin disponibilidad hoy", color: "#ef4444", bg: "rgba(239,68,68,0.1)" };
+    if (futuros.length === 0) return { texto: "Sin más turnos hoy", color: "#ef4444", bg: "rgba(239,68,68,0.1)" };
+
     const b = futuros[0];
     const desde = Math.max(b.desde, horaActual);
     const hasta = b.hasta;
-    const todoElDia = bloques.length === 1 && b.desde <= 8 && b.hasta >= 22;
-    if (todoElDia) return { texto: "Disponible todo el día", color: "#38a169", bg: "rgba(56,161,105,0.1)" };
-    if (desde === horaActual) return { texto: `Libre ahora hasta las ${hasta}:00`, color: "#38a169", bg: "rgba(56,161,105,0.1)" };
-    return { texto: `Libre ${desde}:00 – ${hasta}:00`, color: "#d69e2e", bg: "rgba(214,158,46,0.1)" };
+    if (desde === horaActual) return { texto: `Libre ahora hasta las ${hasta}:00`, color: "#38a169", bg: "rgba(56,161,105,0.12)" };
+    return { texto: `Libre ${desde}:00 – ${hasta}:00`, color: "#d69e2e", bg: "rgba(214,158,46,0.12)" };
   }
 
   function colorBloque(consultorio, h) {
@@ -123,75 +123,67 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
     return { ocupado: false, esPasada: h < horaActual };
   }
 
-  // Nombre a mostrar
   const nombreMostrado = esPublico ? null : (usuario?.nombre || "");
 
   return (
-    <div ref={scrollRef} style={{ height: "100vh", overflowY: "auto", background: t.bg, position: "relative" }}
-      className="tab-content">
+    <div ref={scrollRef} style={{ height: "100vh", overflowY: "auto", background: t.bg }} className="tab-content">
 
-      {/* ── HERO ANIMADO ── */}
+      {/* ── HEADER FIJO AL HACER SCROLL ── */}
       <div style={{
-        position: "relative",
-        height: scrolled ? 80 : "50vh",
-        minHeight: scrolled ? 80 : 220,
-        background: "linear-gradient(180deg,#0a0a18 0%,#000 100%)",
-        display: "flex",
-        flexDirection: scrolled ? "row" : "column",
-        alignItems: scrolled ? "center" : "flex-end",
-        justifyContent: scrolled ? "space-between" : "space-between",
-        padding: scrolled ? "0 20px" : "56px 20px 20px",
-        transition: "height 0.4s cubic-bezier(0.4,0,0.2,1), padding 0.4s ease, min-height 0.4s ease",
-        overflow: "hidden",
-        flexShrink: 0,
-        zIndex: 10,
+        position: "sticky", top: 0, zIndex: 20,
+        background: scrolled ? "rgba(0,0,0,0.92)" : "transparent",
+        backdropFilter: scrolled ? "blur(20px)" : "none",
+        WebkitBackdropFilter: scrolled ? "blur(20px)" : "none",
+        borderBottom: scrolled ? "1px solid #1e2235" : "none",
+        transition: "background 0.3s ease, border 0.3s ease",
+        padding: scrolled ? "12px 20px" : "0",
+        display: scrolled ? "flex" : "none",
+        alignItems: "center",
+        justifyContent: "space-between",
       }}>
+        <span style={{ fontWeight: 800, fontSize: 15, color: "white" }}>
+          {esPublico ? "GRINS Consultorios" : nombreMostrado}
+        </span>
+        <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 28, objectFit: "contain", opacity: 0.9 }} />
+      </div>
 
-        {/* LOGO */}
-        <img src="/IMG_0050.jpeg" alt="GRINS" style={{
-          height: scrolled ? 32 : 80,
-          objectFit: "contain",
-          opacity: 0.9,
-          order: scrolled ? 2 : 1,
-          transition: "height 0.4s cubic-bezier(0.4,0,0.2,1), opacity 0.3s ease",
-          flexShrink: 0,
-        }} />
-
-        {/* SALUDO */}
-        <div style={{ order: scrolled ? 1 : 2, transition: "all 0.3s ease" }}>
+      {/* ── HERO GRANDE (visible antes del scroll) ── */}
+      <div style={{
+        background: "linear-gradient(180deg,#0a0a18 0%,#000 100%)",
+        padding: "64px 20px 28px",
+        display: "flex",
+        alignItems: "flex-end",
+        justifyContent: "space-between",
+      }}>
+        {/* SALUDO izquierda */}
+        <div>
           {esPublico ? (
-            <div>
-              <h1 style={{
-                margin: "0 0 6px", fontWeight: 800, color: "white", letterSpacing: -0.5,
-                fontSize: scrolled ? 16 : 28,
-                transition: "font-size 0.4s ease",
-                whiteSpace: scrolled ? "nowrap" : "normal"
-              }}>Bienvenido a GRINS</h1>
-              {!scrolled && (
-                <p style={{ margin: "0 0 16px", fontSize: 13, color: t.textoSuave, lineHeight: 1.5, maxWidth: 240 }}>
-                  Espacio de consultorios para profesionales de la salud mental
-                </p>
-              )}
-              {!scrolled && (
-                <button onClick={onLogin} style={{ padding: "9px 20px", borderRadius: 24, border: "none", background: t.acentoGrad, color: "white", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-                  Iniciar sesión →
-                </button>
-              )}
-            </div>
+            <>
+              <h1 style={{ margin: "0 0 8px", fontSize: 30, fontWeight: 800, color: "white", letterSpacing: -0.5, lineHeight: 1.1 }}>
+                Bienvenido<br />a GRINS
+              </h1>
+              <p style={{ margin: "0 0 18px", fontSize: 13, color: t.textoSuave, lineHeight: 1.5, maxWidth: 200 }}>
+                Consultorios para profesionales de la salud mental
+              </p>
+              <button onClick={onLogin} style={{ padding: "9px 20px", borderRadius: 24, border: "none", background: t.acentoGrad, color: "white", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
+                Iniciar sesión →
+              </button>
+            </>
           ) : (
-            <div>
-              {!scrolled && <p style={{ margin: "0 0 4px", fontSize: 12, color: t.textoSuave, transition: "opacity 0.3s" }}>{saludo},</p>}
-              <h1 style={{
-                margin: 0, fontWeight: 800, color: "white", letterSpacing: -0.5,
-                fontSize: scrolled ? 15 : 26,
-                transition: "font-size 0.4s ease",
-                whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: scrolled ? 200 : 280
-              }}>
+            <>
+              <p style={{ margin: "0 0 6px", fontSize: 13, color: t.textoSuave }}>{saludo},</p>
+              <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: "white", letterSpacing: -0.5, lineHeight: 1.1, maxWidth: 220 }}>
                 {nombreMostrado} {esAdmin ? "👑" : ""}
               </h1>
-            </div>
+            </>
           )}
         </div>
+
+        {/* LOGO derecha */}
+        <img src="/IMG_0050.jpeg" alt="GRINS" style={{
+          height: 90, objectFit: "contain", opacity: 0.9,
+          flexShrink: 0, marginLeft: 16, marginBottom: 4
+        }} />
       </div>
 
       {/* ── CONTENIDO ── */}
@@ -210,18 +202,18 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
 
           <div style={{ background: t.bgCard, borderRadius: 16, overflow: "hidden", border: `1px solid ${t.borde}` }}>
             {CONSULTORIOS.map((consultorio, ci) => {
-              const info = proximoLibreTexto(consultorio);
+              const info = proximoLibreInfo(consultorio);
               return (
                 <div key={consultorio} style={{ padding: "12px 14px", borderBottom: ci < 2 ? `1px solid ${t.borde}` : "none" }}>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 7 }}>
-                    <span style={{ fontSize: 12, fontWeight: 700, color: t.texto }}>C{ci + 1} — {consultorio}</span>
-                    <span style={{ fontSize: 10, background: info.bg, color: info.color, borderRadius: 20, padding: "2px 9px", fontWeight: 700, whiteSpace: "nowrap" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 800, color: "#ffffff" }}>C{ci + 1} — {consultorio}</span>
+                    <span style={{ fontSize: 11, background: info.bg, color: info.color, borderRadius: 20, padding: "3px 10px", fontWeight: 700, whiteSpace: "nowrap", flexShrink: 0, marginLeft: 8 }}>
                       {info.texto}
                     </span>
                   </div>
 
                   {/* TIMELINE */}
-                  <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+                  <div style={{ display: "flex", gap: 2 }}>
                     {HORAS.map(h => {
                       const { ocupado, reserva, esPasada } = colorBloque(consultorio, h);
                       const color = ocupado && reserva ? colorMap[reserva.profesional] || t.acento : null;
@@ -232,10 +224,10 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
                             <div style={{ position: "absolute", top: -3, left: "50%", transform: "translateX(-50%)", width: 2, height: 3, background: "white", borderRadius: 1 }} />
                           )}
                           <div style={{
-                            height: 18, borderRadius: 3,
-                            background: ocupado ? color : esPasada ? "rgba(255,255,255,0.04)" : "rgba(56,161,105,0.2)",
-                            border: esActual ? "1px solid rgba(255,255,255,0.5)" : "none",
-                            opacity: esPasada && !ocupado ? 0.35 : 1,
+                            height: 20, borderRadius: 3,
+                            background: ocupado ? color : esPasada ? "rgba(255,255,255,0.05)" : "rgba(56,161,105,0.25)",
+                            border: esActual ? "1px solid rgba(255,255,255,0.4)" : "none",
+                            opacity: esPasada && !ocupado ? 0.3 : 1,
                           }}
                             title={ocupado && reserva ? `${reserva.profesional} ${h}:00–${reserva.horaFin}:00` : `${h}:00 libre`}
                           />
@@ -243,9 +235,11 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
                       );
                     })}
                   </div>
-                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 3 }}>
-                    {["8", "11", "14", "17", "20"].map(h => (
-                      <span key={h} style={{ fontSize: 8, color: t.textoMuy }}>{h}h</span>
+
+                  {/* HORAS */}
+                  <div style={{ display: "flex", justifyContent: "space-between", marginTop: 4 }}>
+                    {["8h", "11h", "14h", "17h", "20h"].map(h => (
+                      <span key={h} style={{ fontSize: 9, color: "#6b7280", fontWeight: 600 }}>{h}</span>
                     ))}
                   </div>
                 </div>
@@ -315,10 +309,6 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
         ))}
 
       </div>
-
-      <style>{`
-        @keyframes fadeDown { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
-      `}</style>
     </div>
   );
 }

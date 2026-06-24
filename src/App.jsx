@@ -157,7 +157,7 @@ export default function App() {
 
       {/* CONTENIDO */}
       <div style={{ paddingBottom: 90 }}>
-        {tab === "inicio" && <TabInicio usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={() => setMostrarLogin(true)} />}
+       {tab === "inicio" && <TabInicio usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={() => setMostrarLogin(true)} reservas={reservas} 
         {tab === "reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={() => setMostrarLogin(true)} />}
         {tab === "lazos" && <TabLazos usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={() => setMostrarLogin(true)} />}
         {tab === "perfil" && <TabPerfil usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={() => setMostrarLogin(true)} onLogout={logoutUser} />}

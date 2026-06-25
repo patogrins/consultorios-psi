@@ -184,7 +184,9 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
           transition: "none",
           pointerEvents: "none",
         }}>
-          <img src="/logohead.jpeg" alt="GRINS" style={{ height: 100, objectFit: "contain", opacity: 0.95 }} />
+          <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 44, objectFit: "contain", opacity: 0.95 }} />
+        </div>
+
         {/* PERFIL — se achica y sube al scroll */}
         {!esPublico && (
           <div style={{

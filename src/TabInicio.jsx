@@ -146,7 +146,7 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
   const stickyVisible = scrollY > 100;
 
   return (
-    <div ref={scrollRef} style={{ height: "100vh", overflowY: "auto", background: "linear-gradient(180deg,#0d1b2e 0%,#081020 40%,#000510 100%)" }} className="tab-content">
+    <div ref={scrollRef} style={{ height: "100vh", overflowY: "auto", background: "linear-gradient(180deg,##000000 0%,#081020 40%,#000510 100%)" }} className="tab-content">
 
       {/* ══ STICKY BAR ══ */}
       <div style={{

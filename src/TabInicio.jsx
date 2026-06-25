@@ -60,6 +60,8 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
       installPrompt.prompt();
       const { outcome } = await installPrompt.userChoice;
       if (outcome === "accepted") { setInstallPrompt(null); setYaInstalado(true); }
+    } else {
+      setMostrarIOSGuide(true);
     }
   }
 
@@ -127,65 +129,78 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
     return { ocupado: false, esPasada: h < horaActual };
   }
 
-  // Resumen para el feed
-  const resumenDisponibilidad = CONSULTORIOS.map((c, i) => {
-    const info = proximoLibreInfo(c);
-    return { label: `C${i + 1}`, ...info };
-  });
-  const hayNovedades = mensajes.length > 0;
-  const ultimaNovedad = mensajes[0];
-
   const nombreMostrado = esPublico ? null : (usuario?.nombre || "");
+  const fotoUrl = usuario?.fotoUrl || null;
+  const inicial = nombreMostrado?.[0]?.toUpperCase() || "?";
 
-  // Tiles estilo Windows Phone
-  const tiles = [
-    !yaInstalado && {
-      id: "instalar",
-      icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
-      label: "Instalar app",
-      grad: "linear-gradient(135deg,#667eea,#764ba2)",
-      onClick: handleInstalar,
-    },
+  function avatarColor(nombre) {
+    const colores = ["linear-gradient(135deg,#667eea,#764ba2)", "linear-gradient(135deg,#f093fb,#f5576c)", "linear-gradient(135deg,#4facfe,#00f2fe)", "linear-gradient(135deg,#43e97b,#38f9d7)", "linear-gradient(135deg,#fa709a,#fee140)", "linear-gradient(135deg,#a18cd1,#fbc2eb)"];
+    let hash = 0;
+    for (let i = 0; i < (nombre || "").length; i++) hash = nombre.charCodeAt(i) + ((hash << 5) - hash);
+    return colores[Math.abs(hash) % colores.length];
+  }
+
+  // Tiles 3x1
+  const tiles3 = [
     {
       id: "instagram",
-      icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="white" stroke="none"/></svg>,
+      icon: <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1.2" fill="white" stroke="none"/></svg>,
       label: "Instagram",
-      grad: "linear-gradient(135deg,#f093fb,#f5576c)",
+      grad: "linear-gradient(135deg,rgba(240,80,180,0.35),rgba(245,87,108,0.35))",
+      border: "rgba(240,80,180,0.3)",
       onClick: () => window.open("https://www.instagram.com/grinsconsultorios?igsh=MXEzamhnYW9vbXF2&utm_source=qr", "_blank"),
     },
     {
+      id: "whatsapp",
+      icon: <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>,
+      label: "WhatsApp",
+      grad: "linear-gradient(135deg,rgba(37,211,102,0.35),rgba(18,140,126,0.35))",
+      border: "rgba(37,211,102,0.3)",
+      onClick: () => window.open("https://wa.me/541159373676", "_blank"),
+    },
+    {
       id: "maps",
-      icon: <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>,
+      icon: <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>,
       label: "Cómo llegar",
-      grad: "linear-gradient(135deg,#4facfe,#00f2fe)",
+      grad: "linear-gradient(135deg,rgba(79,172,254,0.35),rgba(0,242,254,0.35))",
+      border: "rgba(79,172,254,0.3)",
       onClick: () => window.open("https://maps.app.goo.gl/Evx2MuLcFjK1PgaV9?g_st=ic", "_blank"),
     },
-  ].filter(Boolean);
+  ];
 
   return (
     <div ref={scrollRef} style={{ height: "100vh", overflowY: "auto", background: t.bg }} className="tab-content">
 
-      {/* HEADER STICKY */}
+      {/* ── HEADER STICKY ── */}
       <div style={{
         position: "sticky", top: 0, zIndex: 20,
-        background: scrolled ? "rgba(0,0,0,0.92)" : "transparent",
-        backdropFilter: scrolled ? "blur(20px)" : "none",
-        WebkitBackdropFilter: scrolled ? "blur(20px)" : "none",
-        borderBottom: scrolled ? `1px solid ${t.borde}` : "none",
-        transition: "background 0.3s ease, border 0.3s ease",
-        padding: scrolled ? "12px 20px" : "0",
+        background: scrolled ? "rgba(20,10,40,0.75)" : "transparent",
+        backdropFilter: scrolled ? "blur(24px)" : "none",
+        WebkitBackdropFilter: scrolled ? "blur(24px)" : "none",
+        borderBottom: scrolled ? "1px solid rgba(124,106,255,0.2)" : "none",
+        boxShadow: scrolled ? "0 1px 30px rgba(100,80,255,0.08)" : "none",
+        transition: "all 0.35s ease",
+        padding: scrolled ? "10px 20px" : "0",
         display: scrolled ? "flex" : "none",
         alignItems: "center", justifyContent: "space-between",
       }}>
-        <span style={{ fontWeight: 800, fontSize: 15, color: "white" }}>
-          {esPublico ? "GRINS Consultorios" : nombreMostrado}
-        </span>
-        <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 28, objectFit: "contain", opacity: 0.9 }} />
+        {/* Avatar + nombre */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <div style={{ width: 32, height: 32, borderRadius: "50%", background: avatarColor(nombreMostrado || ""), overflow: "hidden", border: "1.5px solid rgba(124,106,255,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "white", flexShrink: 0 }}>
+            {fotoUrl ? <img src={fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : inicial}
+          </div>
+          <div>
+            <div style={{ fontSize: 14, fontWeight: 800, color: "white", lineHeight: 1 }}>{esPublico ? "GRINS" : nombreMostrado}</div>
+            {!esPublico && usuario?.especialidad && <div style={{ fontSize: 10, color: "rgba(124,106,255,0.9)", fontWeight: 600, marginTop: 2 }}>{usuario.especialidad}</div>}
+          </div>
+        </div>
+        <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 26, objectFit: "contain", opacity: 0.85, border: "1px solid rgba(124,106,255,0.25)", borderRadius: 6, padding: 2 }} />
       </div>
 
-      {/* HERO */}
+      {/* ── HERO ── */}
       <div style={{ background: "linear-gradient(180deg,#0a0a18 0%,#000 100%)", padding: "64px 20px 28px", display: "flex", alignItems: "flex-end", justifyContent: "space-between" }}>
-        <div>
+        {/* IZQUIERDA */}
+        <div style={{ flex: 1, minWidth: 0 }}>
           {esPublico ? (
             <>
               <h1 style={{ margin: "0 0 8px", fontSize: 30, fontWeight: 800, color: "white", letterSpacing: -0.5, lineHeight: 1.1 }}>Bienvenido<br />a GRINS</h1>
@@ -195,74 +210,75 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
           ) : (
             <>
               <p style={{ margin: "0 0 6px", fontSize: 13, color: t.textoSuave }}>{saludo},</p>
-              <h1 style={{ margin: 0, fontSize: 30, fontWeight: 800, color: "white", letterSpacing: -0.5, lineHeight: 1.1, maxWidth: 220 }}>{nombreMostrado} {esAdmin ? "👑" : ""}</h1>
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 4 }}>
+                {/* AVATAR */}
+                <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(nombreMostrado || ""), overflow: "hidden", border: "2px solid rgba(124,106,255,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", flexShrink: 0 }}>
+                  {fotoUrl ? <img src={fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : inicial}
+                </div>
+                <div>
+                  <h1 style={{ margin: 0, fontSize: 26, fontWeight: 800, color: "white", letterSpacing: -0.5, lineHeight: 1.1 }}>{nombreMostrado} {esAdmin ? "👑" : ""}</h1>
+                  {usuario?.especialidad && <div style={{ fontSize: 12, color: "rgba(124,106,255,0.9)", fontWeight: 600, marginTop: 3 }}>{usuario.especialidad}</div>}
+                </div>
+              </div>
             </>
           )}
         </div>
-        <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 90, objectFit: "contain", opacity: 0.9, flexShrink: 0, marginLeft: 16, marginBottom: 4 }} />
+
+        {/* LOGO derecha — estilo card como en la foto */}
+        <div style={{ flexShrink: 0, marginLeft: 16, width: 88, height: 88, borderRadius: 18, background: "rgba(20,10,40,0.6)", backdropFilter: "blur(12px)", border: "1px solid rgba(124,106,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 24px rgba(124,106,255,0.15)" }}>
+          <img src="/IMG_0050.jpeg" alt="GRINS" style={{ width: 72, height: 72, objectFit: "contain", opacity: 0.95 }} />
+        </div>
       </div>
 
       <div style={{ padding: "16px 14px 100px" }}>
 
-        {/* ── FEED RESUMEN ── */}
-        <div style={{ background: t.bgCard, borderRadius: 18, overflow: "hidden", marginBottom: 20, border: `1px solid ${t.borde}` }}>
-          {/* Disponibilidad resumida */}
-          <div style={{ padding: "14px 16px", borderBottom: `1px solid ${t.borde}` }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: t.textoMuy, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Ahora · Consultorios</div>
-            <div style={{ display: "flex", gap: 8 }}>
-              {resumenDisponibilidad.map(r => (
-                <div key={r.label} style={{ flex: 1, background: r.bg, borderRadius: 10, padding: "8px 6px", textAlign: "center", border: `1px solid ${r.color}22` }}>
-                  <div style={{ fontSize: 11, fontWeight: 800, color: r.color, marginBottom: 3 }}>{r.label}</div>
-                  <div style={{ fontSize: 9, color: r.color, lineHeight: 1.3, fontWeight: 600 }}>{r.texto.replace("Todo el día disponible", "Todo el día").replace("Sin más turnos hoy", "Sin turnos").replace("Libre ahora hasta las ", "↑").replace(":00", "h").replace("Libre ", "").replace(" – ", "–")}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {/* Última novedad */}
-          {hayNovedades && (
-            <div style={{ padding: "12px 16px" }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: t.textoMuy, textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 }}>Última novedad</div>
-              <div style={{ display: "flex", gap: 10, alignItems: "flex-start" }}>
-                <div style={{ width: 28, height: 28, borderRadius: "50%", background: t.acentoGrad, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, fontWeight: 800, color: "white", flexShrink: 0 }}>
-                  {ultimaNovedad.autor?.[0]?.toUpperCase()}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 11, color: t.textoMuy, marginBottom: 3 }}>{ultimaNovedad.autor} · {ultimaNovedad.creadoEn?.toDate?.()?.toLocaleDateString("es-AR", { day: "numeric", month: "short" }) || ""}</div>
-                  <p style={{ margin: 0, fontSize: 13, color: t.texto, lineHeight: 1.5, overflow: "hidden", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical" }}>{ultimaNovedad.texto}</p>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* ── TILES ESTILO WINDOWS PHONE ── */}
-        <div style={{ marginBottom: 20 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: t.textoSuave, textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Accesos rápidos</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10 }}>
-            {tiles.map(tile => (
+        {/* ── TILES 3 CUADRADOS ── */}
+        <div style={{ marginBottom: 12 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 10 }}>
+            {tiles3.map(tile => (
               <button key={tile.id} onClick={tile.onClick} style={{
-                aspectRatio: "1", borderRadius: 12, border: "none",
-                background: tile.grad, cursor: "pointer",
+                aspectRatio: "1", borderRadius: 16, border: `1px solid ${tile.border}`,
+                background: tile.grad,
+                backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+                cursor: "pointer",
                 display: "flex", flexDirection: "column",
                 alignItems: "center", justifyContent: "center",
                 gap: 8, padding: 12,
-                boxShadow: "0 4px 16px rgba(0,0,0,0.3)",
+                boxShadow: "0 4px 20px rgba(0,0,0,0.2)",
                 transition: "transform 0.15s ease, opacity 0.15s ease",
               }}
-                onMouseDown={e => e.currentTarget.style.transform = "scale(0.95)"}
-                onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
-                onTouchStart={e => e.currentTarget.style.opacity = "0.8"}
+                onTouchStart={e => e.currentTarget.style.opacity = "0.7"}
                 onTouchEnd={e => e.currentTarget.style.opacity = "1"}
+                onMouseDown={e => e.currentTarget.style.transform = "scale(0.94)"}
+                onMouseUp={e => e.currentTarget.style.transform = "scale(1)"}
               >
                 {tile.icon}
-                <span style={{ fontSize: 10, fontWeight: 700, color: "white", textAlign: "center", lineHeight: 1.2 }}>{tile.label}</span>
+                <span style={{ fontSize: 10, fontWeight: 700, color: "rgba(255,255,255,0.9)", textAlign: "center", lineHeight: 1.2 }}>{tile.label}</span>
               </button>
             ))}
           </div>
+
+          {/* BOTÓN INSTALAR RECTANGULAR */}
+          {!yaInstalado && (
+            <button onClick={handleInstalar} style={{
+              width: "100%", padding: "12px 16px", borderRadius: 14,
+              border: "1px solid rgba(124,106,255,0.3)",
+              background: "rgba(124,106,255,0.12)",
+              backdropFilter: "blur(12px)", WebkitBackdropFilter: "blur(12px)",
+              cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 10,
+              boxShadow: "0 4px 20px rgba(0,0,0,0.15)",
+              transition: "opacity 0.15s",
+            }}
+              onTouchStart={e => e.currentTarget.style.opacity = "0.7"}
+              onTouchEnd={e => e.currentTarget.style.opacity = "1"}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="rgba(124,106,255,0.9)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(124,106,255,0.9)" }}>Instalar app en este dispositivo</span>
+            </button>
+          )}
         </div>
 
-        {/* ── DISPONIBILIDAD DETALLADA ── */}
+        {/* ── DISPONIBILIDAD HOY ── */}
         <div style={{ marginBottom: 20 }}>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <h2 style={{ margin: 0, fontSize: 12, fontWeight: 700, color: t.textoSuave, textTransform: "uppercase", letterSpacing: 1 }}>Disponibilidad hoy</h2>
@@ -366,14 +382,21 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.8)", zIndex: 9999, display: "flex", alignItems: "flex-end" }}>
           <div style={{ background: "#111318", borderRadius: "24px 24px 0 0", padding: "20px 20px 40px", width: "100%", border: `1px solid ${t.borde}` }}>
             <div style={{ width: 36, height: 4, borderRadius: 2, background: t.borde, margin: "0 auto 16px" }} />
-            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 800, color: "white" }}>Instalá GRINS en tu iPhone</h3>
-            {[["1", 'Tocá el botón <strong style="color:white">Compartir ⎋</strong> en Safari'], ["2", 'Elegí <strong style="color:white">"Agregar a pantalla de inicio"</strong>'], ["3", 'Tocá <strong style="color:white">"Agregar"</strong> y listo 🎉']].map(([n, txt]) => (
-              <div key={n} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 12 }}>
-                <div style={{ width: 28, height: 28, background: t.bgElevated, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{n}</div>
-                <span style={{ color: "#e2e8f0", fontSize: 13 }} dangerouslySetInnerHTML={{ __html: txt }} />
+            <h3 style={{ margin: "0 0 16px", fontSize: 16, fontWeight: 800, color: "white" }}>Instalá GRINS en tu dispositivo</h3>
+            {[
+              ["iPhone/iPad", 'En Safari: tocá <strong style="color:white">Compartir ⎋</strong> → <strong style="color:white">"Agregar a pantalla de inicio"</strong>'],
+              ["Android", 'En Chrome: tocá los <strong style="color:white">3 puntitos ⋮</strong> → <strong style="color:white">"Agregar a pantalla de inicio"</strong>'],
+              ["PC", 'En Chrome: tocá el ícono <strong style="color:white">⊕</strong> en la barra de direcciones'],
+            ].map(([plat, txt]) => (
+              <div key={plat} style={{ display: "flex", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+                <div style={{ width: 28, height: 28, background: t.bgElevated, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 800, fontSize: 10, flexShrink: 0 }}>{plat.slice(0, 2)}</div>
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: t.acento, marginBottom: 2 }}>{plat}</div>
+                  <span style={{ color: "#e2e8f0", fontSize: 12, lineHeight: 1.5 }} dangerouslySetInnerHTML={{ __html: txt }} />
+                </div>
               </div>
             ))}
-            <button onClick={() => setMostrarIOSGuide(false)} style={{ width: "100%", padding: 12, borderRadius: 12, border: "none", background: t.acentoGrad, color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", marginTop: 8 }}>
+            <button onClick={() => setMostrarIOSGuide(false)} style={{ width: "100%", padding: 12, borderRadius: 12, border: "none", background: t.acentoGrad, color: "white", fontWeight: 700, fontSize: 14, cursor: "pointer", marginTop: 4 }}>
               Entendido
             </button>
           </div>

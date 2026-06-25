@@ -151,7 +151,7 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
       {/* ══ STICKY BAR ══ */}
       <div style={{
         position: "fixed", top: 0, left: 0, right: 0, zIndex: 50,
-        background: stickyVisible ? "rgba(13,27,46,0.88)" : "transparent",
+        background: stickyVisible ? "rgba(0,0,0,0.92)" : "transparent",
         backdropFilter: stickyVisible ? "blur(24px)" : "none",
         WebkitBackdropFilter: stickyVisible ? "blur(24px)" : "none",
         borderBottom: stickyVisible ? "1px solid rgba(79,195,247,0.12)" : "none",

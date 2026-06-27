@@ -22,9 +22,7 @@ function getWeekDates(offset = 0) {
   const monday = new Date(today);
   monday.setDate(today.getDate() - (day === 0 ? 6 : day - 1) + offset * 7);
   return Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + i);
-    return d;
+    const d = new Date(monday); d.setDate(monday.getDate() + i); return d;
   });
 }
 
@@ -34,13 +32,11 @@ function formatCurrency(n) { return "$" + n.toLocaleString("es-AR"); }
 function calcularPagosProfesional(reservas, profesional, mesStr) {
   let totalMes = 0; const detalle = [];
   reservas.filter(r => r.profesional === profesional).forEach(r => {
-    const horas = r.horaFin - r.horaInicio;
-    const montoBloque = horas * HORA_PRECIO;
+    const horas = r.horaFin - r.horaInicio, montoBloque = horas * HORA_PRECIO;
     if (r.repeteSemanal) {
       const year = parseInt(mesStr.slice(0, 4)), month = parseInt(mesStr.slice(5, 7)) - 1;
       const diasEnMes = new Date(year, month + 1, 0).getDate();
-      const fechaOrig = new Date(r.fecha + "T12:00:00");
-      let ocurrencias = 0;
+      const fechaOrig = new Date(r.fecha + "T12:00:00"); let ocurrencias = 0;
       for (let d = 1; d <= diasEnMes; d++) { const dia = new Date(year, month, d); if (dia.getDay() === fechaOrig.getDay() && dia >= fechaOrig) ocurrencias++; }
       const montoMes = ocurrencias * montoBloque; totalMes += montoMes;
       detalle.push({ ...r, horas, montoBloque, ocurrenciasMes: ocurrencias, montoMes, tipo: "Semanal" });
@@ -53,7 +49,7 @@ function calcularPagosProfesional(reservas, profesional, mesStr) {
 }
 
 function exportarCSV(profesionales, reservas, mesStr) {
-  const rows = ["Profesional,Consultorio,Día,Horario,Tipo,Horas,Ocurrencias mes,Monto mes"];
+  const rows = ["Profesional,Consultorio,Día,Horario,Tipo,Horas,Ocurrencias,Monto"];
   profesionales.forEach(prof => {
     const { detalle } = calcularPagosProfesional(reservas, prof, mesStr);
     detalle.forEach(d => { const dia = new Date(d.fecha + "T12:00:00").toLocaleDateString("es-AR", { weekday: "long" }); rows.push([prof, d.consultorio, `${dia} ${d.fecha}`, `${d.horaInicio}:00-${d.horaFin}:00`, d.tipo, d.horas, d.tipo === "Semanal" ? d.ocurrenciasMes : 1, d.montoMes].join(",")); });
@@ -64,50 +60,60 @@ function exportarCSV(profesionales, reservas, mesStr) {
   a.href = url; a.download = `pagos_${mesStr}.csv`; a.click(); URL.revokeObjectURL(url);
 }
 
-// ── Hook pinch to zoom ────────────────────────────────────────────────────────
 function usePinchZoom(onZoomIn, onZoomOut) {
-  const ref = useRef(null);
-  const lastDist = useRef(null);
-
+  const ref = useRef(null); const lastDist = useRef(null);
   useEffect(() => {
     const el = ref.current; if (!el) return;
-    function getDist(touches) {
-      const dx = touches[0].clientX - touches[1].clientX;
-      const dy = touches[0].clientY - touches[1].clientY;
-      return Math.sqrt(dx * dx + dy * dy);
-    }
-    function onTouchStart(e) { if (e.touches.length === 2) lastDist.current = getDist(e.touches); }
-    function onTouchMove(e) {
+    function getDist(t) { const dx = t[0].clientX - t[1].clientX, dy = t[0].clientY - t[1].clientY; return Math.sqrt(dx * dx + dy * dy); }
+    function onStart(e) { if (e.touches.length === 2) { e.preventDefault(); lastDist.current = getDist(e.touches); } }
+    function onMove(e) {
       if (e.touches.length !== 2 || lastDist.current === null) return;
-      const dist = getDist(e.touches);
-      const delta = dist - lastDist.current;
-      if (Math.abs(delta) > 30) {
-        if (delta > 0) onZoomIn(); else onZoomOut();
-        lastDist.current = null;
-      }
+      e.preventDefault();
+      const dist = getDist(e.touches), delta = dist - lastDist.current;
+      if (Math.abs(delta) > 25) { delta > 0 ? onZoomIn() : onZoomOut(); lastDist.current = null; }
     }
-    function onTouchEnd() { lastDist.current = null; }
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    el.addEventListener("touchmove", onTouchMove, { passive: true });
-    el.addEventListener("touchend", onTouchEnd);
-    return () => { el.removeEventListener("touchstart", onTouchStart); el.removeEventListener("touchmove", onTouchMove); el.removeEventListener("touchend", onTouchEnd); };
+    function onEnd() { lastDist.current = null; }
+    el.addEventListener("touchstart", onStart, { passive: false });
+    el.addEventListener("touchmove", onMove, { passive: false });
+    el.addEventListener("touchend", onEnd);
+    return () => { el.removeEventListener("touchstart", onStart); el.removeEventListener("touchmove", onMove); el.removeEventListener("touchend", onEnd); };
   }, [onZoomIn, onZoomOut]);
   return ref;
 }
 
+// Hora actual con minutos para la línea
+function getHoraActualPct() {
+  const now = new Date();
+  const minutos = (now.getHours() - 8) * 60 + now.getMinutes();
+  return Math.max(0, Math.min(minutos / (14 * 60), 1));
+}
+
 export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, agregarReserva, actualizarReserva, eliminarReserva, showToast, onLogin }) {
-  const [zoom, setZoom] = useState(1);         // 1,2,3,4
+  const [zoom, setZoom] = useState(1);
   const [subVista, setSubVista] = useState("agenda");
   const [weekOffset, setWeekOffset] = useState(0);
   const [mesOffset, setMesOffset] = useState(0);
   const [diaSelIdx, setDiaSelIdx] = useState(() => { const d = new Date().getDay(); return d === 0 ? 0 : d - 1; });
   const [consultorioSel, setConsultorioSel] = useState(0);
+  const [seleccionadas, setSeleccionadas] = useState([]); // [{consultorio, fechaKey, hora}]
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ profesional: "", horaInicio: 8, horaFin: 9, repeteSemanal: false });
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [errorSolapamiento, setErrorSolapamiento] = useState("");
-  const [scrollY, setScrollY] = useState(0);
-  const scrollRef = useRef(null);
+  const [horaActualPct, setHoraActualPct] = useState(getHoraActualPct());
+
+  // Actualizar línea de hora cada minuto
+  useEffect(() => {
+    const interval = setInterval(() => setHoraActualPct(getHoraActualPct()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Bloquear zoom nativo del navegador
+  useEffect(() => {
+    const meta = document.querySelector("meta[name=viewport]");
+    if (meta) meta.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no";
+    return () => { if (meta) meta.content = "width=device-width, initial-scale=1"; };
+  }, []);
 
   const weekDates = useMemo(() => getWeekDates(weekOffset), [weekOffset]);
   const mesStr = useMemo(() => { const d = new Date(); d.setMonth(d.getMonth() + mesOffset); return d.toISOString().slice(0, 7); }, [mesOffset]);
@@ -126,29 +132,48 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
   const pinchRef = usePinchZoom(zoomIn, zoomOut);
 
   function hayConflicto(consultorio, fecha, horaInicio, horaFin, excludeId = null) {
-    const key = dateKey(fecha); const diaSemana = fecha.getDay();
+    const key = dateKey(fecha), dow = fecha.getDay();
     return reservas.some(r => {
       if (r.id === excludeId || r.consultorio !== consultorio) return false;
-      const ok = r.fecha === key || (r.repeteSemanal && new Date(r.fecha + "T12:00:00").getDay() === diaSemana && new Date(r.fecha + "T12:00:00") <= fecha);
+      const ok = r.fecha === key || (r.repeteSemanal && new Date(r.fecha + "T12:00:00").getDay() === dow && new Date(r.fecha + "T12:00:00") <= fecha);
       return ok && horaInicio < r.horaFin && horaFin > r.horaInicio;
     });
   }
 
   function puedeEditar(r) { return esAdmin || r.profesional === usuario?.nombre; }
 
-  function openCrear(consultorio, fecha, hora) {
+  function toggleSeleccion(consultorio, fecha, hora) {
     if (esPublico) { onLogin(); return; }
-    setErrorSolapamiento(""); setModal({ mode: "crear", consultorio, fecha });
-    setForm({ profesional: esAdmin ? "" : usuario?.nombre, horaInicio: hora, horaFin: hora + 1, repeteSemanal: false });
+    const key = `${consultorio}__${dateKey(fecha)}__${hora}`;
+    setSeleccionadas(prev => {
+      const existe = prev.find(s => `${s.consultorio}__${s.fechaKey}__${s.hora}` === key);
+      if (existe) return prev.filter(s => `${s.consultorio}__${s.fechaKey}__${s.hora}` !== key);
+      return [...prev, { consultorio, fechaKey: dateKey(fecha), fecha, hora }];
+    });
+  }
+
+  function estaSeleccionada(consultorio, fecha, hora) {
+    return seleccionadas.some(s => s.consultorio === consultorio && s.fechaKey === dateKey(fecha) && s.hora === hora);
+  }
+
+  function abrirModalMultiple() {
+    if (seleccionadas.length === 0) return;
+    const primera = seleccionadas[0];
+    const horaMin = Math.min(...seleccionadas.filter(s => s.consultorio === primera.consultorio && s.fechaKey === primera.fechaKey).map(s => s.hora));
+    const horaMax = Math.max(...seleccionadas.filter(s => s.consultorio === primera.consultorio && s.fechaKey === primera.fechaKey).map(s => s.hora)) + 1;
+    setErrorSolapamiento("");
+    setModal({ mode: "crear", consultorio: primera.consultorio, fecha: primera.fecha });
+    setForm({ profesional: esAdmin ? "" : usuario?.nombre, horaInicio: horaMin, horaFin: horaMax, repeteSemanal: false });
   }
 
   function openEditar(r) {
     if (!puedeEditar(r)) return;
-    setErrorSolapamiento(""); setModal({ mode: "editar", consultorio: r.consultorio, fecha: new Date(r.fecha + "T12:00:00"), reservaId: r.id });
+    setErrorSolapamiento("");
+    setModal({ mode: "editar", consultorio: r.consultorio, fecha: new Date(r.fecha + "T12:00:00"), reservaId: r.id });
     setForm({ profesional: r.profesional, horaInicio: r.horaInicio, horaFin: r.horaFin, repeteSemanal: r.repeteSemanal });
   }
 
-  function closeModal() { setModal(null); setErrorSolapamiento(""); }
+  function closeModal() { setModal(null); setErrorSolapamiento(""); setSeleccionadas([]); }
 
   async function guardarReserva() {
     if (!form.profesional.trim() || form.horaFin <= form.horaInicio) return;
@@ -162,7 +187,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
   async function borrarReserva(id) { await eliminarReserva(id); setConfirmDelete(null); showToast("Reserva eliminada", "warn"); }
 
   function getReservasBloque(consultorio, fecha, hora) {
-    const key = dateKey(fecha); const dow = fecha.getDay();
+    const key = dateKey(fecha), dow = fecha.getDay();
     return reservas.filter(r => {
       if (r.consultorio !== consultorio || hora < r.horaInicio || hora >= r.horaFin) return false;
       if (r.fecha === key) return true;
@@ -172,107 +197,119 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
   }
 
   const todayKey = dateKey(new Date());
+  const horaActual = new Date().getHours();
   const horasRange = Array.from({ length: 14 }, (_, i) => i + 8);
-  const stickyVisible = scrollY > 60 && zoom >= 3;
-
-  const ZOOM_LABELS = ["Semana completa", "Media semana", "Un día · 3 consultorios", "Un día · Un consultorio"];
-
-  // Días para cada zoom
-  const diasZ1 = weekDates;                          // 6 días
-  const diasZ2Groups = [weekDates.slice(0, 3), weekDates.slice(3)]; // Lun-Mié / Jue-Sáb
-  const [z2group, setZ2group] = useState(0);
-  const diasZ2 = diasZ2Groups[z2group];
   const diaZ34 = weekDates[Math.min(diaSelIdx, weekDates.length - 1)];
+  const ZOOM_LABELS = ["Semana completa", "Media semana", "Un día · 3 consultorios", "Un día · Un consultorio"];
 
   const inputStyle = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(124,106,255,0.2)", fontSize: 13, marginBottom: 12, boxSizing: "border-box", outline: "none", background: "rgba(14,12,28,0.8)", color: "white" };
   const labelStyle = { display: "block", fontSize: 11, fontWeight: 700, color: "#a0a8c0", marginBottom: 4, textTransform: "uppercase", letterSpacing: .5 };
 
-  // ── Render celdas ──────────────────────────────────────────────────────────
-  function CeldaBloque({ consultorio, fecha, hora, showName, cellHeight = 28 }) {
+  // ── Celda de grilla ────────────────────────────────────────────────────────
+  function Celda({ consultorio, fecha, hora, showName, cellHeight = 26 }) {
     const bloques = getReservasBloque(consultorio, fecha, hora);
     const libre = bloques.length === 0;
-    const isToday = dateKey(fecha) === todayKey;
+    const sel = estaSeleccionada(consultorio, fecha, hora);
+    const esHoraActual = dateKey(fecha) === todayKey && hora === horaActual;
+
     return (
-      <div onClick={() => libre && openCrear(consultorio, fecha, hora)}
-        style={{ height: cellHeight, padding: 1, borderBottom: "1px solid rgba(124,106,255,0.06)", cursor: libre ? "pointer" : "default", background: libre ? (isToday ? "rgba(124,106,255,0.04)" : "transparent") : undefined, position: "relative" }}>
+      <div onClick={() => libre && toggleSeleccion(consultorio, fecha, hora)}
+        style={{ height: cellHeight, padding: 1, borderBottom: "1px solid rgba(255,255,255,0.05)", position: "relative", cursor: libre ? "pointer" : "default", background: sel ? "rgba(124,106,255,0.25)" : libre ? "transparent" : undefined, transition: "background 0.15s" }}>
         {bloques.map(r => {
           const col = colorMap[r.profesional] || COLORES_PROF[0];
           const esInicio = hora === r.horaInicio;
           return (
             <div key={r.id} style={{ height: "100%", background: col.bg, borderRadius: esInicio ? "4px 4px 1px 1px" : "1px", padding: "1px 3px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              {esInicio && showName && <span style={{ fontSize: 8, fontWeight: 700, color: "white", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "70%" }}>{r.profesional}</span>}
+              {esInicio && showName && <span style={{ fontSize: 8, fontWeight: 700, color: "white", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: "65%" }}>{r.profesional}</span>}
               {esInicio && showName && puedeEditar(r) && !esPublico && (
                 <span style={{ display: "flex", gap: 1, flexShrink: 0 }}>
-                  <button onClick={e => { e.stopPropagation(); openEditar(r); }} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", cursor: "pointer", borderRadius: 2, padding: "0 2px", fontSize: 7, lineHeight: "10px" }}>✎</button>
-                  <button onClick={e => { e.stopPropagation(); setConfirmDelete(r.id); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "white", cursor: "pointer", borderRadius: 2, padding: "0 2px", fontSize: 7, lineHeight: "10px" }}>✕</button>
+                  <button onClick={e => { e.stopPropagation(); openEditar(r); }} style={{ background: "rgba(255,255,255,0.2)", border: "none", color: "white", cursor: "pointer", borderRadius: 2, padding: "0 2px", fontSize: 7 }}>✎</button>
+                  <button onClick={e => { e.stopPropagation(); setConfirmDelete(r.id); }} style={{ background: "rgba(255,255,255,0.15)", border: "none", color: "white", cursor: "pointer", borderRadius: 2, padding: "0 2px", fontSize: 7 }}>✕</button>
                 </span>
               )}
-              {!showName && esInicio && <div style={{ width: "100%", height: "100%", borderRadius: 3 }} />}
             </div>
           );
         })}
-        {libre && !esPublico && <div style={{ color: "rgba(124,106,255,0.2)", fontSize: 7, textAlign: "center", paddingTop: cellHeight / 3 }}>+</div>}
+        {sel && libre && <div style={{ position: "absolute", inset: 1, borderRadius: 3, border: "1px solid rgba(124,106,255,0.6)", pointerEvents: "none" }} />}
       </div>
     );
   }
 
-  // ── Grilla genérica ────────────────────────────────────────────────────────
-  function Grilla({ dias, showName, cellHeight = 28, colWidth = 48 }) {
-    const cols = dias.length * 3; // 3 consultorios por día
+  // ── Grilla con línea de hora ───────────────────────────────────────────────
+  function Grilla({ dias, showName, cellHeight = 22, colWidth = 38 }) {
+    const totalHeight = cellHeight * HORAS.length;
+    const lineaTop = horaActualPct * totalHeight;
+    const hoyEnDias = dias.some(f => dateKey(f) === todayKey);
+
     return (
-      <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 200px)" }}>
-        <table style={{ borderCollapse: "collapse", minWidth: 40 + cols * colWidth }}>
+      <div style={{ overflowX: "auto", overflowY: "auto", maxHeight: "calc(100vh - 210px)", position: "relative" }}>
+        <table style={{ borderCollapse: "collapse", minWidth: 36 + dias.length * 3 * colWidth }}>
           <thead>
             <tr>
-              <th style={{ width: 36, minWidth: 36, background: "rgba(0,0,0,0.6)", position: "sticky", left: 0, zIndex: 3, borderBottom: "1px solid rgba(124,106,255,0.1)" }} />
+              <th style={{ width: 36, minWidth: 36, background: "rgba(0,0,0,0.8)", position: "sticky", left: 0, zIndex: 5, borderBottom: "1px solid rgba(255,255,255,0.08)" }} />
               {dias.map(fecha => {
                 const isToday = dateKey(fecha) === todayKey;
                 return (
-                  <th key={dateKey(fecha)} colSpan={3} style={{ background: isToday ? "rgba(124,106,255,0.15)" : "rgba(0,0,0,0.5)", color: isToday ? "#7c6aff" : "white", fontSize: 11, fontWeight: 700, padding: "6px 0", textAlign: "center", borderLeft: "2px solid rgba(124,106,255,0.15)", borderBottom: "1px solid rgba(124,106,255,0.1)", minWidth: colWidth * 3 }}>
-                    <div style={{ fontSize: 9, color: isToday ? "#7c6aff" : "#a0a8c0" }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-                    <div style={{ fontSize: 13, fontWeight: 800 }}>{fecha.getDate()}</div>
+                  <th key={dateKey(fecha)} colSpan={3} style={{ background: isToday ? "rgba(124,106,255,0.18)" : "rgba(0,0,0,0.7)", color: isToday ? "#a78bfa" : "white", fontSize: 11, fontWeight: 800, padding: "7px 0", textAlign: "center", borderLeft: "2px solid rgba(255,255,255,0.08)", borderBottom: "1px solid rgba(255,255,255,0.08)", minWidth: colWidth * 3 }}>
+                    <div style={{ fontSize: 9, color: isToday ? "#a78bfa" : "#a0a8c0", fontWeight: 600 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
+                    <div style={{ fontSize: 14 }}>{fecha.getDate()}</div>
                   </th>
                 );
               })}
             </tr>
             <tr>
-              <th style={{ width: 36, background: "rgba(0,0,0,0.6)", position: "sticky", left: 0, zIndex: 3, borderBottom: "1px solid rgba(124,106,255,0.1)" }} />
+              <th style={{ width: 36, background: "rgba(0,0,0,0.8)", position: "sticky", left: 0, zIndex: 5, borderBottom: "1px solid rgba(255,255,255,0.06)" }} />
               {dias.map(fecha => CONSULTORIOS.map((c, ci) => (
-                <th key={`${dateKey(fecha)}-${c}`} style={{ background: "rgba(0,0,0,0.4)", color: "#4a5270", fontSize: 8, fontWeight: 700, padding: "3px 1px", textAlign: "center", borderLeft: ci === 0 ? "2px solid rgba(124,106,255,0.15)" : "1px solid rgba(124,106,255,0.06)", borderBottom: "1px solid rgba(124,106,255,0.1)", width: colWidth }}>
+                <th key={`${dateKey(fecha)}-${c}`} style={{ background: "rgba(0,0,0,0.6)", color: "#4a5270", fontSize: 8, fontWeight: 700, padding: "3px 1px", textAlign: "center", borderLeft: ci === 0 ? "2px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)", width: colWidth }}>
                   C{ci + 1}
                 </th>
               )))}
             </tr>
           </thead>
-          <tbody>
-            {HORAS.map(hora => (
-              <tr key={hora}>
-                <td style={{ padding: "0 4px", textAlign: "right", fontSize: 8, color: "#3a3a5a", background: "rgba(0,0,0,0.5)", position: "sticky", left: 0, zIndex: 2, verticalAlign: "middle", borderRight: "1px solid rgba(124,106,255,0.08)" }}>
-                  {hora}h
-                </td>
-                {dias.map(fecha => CONSULTORIOS.map((c, ci) => (
-                  <td key={`${dateKey(fecha)}-${c}-${hora}`} style={{ padding: 0, borderLeft: ci === 0 ? "2px solid rgba(124,106,255,0.1)" : "1px solid rgba(124,106,255,0.04)", width: colWidth }}>
-                    <CeldaBloque consultorio={c} fecha={fecha} hora={hora} showName={showName} cellHeight={cellHeight} />
+          <tbody style={{ position: "relative" }}>
+            {HORAS.map((hora, hi) => {
+              const esHoraLinea = dateKey(new Date()) === todayKey && hora === horaActual;
+              return (
+                <tr key={hora} style={{ position: "relative" }}>
+                  <td style={{ padding: "0 6px 0 0", textAlign: "right", fontSize: 9, color: "rgba(255,255,255,0.6)", fontWeight: 600, background: "rgba(0,0,0,0.7)", position: "sticky", left: 0, zIndex: 2, borderRight: "1px solid rgba(255,255,255,0.07)", verticalAlign: "middle", height: cellHeight }}>
+                    {hora}h
                   </td>
-                )))}
-              </tr>
-            ))}
+                  {dias.map(fecha => CONSULTORIOS.map((c, ci) => (
+                    <td key={`${dateKey(fecha)}-${c}-${hora}`} style={{ padding: 0, borderLeft: ci === 0 ? "2px solid rgba(255,255,255,0.07)" : "1px solid rgba(255,255,255,0.03)", width: colWidth, position: "relative" }}>
+                      <Celda consultorio={c} fecha={fecha} hora={hora} showName={showName} cellHeight={cellHeight} />
+                    </td>
+                  )))}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
+
+        {/* LÍNEA HORA ACTUAL */}
+        {hoyEnDias && (
+          <div style={{ position: "absolute", top: 70 + lineaTop, left: 0, right: 0, zIndex: 10, pointerEvents: "none", display: "flex", alignItems: "center" }}>
+            <div style={{ width: 36, flexShrink: 0 }} />
+            <div style={{ flex: 1, height: 1.5, background: "white", opacity: 0.7, boxShadow: "0 0 6px rgba(255,255,255,0.5)" }} />
+          </div>
+        )}
       </div>
     );
   }
 
-  // ── Zoom 3: un día, 3 consultorios ────────────────────────────────────────
+  // ── Zoom 3: un día ────────────────────────────────────────────────────────
   function GrillaUnDia({ fecha }) {
+    const totalHeight = 36 * HORAS.length;
+    const lineaTop = horaActualPct * totalHeight;
+    const isToday = dateKey(fecha) === todayKey;
+
     return (
-      <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 220px)" }}>
+      <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 230px)", position: "relative" }}>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              <th style={{ width: 40, background: "rgba(0,0,0,0.6)", borderBottom: "1px solid rgba(124,106,255,0.1)" }} />
+              <th style={{ width: 42, background: "rgba(0,0,0,0.8)", borderBottom: "1px solid rgba(255,255,255,0.08)", position: "sticky", top: 0, zIndex: 3 }} />
               {CONSULTORIOS.map((c, ci) => (
-                <th key={c} style={{ background: "rgba(14,12,28,0.9)", color: "white", fontSize: 12, fontWeight: 700, padding: "8px 4px", textAlign: "center", borderLeft: "1px solid rgba(124,106,255,0.1)", borderBottom: "1px solid rgba(124,106,255,0.1)" }}>
+                <th key={c} style={{ background: "rgba(0,0,0,0.8)", color: "white", fontSize: 12, fontWeight: 700, padding: "8px 4px", textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.07)", borderBottom: "1px solid rgba(255,255,255,0.08)", position: "sticky", top: 0, zIndex: 3 }}>
                   C{ci + 1}
                 </th>
               ))}
@@ -281,43 +318,43 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
           <tbody>
             {HORAS.map(hora => (
               <tr key={hora}>
-                <td style={{ padding: "0 6px", textAlign: "right", fontSize: 9, color: "#a0a8c0", background: "rgba(0,0,0,0.5)", borderRight: "1px solid rgba(124,106,255,0.08)", verticalAlign: "middle" }}>{hora}:00</td>
+                <td style={{ padding: "0 6px 0 0", textAlign: "right", fontSize: 10, color: "rgba(255,255,255,0.65)", fontWeight: 600, background: "rgba(0,0,0,0.7)", borderRight: "1px solid rgba(255,255,255,0.07)", verticalAlign: "middle", height: 36 }}>{hora}:00</td>
                 {CONSULTORIOS.map((c, ci) => (
-                  <td key={c} style={{ padding: 0, borderLeft: "1px solid rgba(124,106,255,0.08)" }}>
-                    <CeldaBloque consultorio={c} fecha={fecha} hora={hora} showName={true} cellHeight={36} />
+                  <td key={c} style={{ padding: 0, borderLeft: "1px solid rgba(255,255,255,0.05)" }}>
+                    <Celda consultorio={c} fecha={fecha} hora={hora} showName={true} cellHeight={36} />
                   </td>
                 ))}
               </tr>
             ))}
           </tbody>
         </table>
+        {isToday && (
+          <div style={{ position: "absolute", top: 37 + lineaTop, left: 0, right: 0, zIndex: 10, pointerEvents: "none", display: "flex", alignItems: "center" }}>
+            <div style={{ width: 42, flexShrink: 0 }} />
+            <div style={{ flex: 1, height: 2, background: "white", opacity: 0.8, boxShadow: "0 0 8px rgba(255,255,255,0.6)" }} />
+          </div>
+        )}
       </div>
     );
   }
 
-  // ── Zoom 4: un día, un consultorio ────────────────────────────────────────
+  // ── Zoom 4: un consultorio ────────────────────────────────────────────────
   function GrillaUnConsultorio({ fecha, consultorio }) {
-    const reservasDia = reservas.filter(r => {
-      if (r.consultorio !== consultorio) return false;
-      const key = dateKey(fecha); const dow = fecha.getDay();
-      if (r.fecha === key) return true;
-      if (r.repeteSemanal) { const o = new Date(r.fecha + "T12:00:00"); return o.getDay() === dow && o <= fecha; }
-      return false;
-    }).sort((a, b) => a.horaInicio - b.horaInicio);
-
+    const isToday = dateKey(fecha) === todayKey;
     return (
-      <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 260px)" }}>
+      <div style={{ overflowY: "auto", maxHeight: "calc(100vh - 270px)", position: "relative" }}>
         {HORAS.map(hora => {
-          const bloques = reservasDia.filter(r => hora >= r.horaInicio && hora < r.horaFin);
+          const bloques = getReservasBloque(consultorio, fecha, hora);
           const libre = bloques.length === 0;
-          const isInicio = bloques.length > 0 && bloques[0].horaInicio === hora;
+          const esInicio = bloques.length > 0 && bloques[0].horaInicio === hora;
+          const sel = estaSeleccionada(consultorio, fecha, hora);
           return (
-            <div key={hora} onClick={() => libre && openCrear(consultorio, fecha, hora)}
-              style={{ display: "flex", alignItems: "center", gap: 12, padding: "0 16px", height: 48, borderBottom: "1px solid rgba(124,106,255,0.08)", background: libre ? "transparent" : "rgba(124,106,255,0.03)", cursor: libre ? "pointer" : "default", transition: "background 0.15s" }}>
-              <span style={{ fontSize: 11, color: "#4a5270", fontWeight: 600, minWidth: 36, textAlign: "right" }}>{hora}:00</span>
+            <div key={hora} onClick={() => libre && toggleSeleccion(consultorio, fecha, hora)}
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "0 14px", height: 46, borderBottom: "1px solid rgba(255,255,255,0.05)", background: sel ? "rgba(124,106,255,0.2)" : "transparent", cursor: libre ? "pointer" : "default", transition: "background 0.15s", position: "relative" }}>
+              <span style={{ fontSize: 11, color: "rgba(255,255,255,0.55)", fontWeight: 600, minWidth: 36, textAlign: "right" }}>{hora}:00</span>
               {bloques.length > 0 ? (
-                <div style={{ flex: 1, height: 36, borderRadius: 10, background: (colorMap[bloques[0].profesional] || COLORES_PROF[0]).bg, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px" }}>
-                  {isInicio && <>
+                <div style={{ flex: 1, height: 34, borderRadius: 10, background: (colorMap[bloques[0].profesional] || COLORES_PROF[0]).bg, display: "flex", alignItems: "center", justifyContent: "space-between", padding: "0 12px" }}>
+                  {esInicio && <>
                     <span style={{ fontSize: 13, fontWeight: 700, color: "white" }}>{bloques[0].profesional}</span>
                     <span style={{ fontSize: 11, color: "rgba(255,255,255,0.7)" }}>{bloques[0].horaInicio}:00 – {bloques[0].horaFin}:00</span>
                     {puedeEditar(bloques[0]) && !esPublico && (
@@ -329,9 +366,12 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
                   </>}
                 </div>
               ) : (
-                <div style={{ flex: 1, height: 36, borderRadius: 10, border: "1px dashed rgba(124,106,255,0.15)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                  {!esPublico && <span style={{ fontSize: 11, color: "rgba(124,106,255,0.4)" }}>+ Reservar</span>}
+                <div style={{ flex: 1, height: 34, borderRadius: 10, border: `1px dashed ${sel ? "rgba(124,106,255,0.5)" : "rgba(255,255,255,0.08)"}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  {sel ? <span style={{ fontSize: 11, color: "#a78bfa" }}>✓ Seleccionado</span> : !esPublico && <span style={{ fontSize: 11, color: "rgba(255,255,255,0.2)" }}>Tocá para seleccionar</span>}
                 </div>
+              )}
+              {isToday && hora === horaActual && (
+                <div style={{ position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: "white", opacity: 0.7, boxShadow: "0 0 6px rgba(255,255,255,0.5)", pointerEvents: "none" }} />
               )}
             </div>
           );
@@ -341,25 +381,23 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
   }
 
   return (
-    <div ref={el => { scrollRef.current = el; if (el) { pinchRef.current = el; } }}
-      onScroll={e => setScrollY(e.currentTarget.scrollTop)}
-      style={{ height: "100vh", overflowY: "auto", background: "#000000", touchAction: zoom <= 2 ? "pan-y" : "pan-y" }}
-      className="tab-content">
+    <div ref={pinchRef} onScroll={e => {}} style={{ height: "100vh", overflowY: "auto", background: "#000000" }} className="tab-content">
 
-      {/* ══ STICKY BAR (solo zoom 3 y 4) ══ */}
-      {stickyVisible && (
-        <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(0,0,0,0.92)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderBottom: "1px solid rgba(124,106,255,0.15)", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <span style={{ fontSize: 14, fontWeight: 800, color: "white" }}>Reservas</span>
-          <img src="/logohead.jpeg" alt="GRINS" style={{ height: 26, objectFit: "contain", opacity: 0.85 }} />
+      {/* ══ STICKY BAR — siempre visible ══ */}
+      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 50, background: "rgba(0,0,0,0.92)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderBottom: "1px solid rgba(124,106,255,0.15)", padding: "10px 20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: "white" }}>Reservas</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {[1, 2, 3, 4].map(z => (
+            <button key={z} onClick={() => setZoom(z)} style={{ width: 28, height: 28, borderRadius: 8, border: "none", background: zoom === z ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(124,106,255,0.12)", color: zoom === z ? "white" : "#7c6aff", fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>{z}</button>
+          ))}
         </div>
-      )}
+      </div>
 
       {/* ══ HEADER ══ */}
-      <div style={{ background: "linear-gradient(180deg,#0a0a14 0%,#000000 100%)", padding: `${stickyVisible ? 64 : 54}px 16px 14px` }}>
-        {zoom <= 2 && <img src="/logohead.jpeg" alt="GRINS" style={{ height: 32, objectFit: "contain", opacity: 0.85, marginBottom: 12, display: "block" }} />}
+      <div style={{ background: "linear-gradient(180deg,#0a0a14 0%,#000000 100%)", padding: "60px 14px 12px" }}>
 
         {/* SUB-TABS */}
-        <div style={{ display: "flex", background: "rgba(14,12,28,0.8)", borderRadius: 12, padding: 3, border: "1px solid rgba(124,106,255,0.15)", marginBottom: 12 }}>
+        <div style={{ display: "flex", background: "rgba(14,12,28,0.8)", borderRadius: 12, padding: 3, border: "1px solid rgba(124,106,255,0.15)", marginBottom: 10 }}>
           {[["agenda", "📅 Agenda"], ["pagos", "💰 Pagos"]].map(([v, label]) => (
             (!esPublico || v !== "pagos") && (
               <button key={v} onClick={() => setSubVista(v)} style={{ flex: 1, padding: "8px", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: 600, fontSize: 12, background: subVista === v ? "linear-gradient(135deg,#667eea,#764ba2)" : "transparent", color: subVista === v ? "white" : "#a0a8c0", transition: "all 0.2s" }}>{label}</button>
@@ -369,21 +407,16 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
 
         {subVista === "agenda" && (
           <>
-            {/* INDICADOR DE ZOOM */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-              <div style={{ display: "flex", gap: 4 }}>
-                {[1, 2, 3, 4].map(z => (
-                  <button key={z} onClick={() => setZoom(z)} style={{ width: 28, height: 28, borderRadius: 8, border: "none", background: zoom === z ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(124,106,255,0.1)", color: zoom === z ? "white" : "#7c6aff", fontSize: 11, fontWeight: 700, cursor: "pointer", transition: "all 0.2s" }}>{z}</button>
-                ))}
-              </div>
-              <span style={{ fontSize: 10, color: "#4a5270", fontStyle: "italic" }}>
-                {ZOOM_LABELS[zoom - 1]}
-                {zoom >= 1 && zoom <= 2 && " · pellizcar para zoom"}
+            {/* INSTRUCCIONES */}
+            <div style={{ background: "rgba(124,106,255,0.08)", borderRadius: 10, padding: "7px 12px", marginBottom: 10, border: "1px solid rgba(124,106,255,0.12)", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ fontSize: 14 }}>🤏</span>
+              <span style={{ fontSize: 10, color: "#a0a8c0", lineHeight: 1.4 }}>
+                Usá los botones <strong style={{ color: "#7c6aff" }}>1 2 3 4</strong> arriba o el pellizco para hacer zoom. Tocá una celda libre para seleccionarla.
               </span>
             </div>
 
             {/* NAV SEMANA */}
-            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 10 }}>
               <button onClick={() => setWeekOffset(w => w - 1)} style={{ width: 32, height: 32, borderRadius: 9, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(14,12,28,0.8)", cursor: "pointer", color: "white", fontSize: 15, display: "flex", alignItems: "center", justifyContent: "center" }}>‹</button>
               <span style={{ flex: 1, textAlign: "center", fontWeight: 700, fontSize: 11, color: "#a0a8c0" }}>
                 {weekDates[0].toLocaleDateString("es-AR", { day: "numeric", month: "short" })} – {weekDates[5].toLocaleDateString("es-AR", { day: "numeric", month: "short" })}
@@ -392,47 +425,44 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
               <button onClick={() => setWeekOffset(0)} style={{ padding: "0 10px", height: 32, borderRadius: 9, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(14,12,28,0.8)", cursor: "pointer", color: "#a0a8c0", fontSize: 10, fontWeight: 600 }}>Hoy</button>
             </div>
 
-            {/* NAV DÍAS para zoom 3 y 4 */}
+            {/* NAV DÍAS zoom 3 y 4 */}
             {zoom >= 3 && (
-              <div style={{ display: "flex", gap: 6, marginTop: 10, overflowX: "auto", paddingBottom: 2 }}>
+              <div style={{ display: "flex", gap: 5, overflowX: "auto", paddingBottom: 2, marginBottom: 8 }}>
                 {weekDates.map((fecha, idx) => {
                   const isToday = dateKey(fecha) === todayKey;
                   const isSel = idx === diaSelIdx;
                   return (
-                    <button key={idx} onClick={() => setDiaSelIdx(idx)} style={{ flexShrink: 0, padding: "6px 10px", borderRadius: 10, border: "none", background: isSel ? "linear-gradient(135deg,#667eea,#764ba2)" : isToday ? "rgba(124,106,255,0.15)" : "rgba(14,12,28,0.8)", color: isSel ? "white" : isToday ? "#7c6aff" : "#a0a8c0", fontWeight: isSel ? 700 : 500, fontSize: 11, cursor: "pointer", transition: "all 0.2s", textAlign: "center" }}>
-                      <div style={{ fontSize: 9 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-                      <div style={{ fontSize: 14, fontWeight: 800 }}>{fecha.getDate()}</div>
+                    <button key={idx} onClick={() => setDiaSelIdx(idx)} style={{ flexShrink: 0, padding: "5px 10px", borderRadius: 10, border: "none", background: isSel ? "linear-gradient(135deg,#667eea,#764ba2)" : isToday ? "rgba(124,106,255,0.15)" : "rgba(14,12,28,0.8)", color: isSel ? "white" : isToday ? "#a78bfa" : "#a0a8c0", fontWeight: isSel ? 700 : 500, fontSize: 11, cursor: "pointer", textAlign: "center" }}>
+                      <div style={{ fontSize: 8 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
+                      <div style={{ fontSize: 13, fontWeight: 800 }}>{fecha.getDate()}</div>
                     </button>
                   );
                 })}
               </div>
             )}
 
-            {/* NAV CONSULTORIOS para zoom 4 */}
+            {/* NAV CONSULTORIOS zoom 4 */}
             {zoom === 4 && (
-              <div style={{ display: "flex", gap: 6, marginTop: 8 }}>
+              <div style={{ display: "flex", gap: 5, marginBottom: 8 }}>
                 {CONSULTORIOS.map((c, ci) => (
-                  <button key={c} onClick={() => setConsultorioSel(ci)} style={{ flex: 1, padding: "7px", borderRadius: 9, border: "none", background: consultorioSel === ci ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(14,12,28,0.8)", color: consultorioSel === ci ? "white" : "#a0a8c0", fontWeight: 600, fontSize: 11, cursor: "pointer", transition: "all 0.2s" }}>C{ci + 1}</button>
+                  <button key={c} onClick={() => setConsultorioSel(ci)} style={{ flex: 1, padding: "6px", borderRadius: 9, border: "none", background: consultorioSel === ci ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(14,12,28,0.8)", color: consultorioSel === ci ? "white" : "#a0a8c0", fontWeight: 600, fontSize: 11, cursor: "pointer" }}>C{ci + 1}</button>
                 ))}
               </div>
             )}
 
-            {/* NAV GRUPO para zoom 2 */}
-            {zoom === 2 && (
-              <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-                <button onClick={() => setZ2group(0)} style={{ flex: 1, padding: "7px", borderRadius: 9, border: "none", background: z2group === 0 ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(14,12,28,0.8)", color: z2group === 0 ? "white" : "#a0a8c0", fontWeight: 600, fontSize: 11, cursor: "pointer" }}>‹ Lun · Mar · Mié</button>
-                <button onClick={() => setZ2group(1)} style={{ flex: 1, padding: "7px", borderRadius: 9, border: "none", background: z2group === 1 ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(14,12,28,0.8)", color: z2group === 1 ? "white" : "#a0a8c0", fontWeight: 600, fontSize: 11, cursor: "pointer" }}>Jue · Vie · Sáb ›</button>
-              </div>
-            )}
+            {/* ZOOM LABEL */}
+            <div style={{ textAlign: "right", marginBottom: 4 }}>
+              <span style={{ fontSize: 10, color: "#3a3a5a", fontStyle: "italic" }}>{ZOOM_LABELS[zoom - 1]}</span>
+            </div>
           </>
         )}
       </div>
 
       {/* ══ CONTENIDO ══ */}
       {subVista === "agenda" && (
-        <div style={{ padding: "8px 8px 100px" }}>
-          {zoom === 1 && <Grilla dias={diasZ1} showName={false} cellHeight={22} colWidth={38} />}
-          {zoom === 2 && <Grilla dias={diasZ2} showName={true} cellHeight={26} colWidth={52} />}
+        <div style={{ padding: "0 6px 120px" }}>
+          {zoom === 1 && <Grilla dias={weekDates} showName={false} cellHeight={22} colWidth={36} />}
+          {zoom === 2 && <Grilla dias={weekDates} showName={true} cellHeight={26} colWidth={50} />}
           {zoom === 3 && <GrillaUnDia fecha={diaZ34} />}
           {zoom === 4 && <GrillaUnConsultorio fecha={diaZ34} consultorio={CONSULTORIOS[consultorioSel]} />}
         </div>
@@ -448,12 +478,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
             <button onClick={() => setMesOffset(0)} style={{ padding: "0 10px", height: 34, borderRadius: 10, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(14,12,28,0.8)", cursor: "pointer", color: "#a0a8c0", fontSize: 11 }}>Hoy</button>
             {esAdmin && <button onClick={() => exportarCSV(profesionales, reservas, mesStr)} style={{ padding: "0 12px", height: 34, borderRadius: 10, border: "none", background: "linear-gradient(135deg,#667eea,#764ba2)", color: "white", fontSize: 11, fontWeight: 700, cursor: "pointer" }}>⬇ CSV</button>}
           </div>
-
-          {esAdmin && profesionales.length > 0 && (() => {
-            const total = profesionales.reduce((a, p) => a + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0);
-            return <div style={{ background: "rgba(14,12,28,0.9)", borderRadius: 14, padding: "14px 18px", marginBottom: 14, display: "flex", justifyContent: "space-between", border: "1px solid rgba(124,106,255,0.15)" }}><span style={{ color: "#a0a8c0", fontWeight: 700, fontSize: 12 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 20 }}>{formatCurrency(total)}</span></div>;
-          })()}
-
+          {esAdmin && profesionales.length > 0 && (() => { const total = profesionales.reduce((a, p) => a + calcularPagosProfesional(reservas, p, mesStr).totalMes, 0); return <div style={{ background: "rgba(14,12,28,0.9)", borderRadius: 14, padding: "14px 18px", marginBottom: 14, display: "flex", justifyContent: "space-between", border: "1px solid rgba(124,106,255,0.15)" }}><span style={{ color: "#a0a8c0", fontWeight: 700, fontSize: 12 }}>Total {mesLabel}</span><span style={{ color: "white", fontWeight: 900, fontSize: 20 }}>{formatCurrency(total)}</span></div>; })()}
           {profesionales.map(prof => {
             const { totalMes, detalle } = calcularPagosProfesional(reservas, prof, mesStr);
             const col = colorMap[prof] || COLORES_PROF[0];
@@ -463,9 +488,8 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
                   <span style={{ color: "white", fontWeight: 800, fontSize: 14 }}>👤 {prof}</span>
                   <span style={{ color: "white", fontWeight: 900, fontSize: 18 }}>{formatCurrency(totalMes)}</span>
                 </div>
-                {detalle.length === 0
-                  ? <p style={{ padding: "12px 16px", color: "#4a5270", fontSize: 12, margin: 0 }}>Sin reservas este mes.</p>
-                  : <div style={{ padding: 10 }}>
+                {detalle.length === 0 ? <p style={{ padding: "12px 16px", color: "#4a5270", fontSize: 12, margin: 0 }}>Sin reservas este mes.</p> :
+                  <div style={{ padding: 10 }}>
                     <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
                       <thead><tr style={{ color: "#4a5270" }}>{["Consultorio", "Fecha", "Horario", "Tipo", "Horas", "Monto"].map(h => <th key={h} style={{ textAlign: h === "Monto" || h === "Horas" ? "right" : "left", padding: "4px 6px", fontWeight: 600 }}>{h}</th>)}</tr></thead>
                       <tbody>{detalle.map(d => (
@@ -488,6 +512,21 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* ══ BOTÓN FLOTANTE NUEVA RESERVA ══ */}
+      {seleccionadas.length > 0 && !esPublico && (
+        <button onClick={abrirModalMultiple} style={{ position: "fixed", bottom: 90, right: 20, zIndex: 100, width: 56, height: 56, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 4px 20px rgba(124,106,255,0.5)", animation: "popIn 0.3s cubic-bezier(0.34,1.56,0.64,1)" }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        </button>
+      )}
+
+      {/* Contador seleccionadas */}
+      {seleccionadas.length > 0 && !esPublico && (
+        <div style={{ position: "fixed", bottom: 90, right: 86, zIndex: 100, background: "rgba(0,0,0,0.85)", border: "1px solid rgba(124,106,255,0.3)", borderRadius: 20, padding: "6px 14px", display: "flex", alignItems: "center", gap: 8 }}>
+          <span style={{ fontSize: 12, color: "#a78bfa", fontWeight: 700 }}>{seleccionadas.length} hora{seleccionadas.length > 1 ? "s" : ""} sel.</span>
+          <button onClick={() => setSeleccionadas([])} style={{ background: "none", border: "none", color: "#4a5270", cursor: "pointer", fontSize: 13, padding: 0, lineHeight: 1 }}>✕</button>
         </div>
       )}
 
@@ -559,7 +598,10 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
         </div>
       )}
 
-      <style>{`@keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: none; opacity: 1; } }`}</style>
+      <style>{`
+        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: none; opacity: 1; } }
+        @keyframes popIn { from { transform: scale(0); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+      `}</style>
     </div>
   );
 }

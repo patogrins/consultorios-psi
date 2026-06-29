@@ -3,8 +3,13 @@ import Derivaciones from "./Derivaciones";
 import RedGrins from "./RedGrins";
 
 export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, reservas = [] }) {
-  const [seccion, setSeccion] = useState("red");
+const [seccion, setSeccion] = useState("red");
 
+useEffect(() => {
+  const handler = () => { setSeccion("derivaciones"); };
+  window.addEventListener("abrirChatConexion", handler);
+  return () => window.removeEventListener("abrirChatConexion", handler);
+}, []);
 useEffect(() => {
   const handler = () => { setSeccion("derivaciones"); };
   window.addEventListener("abrirChatConexion", handler);

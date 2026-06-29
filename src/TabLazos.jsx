@@ -5,6 +5,12 @@ import RedGrins from "./RedGrins";
 export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, reservas = [] }) {
   const [seccion, setSeccion] = useState("red");
 
+useEffect(() => {
+  const handler = () => { setSeccion("derivaciones"); };
+  window.addEventListener("abrirChatConexion", handler);
+  return () => window.removeEventListener("abrirChatConexion", handler);
+}, []);
+
   if (esPublico) return (
     <div className="tab-content" style={{ minHeight: "100vh", background: "#000000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32 }}>
       <div style={{ fontSize: 48, marginBottom: 16 }}>🔗</div>

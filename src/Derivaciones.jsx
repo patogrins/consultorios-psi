@@ -384,6 +384,11 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
 // ── CONEXIONES ────────────────────────────────────────────────────────────────
 function Conexiones({ derivaciones, usuario, perfiles }) {
   const [filtro, setFiltro] = useState("todas");
+  const [chatAbierto, setChatAbierto] = useState(null); // derivacionId
+  const [mensajesChat, setMensajesChat] = useState({});
+  const [textoMsg, setTextoMsg] = useState("");
+  const [perfilVista, setPerfilVista] = useState(null);
+  const chatEndRef = useRef(null);
 
   const conexiones = derivaciones.filter(d =>
     d.estado === "asignada" && (d.derivadoPorEmail === usuario.email || d.asignadoEmail === usuario.email)
@@ -394,6 +399,70 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
     if (filtro === "recibi") return d.asignadoEmail === usuario.email;
     return true;
   });
+
+  // Suscribir mensajes del chat abierto
+  useEffect(() => {
+    if (!chatAbierto) return;
+    const unsub = onSnapshot(
+      collection(db, `chats_derivacion/${chatAbierto}/mensajes`),
+      snap => {
+        const msgs = snap.docs.map(d => ({ ...d.data(), id: d.id }))
+          .sort((a, b) => (a.creadoEn?.seconds || 0) - (b.creadoEn?.seconds || 0));
+        setMensajesChat(prev => ({ ...prev, [chatAbierto]: msgs }));
+        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
+      }
+    );
+    return () => unsub();
+  }, [chatAbierto]);
+
+  async function enviarMensaje(derivacionId) {
+    if (!textoMsg.trim()) return;
+    await addDoc(collection(db, `chats_derivacion/${derivacionId}/mensajes`), {
+      texto: textoMsg.trim(),
+      autorEmail: usuario.email,
+      autorNombre: usuario.nombre,
+      creadoEn: serverTimestamp()
+    });
+    setTextoMsg("");
+  }
+
+  if (perfilVista) {
+    const inicial = perfilVista.nombre?.[0]?.toUpperCase() || "?";
+    return (
+      <div style={{ padding: "16px 14px 100px" }}>
+        <button onClick={() => setPerfilVista(null)} style={{ background: "none", border: "none", color: "#7c6aff", cursor: "pointer", fontSize: 13, fontWeight: 600, marginBottom: 14, display: "flex", alignItems: "center", gap: 6, padding: 0 }}>
+          ← Volver a conexiones
+        </button>
+        <div style={{ background: "rgba(14,12,28,0.9)", borderRadius: 20, overflow: "hidden", border: "1px solid rgba(124,106,255,0.2)" }}>
+          <div style={{ background: "linear-gradient(180deg,#0a0a18,#0d0d20)", padding: "28px 20px 20px", textAlign: "center" }}>
+            <div style={{ width: 80, height: 80, borderRadius: "50%", background: avatarColor(perfilVista.nombre), overflow: "hidden", border: "3px solid rgba(124,106,255,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, fontWeight: 800, color: "white", margin: "0 auto 12px", boxShadow: "0 0 30px rgba(124,106,255,0.2)" }}>
+              {perfilVista.fotoUrl ? <img src={perfilVista.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : inicial}
+            </div>
+            <h2 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 800, color: "white" }}>{perfilVista.nombre}</h2>
+            {perfilVista.especialidad && <div style={{ fontSize: 13, color: "#7c6aff", fontWeight: 600, marginBottom: 8 }}>{perfilVista.especialidad}</div>}
+            <span style={{ fontSize: 11, color: "#66bb6a", background: "rgba(102,187,106,0.12)", borderRadius: 20, padding: "3px 12px", border: "1px solid rgba(102,187,106,0.3)" }}>🔗 Conexión activa</span>
+          </div>
+          <div style={{ padding: "16px 20px" }}>
+            {perfilVista.bio && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: "#4a5270", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Bio</div>
+                <p style={{ margin: 0, fontSize: 13, color: "#a0a8c0", lineHeight: 1.6 }}>{perfilVista.bio}</p>
+              </div>
+            )}
+            {perfilVista.telefono && (
+              <div style={{ marginBottom: 14 }}>
+                <div style={{ fontSize: 10, color: "#4a5270", fontWeight: 700, textTransform: "uppercase", letterSpacing: 1, marginBottom: 6 }}>Contacto</div>
+                <a href={`tel:${perfilVista.telefono}`} style={{ fontSize: 13, color: "#4fc3f7", textDecoration: "none", fontWeight: 600 }}>📞 {perfilVista.telefono}</a>
+              </div>
+            )}
+            <a href={`mailto:${perfilVista.email}`} style={{ display: "block", textAlign: "center", background: "rgba(124,106,255,0.1)", borderRadius: 12, padding: "10px 16px", border: "1px solid rgba(124,106,255,0.2)", textDecoration: "none", color: "#7c6aff", fontSize: 13, fontWeight: 600 }}>
+              ✉ Enviar email
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (conexiones.length === 0) return (
     <div style={{ padding: "32px 20px", textAlign: "center" }}>
@@ -415,38 +484,119 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
         const otroEmail = esMia ? d.asignadoEmail : d.derivadoPorEmail;
         const otroNombre = esMia ? d.asignadoA : d.derivadoPor;
         const otroPerfil = perfiles.find(p => p.email === otroEmail);
+        const miPerfil = perfiles.find(p => p.email === usuario.email);
         const inicial = otroNombre?.[0]?.toUpperCase() || "?";
+        const isChatOpen = chatAbierto === d.id;
+        const msgs = mensajesChat[d.id] || [];
+
+        // Quién deriva y quién recibe para la flecha
+        const derivadorNombre = d.derivadoPor;
+        const derivadorPerfil = perfiles.find(p => p.email === d.derivadoPorEmail);
+        const asignadoPerfil = perfiles.find(p => p.email === d.asignadoEmail);
 
         return (
-          <div key={d.id} style={{ background: "rgba(14,12,28,0.9)", borderRadius: 16, marginBottom: 10, overflow: "hidden", border: "1px solid rgba(102,187,106,0.2)" }}>
+          <div key={d.id} style={{ background: "rgba(14,12,28,0.9)", borderRadius: 18, marginBottom: 12, overflow: "hidden", border: "1px solid rgba(102,187,106,0.2)" }}>
             <div style={{ height: 3, background: "linear-gradient(90deg,#38a169,#2d8a5e)" }} />
-            <div style={{ padding: "14px 16px", display: "flex", alignItems: "center", gap: 12 }}>
-              <div style={{ width: 48, height: 48, borderRadius: "50%", background: avatarColor(otroNombre || ""), overflow: "hidden", border: "2px solid rgba(102,187,106,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", flexShrink: 0 }}>
-                {otroPerfil?.fotoUrl ? <img src={otroPerfil.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : inicial}
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: "white" }}>{otroNombre}</div>
-                {otroPerfil?.especialidad && <div style={{ fontSize: 11, color: "#7c6aff", marginTop: 1 }}>{otroPerfil.especialidad}</div>}
-                <div style={{ fontSize: 11, color: "#4a5270", marginTop: 2 }}>
-                  {esMia ? "Derivaste →" : "← Recibiste"} · 🧠 {d.especialidad}
+
+            {/* VISUAL CONEXIÓN — quién deriva y quién recibe */}
+            <div style={{ padding: "16px 16px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 14 }}>
+
+                {/* Quien deriva */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
+                  onClick={() => { const p = derivadorPerfil || perfiles.find(x => x.email === d.derivadoPorEmail); if (p) setPerfilVista(p); }}>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(derivadorNombre || ""), overflow: "hidden", border: `2px solid ${d.derivadoPorEmail === usuario.email ? "rgba(124,106,255,0.6)" : "rgba(102,187,106,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", cursor: "pointer", boxShadow: d.derivadoPorEmail === usuario.email ? "0 0 12px rgba(124,106,255,0.3)" : "none" }}>
+                    {derivadorPerfil?.fotoUrl ? <img src={derivadorPerfil.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : derivadorNombre?.[0]?.toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: 9, color: d.derivadoPorEmail === usuario.email ? "#a78bfa" : "#4a5270", fontWeight: 700, textAlign: "center", maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {d.derivadoPorEmail === usuario.email ? "Vos" : derivadorNombre}
+                  </div>
+                  <div style={{ fontSize: 8, color: "#3a3a5a", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>deriva</div>
+                </div>
+
+                {/* Flecha central animada */}
+                <div style={{ display: "flex", alignItems: "center", gap: 0, margin: "0 8px", paddingBottom: 20 }}>
+                  <div style={{ width: 16, height: 1, background: "linear-gradient(90deg,rgba(102,187,106,0),rgba(102,187,106,0.6))" }} />
+                  <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#38a169,#2d8a5e)", display: "flex", alignItems: "center", justifyContent: "center", boxShadow: "0 0 10px rgba(102,187,106,0.4)" }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <div style={{ fontSize: 7, color: "#38a169", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.3 }}>asignó</div>
+                  </div>
+                  <div style={{ width: 16, height: 1, background: "linear-gradient(90deg,rgba(102,187,106,0.6),rgba(102,187,106,0))" }} />
+                </div>
+
+                {/* Quien recibe */}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
+                  onClick={() => { const p = asignadoPerfil || perfiles.find(x => x.email === d.asignadoEmail); if (p) setPerfilVista(p); }}>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(d.asignadoA || ""), overflow: "hidden", border: `2px solid ${d.asignadoEmail === usuario.email ? "rgba(124,106,255,0.6)" : "rgba(102,187,106,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", cursor: "pointer", boxShadow: d.asignadoEmail === usuario.email ? "0 0 12px rgba(124,106,255,0.3)" : "none" }}>
+                    {asignadoPerfil?.fotoUrl ? <img src={asignadoPerfil.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : d.asignadoA?.[0]?.toUpperCase()}
+                  </div>
+                  <div style={{ fontSize: 9, color: d.asignadoEmail === usuario.email ? "#a78bfa" : "#4a5270", fontWeight: 700, textAlign: "center", maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {d.asignadoEmail === usuario.email ? "Vos" : d.asignadoA}
+                  </div>
+                  <div style={{ fontSize: 8, color: "#3a3a5a", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>recibe</div>
                 </div>
               </div>
-              <div style={{ display: "flex", flex: "column", gap: 6, flexShrink: 0 }}>
-                {otroPerfil?.telefono && <a href={`tel:${otroPerfil.telefono}`} style={{ display: "block", fontSize: 10, color: "#4fc3f7", textDecoration: "none", textAlign: "center" }}>📞</a>}
-                <a href={`mailto:${otroEmail}`} style={{ display: "block", fontSize: 10, color: "#4fc3f7", textDecoration: "none", textAlign: "center" }}>✉</a>
+
+              {/* Info derivación */}
+              <div style={{ textAlign: "center", marginBottom: 12 }}>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "white" }}>🧠 {d.especialidad}</div>
+                <div style={{ fontSize: 10, color: "#4a5270", marginTop: 2 }}>Derivación activa · {d.modalidad}</div>
               </div>
+
+              {/* Botón chat */}
+              <button onClick={() => setChatAbierto(isChatOpen ? null : d.id)} style={{ width: "100%", padding: "10px", borderRadius: 12, border: `1px solid ${isChatOpen ? "rgba(124,106,255,0.4)" : "rgba(124,106,255,0.2)"}`, background: isChatOpen ? "rgba(124,106,255,0.15)" : "transparent", color: "#a78bfa", fontWeight: 600, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+                {isChatOpen ? "Cerrar chat" : `Chat con ${otroNombre}`}
+                {msgs.length > 0 && !isChatOpen && <span style={{ background: "#667eea", color: "white", borderRadius: 20, padding: "1px 6px", fontSize: 9, fontWeight: 700 }}>{msgs.length}</span>}
+              </button>
             </div>
-            <div style={{ padding: "8px 16px 12px", display: "flex", alignItems: "center", gap: 6 }}>
-              <span style={{ fontSize: 11 }}>🔗</span>
-              <span style={{ fontSize: 11, color: "#66bb6a", fontWeight: 600 }}>En contacto por derivación</span>
-            </div>
+
+            {/* CHAT */}
+            {isChatOpen && (
+              <div style={{ borderTop: "1px solid rgba(124,106,255,0.1)" }}>
+                {/* Mensajes */}
+                <div style={{ maxHeight: 280, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
+                  {msgs.length === 0 && (
+                    <div style={{ textAlign: "center", padding: "20px 0" }}>
+                      <p style={{ margin: 0, fontSize: 12, color: "#3a3a5a" }}>Empezá la conversación con {otroNombre}</p>
+                    </div>
+                  )}
+                  {msgs.map(m => {
+                    const esMio = m.autorEmail === usuario.email;
+                    const fecha = m.creadoEn?.toDate?.()?.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) || "";
+                    return (
+                      <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: esMio ? "flex-end" : "flex-start" }}>
+                        {!esMio && <div style={{ fontSize: 9, color: "#4a5270", marginBottom: 3, marginLeft: 4 }}>{m.autorNombre}</div>}
+                        <div style={{ maxWidth: "78%", padding: "9px 13px", borderRadius: esMio ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: esMio ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(255,255,255,0.07)", color: "white", fontSize: 13, lineHeight: 1.4, wordBreak: "break-word" }}>
+                          {m.texto}
+                        </div>
+                        <div style={{ fontSize: 9, color: "#3a3a5a", marginTop: 3, marginLeft: esMio ? 0 : 4, marginRight: esMio ? 4 : 0 }}>{fecha}</div>
+                      </div>
+                    );
+                  })}
+                  <div ref={chatEndRef} />
+                </div>
+
+                {/* Input */}
+                <div style={{ padding: "10px 12px", borderTop: "1px solid rgba(124,106,255,0.08)", display: "flex", gap: 8, alignItems: "center" }}>
+                  <input value={textoMsg} onChange={e => setTextoMsg(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && enviarMensaje(d.id)}
+                    placeholder={`Escribile a ${otroNombre}...`}
+                    style={{ flex: 1, padding: "9px 13px", borderRadius: 20, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(0,0,0,0.4)", color: "white", fontSize: 13, outline: "none" }} />
+                  <button onClick={() => enviarMensaje(d.id)} disabled={!textoMsg.trim()} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: textoMsg.trim() ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(255,255,255,0.05)", cursor: textoMsg.trim() ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         );
       })}
     </div>
   );
 }
-
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
 export default function Derivaciones({ usuario, t, esAdmin }) {
   const [derivaciones, setDerivaciones] = useState([]);

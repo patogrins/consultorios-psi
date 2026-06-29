@@ -4,9 +4,13 @@ import RedGrins from "./RedGrins";
 
 export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, reservas = [] }) {
   const [seccion, setSeccion] = useState("red");
+  const [chatInicial, setChatInicial] = useState(null);
 
   useEffect(() => {
-    const handler = () => { setSeccion("derivaciones"); };
+    const handler = (e) => {
+      setChatInicial(e.detail?.email || null);
+      setSeccion("derivaciones");
+    };
     window.addEventListener("abrirChatConexion", handler);
     return () => window.removeEventListener("abrirChatConexion", handler);
   }, []);
@@ -42,7 +46,6 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
         WebkitBackdropFilter: "blur(24px)",
         borderBottom: "1px solid rgba(124,106,255,0.15)"
       }}>
-        {/* Título */}
         <div style={{ padding: "54px 20px 0", background: "linear-gradient(180deg,#0a0a14 0%,transparent 100%)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div>
@@ -53,34 +56,26 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
           </div>
         </div>
 
-        {/* SUB-TABS */}
         <div style={{ display: "flex", overflowX: "auto", padding: "0 14px", gap: 0 }}>
           {secciones.map(({ id, label, icon, soon }) => {
             const active = seccion === id;
             return (
               <button key={id} onClick={() => !soon && setSeccion(id)} style={{
-                padding: "10px 14px",
-                border: "none",
+                padding: "10px 14px", border: "none",
                 borderBottom: active ? "2px solid #7c6aff" : "2px solid transparent",
                 cursor: soon ? "not-allowed" : "pointer",
-                fontWeight: active ? 700 : 500,
-                fontSize: 12,
+                fontWeight: active ? 700 : 500, fontSize: 12,
                 background: "transparent",
                 color: active ? "#a78bfa" : "#4a5270",
-                whiteSpace: "nowrap",
-                flexShrink: 0,
+                whiteSpace: "nowrap", flexShrink: 0,
                 opacity: soon ? 0.4 : 1,
                 transition: "all 0.2s",
-                display: "flex",
-                alignItems: "center",
-                gap: 5
+                display: "flex", alignItems: "center", gap: 5
               }}>
                 <span>{icon}</span>
                 <span>{label}</span>
                 {soon && (
-                  <span style={{ fontSize: 8, background: "rgba(124,106,255,0.15)", color: "#7c6aff", borderRadius: 4, padding: "1px 5px", fontWeight: 700 }}>
-                    pronto
-                  </span>
+                  <span style={{ fontSize: 8, background: "rgba(124,106,255,0.15)", color: "#7c6aff", borderRadius: 4, padding: "1px 5px", fontWeight: 700 }}>pronto</span>
                 )}
               </button>
             );
@@ -91,11 +86,7 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
       {/* CONTENIDO */}
       <div style={{ paddingBottom: 80 }}>
         {seccion === "red" && (
-          <RedGrins
-            usuario={usuario}
-            t={t}
-            reservas={reservas}
-          />
+          <RedGrins usuario={usuario} t={t} reservas={reservas} />
         )}
 
         {seccion === "derivaciones" && (
@@ -103,6 +94,8 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
             usuario={usuario}
             t={t}
             esAdmin={esAdmin}
+            chatInicial={chatInicial}
+            onChatInicialUsado={() => setChatInicial(null)}
           />
         )}
 

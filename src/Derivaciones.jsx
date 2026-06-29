@@ -28,18 +28,14 @@ function Tag({ label }) {
 
 // ── PILA TINDER ───────────────────────────────────────────────────────────────
 function PilaTinder({ derivaciones, usuario, perfiles, onInteresa, onArchivar }) {
-  const [idx, setIdx] = useState(0);
-  const [respondidas, setRespondidas] = useState({}); // id → "interesa" | "archivada"
-  const cardRef = useRef(null);
+  const [respondidas, setRespondidas] = useState({});
   const startX = useRef(null);
   const [offsetX, setOffsetX] = useState(0);
   const [swipeDir, setSwipeDir] = useState(null);
-  const [animating, setAnimating] = useState(null); // "right" | "left"
+  const [animating, setAnimating] = useState(null);
   const THRESHOLD = 80;
 
-  // Separar respondidas de pendientes
   const pendientes = derivaciones.filter(d => !respondidas[d.id]);
-  const todasRespondidas = pendientes.length === 0;
 
   function onTouchStart(e) { startX.current = e.touches[0].clientX; }
   function onTouchMove(e) {
@@ -66,29 +62,25 @@ function PilaTinder({ derivaciones, usuario, perfiles, onInteresa, onArchivar })
     }, 300);
   }
 
-  if (todasRespondidas) return (
+  if (pendientes.length === 0) return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px", textAlign: "center" }}>
       <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
       <h3 style={{ margin: "0 0 8px", color: "white", fontSize: 18, fontWeight: 800 }}>¡Revisaste todas!</h3>
       <p style={{ margin: 0, color: "#4a5270", fontSize: 13 }}>No hay más propuestas por ahora.</p>
-      <button onClick={() => setRespondidas({})} style={{ marginTop: 20, padding: "9px 20px", borderRadius: 20, border: "1px solid rgba(124,106,255,0.3)", background: "transparent", color: "#7c6aff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>
-        Ver de nuevo
-      </button>
+      <button onClick={() => setRespondidas({})} style={{ marginTop: 20, padding: "9px 20px", borderRadius: 20, border: "1px solid rgba(124,106,255,0.3)", background: "transparent", color: "#7c6aff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Ver de nuevo</button>
     </div>
   );
 
   const d = pendientes[0];
   const siguiente = pendientes[1];
   const yaInteresado = d.interesadosEmails?.includes(usuario.email);
-  const inicial = d.derivadoPor?.[0]?.toUpperCase() || "?";
-  const rotation = offsetX * 0.04;
   const translateX = animating === "right" ? 400 : animating === "left" ? -400 : offsetX;
   const opacity = animating ? 0 : Math.max(0.4, 1 - Math.abs(offsetX) / 250);
+  const rotation = offsetX * 0.04;
 
   return (
-    <div style={{ padding: "12px 16px 20px", position: "relative" }}>
-      {/* Indicadores swipe laterales */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, padding: "0 4px" }}>
+    <div style={{ padding: "12px 16px 20px" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: swipeDir === "left" ? 1 : 0.3, transition: "opacity 0.2s" }}>
           <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(239,83,80,0.15)", border: "1.5px solid #ef5350", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ fontSize: 12, color: "#ef5350" }}>✕</span>
@@ -104,22 +96,17 @@ function PilaTinder({ derivaciones, usuario, perfiles, onInteresa, onArchivar })
         </div>
       </div>
 
-      {/* Pila de cards */}
       <div style={{ position: "relative", height: 380 }}>
-        {/* Card de fondo (siguiente) */}
         {siguiente && (
           <div style={{ position: "absolute", inset: 0, borderRadius: 20, background: "rgba(14,12,28,0.7)", border: "1px solid rgba(124,106,255,0.1)", transform: "scale(0.95) translateY(8px)", zIndex: 1 }} />
         )}
 
-        {/* Card principal */}
-        <div ref={cardRef}
+        <div
           onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
           style={{ position: "absolute", inset: 0, background: "rgba(14,12,28,0.95)", borderRadius: 20, border: `1px solid ${swipeDir === "right" ? "rgba(102,187,106,0.5)" : swipeDir === "left" ? "rgba(239,83,80,0.5)" : "rgba(124,106,255,0.25)"}`, overflow: "hidden", zIndex: 2, transform: `translateX(${translateX}px) rotate(${rotation}deg)`, opacity, transition: animating ? "transform 0.3s ease, opacity 0.3s ease" : "border 0.15s", cursor: "grab", userSelect: "none", touchAction: "none" }}>
 
-          {/* Barra top */}
           <div style={{ height: 3, background: "linear-gradient(90deg,#667eea,#764ba2)" }} />
 
-          {/* Indicador swipe overlay */}
           {swipeDir === "right" && (
             <div style={{ position: "absolute", top: 16, left: 16, zIndex: 5, background: "rgba(102,187,106,0.9)", borderRadius: 8, padding: "4px 12px", border: "2px solid #66bb6a", transform: "rotate(-12deg)" }}>
               <span style={{ fontSize: 14, fontWeight: 800, color: "white" }}>♥ ME INTERESA</span>
@@ -131,8 +118,7 @@ function PilaTinder({ derivaciones, usuario, perfiles, onInteresa, onArchivar })
             </div>
           )}
 
-          <div style={{ padding: "16px" }}>
-            {/* Header */}
+          <div style={{ padding: 16 }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#667eea22,#764ba222)", border: "1px solid rgba(124,106,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧠</div>
@@ -147,10 +133,8 @@ function PilaTinder({ derivaciones, usuario, perfiles, onInteresa, onArchivar })
               </div>
             </div>
 
-            {/* Nota */}
             {d.nota && <p style={{ margin: "0 0 12px", fontSize: 13, color: "#e2e8f0", lineHeight: 1.6, padding: "10px 12px", background: "rgba(124,106,255,0.06)", borderRadius: 10, borderLeft: "2px solid rgba(124,106,255,0.4)" }}>"{d.nota}"</p>}
 
-            {/* Tags */}
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
               <Tag label={`📍 ${d.modalidad}`} />
               {d.genero !== "Indistinto" && <Tag label={`${d.genero === "Femenino" ? "👩" : "👨"} ${d.genero}`} />}
@@ -159,27 +143,24 @@ function PilaTinder({ derivaciones, usuario, perfiles, onInteresa, onArchivar })
               {d.franjas?.length > 0 && <Tag label={`⏰ ${d.franjas.join(" · ")}`} />}
             </div>
 
-            {/* Botones */}
             <div style={{ display: "flex", gap: 10 }}>
               <button onClick={() => triggerSwipe("left")} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid rgba(239,83,80,0.3)", background: "rgba(239,83,80,0.08)", color: "#ef5350", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <span style={{ fontSize: 16 }}>✕</span> Archivar
+                <span>✕</span> Archivar
               </button>
               <button onClick={() => triggerSwipe("right")} style={{ flex: 2, padding: "12px", borderRadius: 14, border: "none", background: yaInteresado ? "rgba(102,187,106,0.15)" : "linear-gradient(135deg,#38a169,#2d8a5e)", color: yaInteresado ? "#66bb6a" : "white", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
-                <span style={{ fontSize: 16 }}>♥</span> {yaInteresado ? "Ya te postulaste" : "Me interesa"}
+                <span>♥</span> {yaInteresado ? "Ya te postulaste" : "Me interesa"}
               </button>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Hint */}
       <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 10, opacity: 0.4 }}>
         <span style={{ fontSize: 10, color: "#ef5350" }}>← Archivar</span>
         <span style={{ fontSize: 9, color: "#3a3a5a" }}>· deslizá para elegir ·</span>
         <span style={{ fontSize: 10, color: "#66bb6a" }}>Me interesa →</span>
       </div>
 
-      {/* Lista respondidas */}
       {Object.keys(respondidas).length > 0 && (
         <div style={{ marginTop: 20 }}>
           <div style={{ fontSize: 11, fontWeight: 700, color: "#4a5270", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Respondidas esta sesión</div>
@@ -210,7 +191,7 @@ function PilaTinder({ derivaciones, usuario, perfiles, onInteresa, onArchivar })
 // ── MIS DERIVACIONES ──────────────────────────────────────────────────────────
 function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, onCerrar, onEliminar }) {
   const [expandida, setExpandida] = useState(null);
-  const [matchModal, setMatchModal] = useState(null); // { derivacion, asignado }
+  const [matchModal, setMatchModal] = useState(null);
 
   const mias = derivaciones.filter(d => d.derivadoPorEmail === usuario.email);
 
@@ -235,34 +216,28 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
       {matchModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div style={{ background: "rgba(14,12,28,0.98)", borderRadius: 24, padding: "32px 24px", width: "100%", maxWidth: 360, textAlign: "center", border: "1px solid rgba(124,106,255,0.3)", boxShadow: "0 0 60px rgba(124,106,255,0.2)" }}>
-            {/* Confetti animado */}
             <div style={{ fontSize: 32, marginBottom: 20 }}>🎉</div>
-
-            {/* Avatares conectados */}
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 20 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 20 }}>
               <div style={{ width: 64, height: 64, borderRadius: "50%", background: avatarColor(usuario.nombre), overflow: "hidden", border: "3px solid rgba(124,106,255,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 800, color: "white" }}>
                 {usuario.fotoUrl ? <img src={usuario.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : usuario.nombre?.[0]?.toUpperCase()}
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 0, margin: "0 -4px", zIndex: 1 }}>
-                <div style={{ width: 20, height: 1.5, background: "rgba(124,106,255,0.4)", borderTop: "1.5px dashed rgba(124,106,255,0.4)" }} />
+              <div style={{ display: "flex", alignItems: "center", margin: "0 4px" }}>
+                <div style={{ width: 20, borderTop: "1.5px dashed rgba(124,106,255,0.4)" }} />
                 <div style={{ width: 28, height: 28, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>✓</div>
-                <div style={{ width: 20, height: 1.5, background: "rgba(124,106,255,0.4)", borderTop: "1.5px dashed rgba(124,106,255,0.4)" }} />
+                <div style={{ width: 20, borderTop: "1.5px dashed rgba(124,106,255,0.4)" }} />
               </div>
               <div style={{ width: 64, height: 64, borderRadius: "50%", background: avatarColor(matchModal.asignado.nombre), overflow: "hidden", border: "3px solid rgba(124,106,255,0.5)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 24, fontWeight: 800, color: "white" }}>
                 {matchModal.asignado.fotoUrl ? <img src={matchModal.asignado.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : matchModal.asignado.nombre?.[0]?.toUpperCase()}
               </div>
             </div>
-
             <h2 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800, color: "white" }}>¡Derivación asignada!</h2>
             <p style={{ margin: "0 0 20px", fontSize: 14, color: "#a0a8c0", lineHeight: 1.5 }}>
               Vos y <strong style={{ color: "white" }}>{matchModal.asignado.nombre}</strong> están conectados para este caso.
             </p>
-
             <div style={{ background: "rgba(124,106,255,0.08)", borderRadius: 14, padding: "12px 16px", marginBottom: 20, border: "1px solid rgba(124,106,255,0.15)", display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 18 }}>🔔</span>
               <span style={{ fontSize: 12, color: "#a0a8c0", lineHeight: 1.5, textAlign: "left" }}>Ambos recibirán una notificación en Inicio para coordinar el contacto.</span>
             </div>
-
             <button onClick={() => setMatchModal(null)} style={{ width: "100%", padding: 13, borderRadius: 14, border: "none", background: "linear-gradient(135deg,#667eea,#764ba2)", color: "white", fontWeight: 800, fontSize: 14, cursor: "pointer" }}>
               ¡Genial!
             </button>
@@ -276,34 +251,28 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
         const asignada = d.estado === "asignada";
         const cerrada = d.estado === "cerrada";
         const isExp = expandida === d.id;
-        const tiempoPublicado = tiempoRelativo(d.creadoEn?.seconds);
 
         return (
           <div key={d.id} style={{ background: "rgba(14,12,28,0.9)", borderRadius: 18, marginBottom: 12, overflow: "hidden", border: `1px solid ${asignada ? "rgba(102,187,106,0.3)" : conInteresados ? "rgba(124,106,255,0.35)" : "rgba(124,106,255,0.12)"}` }}>
-
-            {/* Barra estado */}
             <div style={{ height: 3, background: asignada ? "linear-gradient(90deg,#38a169,#2d8a5e)" : conInteresados ? "linear-gradient(90deg,#667eea,#764ba2)" : cerrada ? "rgba(255,255,255,0.08)" : "rgba(124,106,255,0.2)" }} />
 
             <div style={{ padding: "14px 16px" }}>
-              {/* Header */}
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                 <div>
                   <div style={{ fontSize: 15, fontWeight: 800, color: cerrada ? "#4a5270" : "white" }}>🧠 {d.especialidad}</div>
-                  <div style={{ fontSize: 10, color: "#4a5270", marginTop: 2 }}>{tiempoPublicado} · {d.modalidad}</div>
+                  <div style={{ fontSize: 10, color: "#4a5270", marginTop: 2 }}>{tiempoRelativo(d.creadoEn?.seconds)} · {d.modalidad}</div>
                 </div>
-                <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "3px 10px", background: asignada ? "rgba(102,187,106,0.12)" : conInteresados ? "rgba(124,106,255,0.15)" : cerrada ? "rgba(255,255,255,0.05)" : "rgba(255,255,255,0.05)", color: asignada ? "#66bb6a" : conInteresados ? "#a78bfa" : "#4a5270", border: `1px solid ${asignada ? "rgba(102,187,106,0.3)" : conInteresados ? "rgba(124,106,255,0.3)" : "rgba(255,255,255,0.08)"}` }}>
+                <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "3px 10px", background: asignada ? "rgba(102,187,106,0.12)" : conInteresados ? "rgba(124,106,255,0.15)" : "rgba(255,255,255,0.05)", color: asignada ? "#66bb6a" : conInteresados ? "#a78bfa" : "#4a5270", border: `1px solid ${asignada ? "rgba(102,187,106,0.3)" : conInteresados ? "rgba(124,106,255,0.3)" : "rgba(255,255,255,0.08)"}` }}>
                   {asignada ? "✓ Asignada" : conInteresados ? `${d.interesados.length} postulante${d.interesados.length > 1 ? "s" : ""}` : cerrada ? "Cerrada" : "Sin postulantes"}
                 </span>
               </div>
 
-              {/* Sin interesados */}
               {sinInteresados && !cerrada && (
                 <div style={{ padding: "10px 12px", background: "rgba(255,255,255,0.03)", borderRadius: 10, marginBottom: 10, border: "1px dashed rgba(255,255,255,0.06)" }}>
                   <p style={{ margin: 0, fontSize: 12, color: "#4a5270", fontStyle: "italic" }}>Aún sin postulantes. Esperá a que otros profesionales respondan.</p>
                 </div>
               )}
 
-              {/* Con interesados — miniaturas */}
               {conInteresados && (
                 <button onClick={() => setExpandida(isExp ? null : d.id)} style={{ width: "100%", background: "transparent", border: "none", cursor: "pointer", padding: 0, marginBottom: 10 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", background: "rgba(124,106,255,0.06)", borderRadius: 12, border: "1px solid rgba(124,106,255,0.15)" }}>
@@ -325,17 +294,15 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
                 </button>
               )}
 
-              {/* Postulantes expandidos */}
               {isExp && conInteresados && (
                 <div style={{ marginBottom: 10 }}>
                   {(d.interesadosEmails || []).map((email, idx) => {
                     const p = perfiles.find(x => x.email === email);
                     const nombre = d.interesados[idx] || email;
-                    const inicial = nombre[0]?.toUpperCase();
                     return (
                       <div key={email} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", background: "rgba(14,12,28,0.8)", borderRadius: 14, marginBottom: 8, border: "1px solid rgba(124,106,255,0.12)" }}>
                         <div style={{ width: 44, height: 44, borderRadius: "50%", background: avatarColor(nombre), overflow: "hidden", border: "2px solid rgba(124,106,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 800, color: "white", flexShrink: 0 }}>
-                          {p?.fotoUrl ? <img src={p.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : inicial}
+                          {p?.fotoUrl ? <img src={p.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : nombre[0]?.toUpperCase()}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontWeight: 700, fontSize: 13, color: "white" }}>{nombre}</div>
@@ -355,15 +322,13 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
                 </div>
               )}
 
-              {/* Asignada */}
               {asignada && (
                 <div style={{ padding: "10px 12px", background: "rgba(102,187,106,0.08)", borderRadius: 10, marginBottom: 10, border: "1px solid rgba(102,187,106,0.2)", display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 14 }}>🔗</span>
+                  <span>🔗</span>
                   <span style={{ fontSize: 12, color: "#66bb6a", fontWeight: 600 }}>Asignada a {d.asignadoA}</span>
                 </div>
               )}
 
-              {/* Acciones */}
               {!cerrada && !asignada && (
                 <div style={{ display: "flex", gap: 8 }}>
                   <button onClick={() => onCerrar(d)} style={{ flex: 1, padding: "8px", borderRadius: 10, border: "1px solid rgba(255,255,255,0.08)", background: "transparent", color: "#4a5270", fontWeight: 600, fontSize: 11, cursor: "pointer" }}>Cerrar</button>
@@ -382,9 +347,9 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
 }
 
 // ── CONEXIONES ────────────────────────────────────────────────────────────────
-function Conexiones({ derivaciones, usuario, perfiles }) {
+function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicialUsado }) {
   const [filtro, setFiltro] = useState("todas");
-  const [chatAbierto, setChatAbierto] = useState(null); // derivacionId
+  const [chatAbierto, setChatAbierto] = useState(null);
   const [mensajesChat, setMensajesChat] = useState({});
   const [textoMsg, setTextoMsg] = useState("");
   const [perfilVista, setPerfilVista] = useState(null);
@@ -394,13 +359,16 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
     d.estado === "asignada" && (d.derivadoPorEmail === usuario.email || d.asignadoEmail === usuario.email)
   );
 
-  const filtradas = conexiones.filter(d => {
-    if (filtro === "derive") return d.derivadoPorEmail === usuario.email;
-    if (filtro === "recibi") return d.asignadoEmail === usuario.email;
-    return true;
-  });
+  // Abrir chat automáticamente si viene desde Red GRINS
+  useEffect(() => {
+    if (!chatInicial) return;
+    const conexion = conexiones.find(d =>
+      d.derivadoPorEmail === chatInicial || d.asignadoEmail === chatInicial
+    );
+    if (conexion) setChatAbierto(conexion.id);
+    onChatInicialUsado?.();
+  }, [chatInicial, conexiones]);
 
-  // Suscribir mensajes del chat abierto
   useEffect(() => {
     if (!chatAbierto) return;
     const unsub = onSnapshot(
@@ -426,6 +394,13 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
     setTextoMsg("");
   }
 
+  const filtradas = conexiones.filter(d => {
+    if (filtro === "derive") return d.derivadoPorEmail === usuario.email;
+    if (filtro === "recibi") return d.asignadoEmail === usuario.email;
+    return true;
+  });
+
+  // Vista perfil del otro
   if (perfilVista) {
     const inicial = perfilVista.nombre?.[0]?.toUpperCase() || "?";
     return (
@@ -480,41 +455,34 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
       </div>
 
       {filtradas.map(d => {
-        const esMia = d.derivadoPorEmail === usuario.email;
-        const otroEmail = esMia ? d.asignadoEmail : d.derivadoPorEmail;
-        const otroNombre = esMia ? d.asignadoA : d.derivadoPor;
-        const otroPerfil = perfiles.find(p => p.email === otroEmail);
-        const miPerfil = perfiles.find(p => p.email === usuario.email);
-        const inicial = otroNombre?.[0]?.toUpperCase() || "?";
-        const isChatOpen = chatAbierto === d.id;
-        const msgs = mensajesChat[d.id] || [];
-
-        // Quién deriva y quién recibe para la flecha
-        const derivadorNombre = d.derivadoPor;
         const derivadorPerfil = perfiles.find(p => p.email === d.derivadoPorEmail);
         const asignadoPerfil = perfiles.find(p => p.email === d.asignadoEmail);
+        const otroEmail = d.derivadoPorEmail === usuario.email ? d.asignadoEmail : d.derivadoPorEmail;
+        const otroNombre = d.derivadoPorEmail === usuario.email ? d.asignadoA : d.derivadoPor;
+        const isChatOpen = chatAbierto === d.id;
+        const msgs = mensajesChat[d.id] || [];
 
         return (
           <div key={d.id} style={{ background: "rgba(14,12,28,0.9)", borderRadius: 18, marginBottom: 12, overflow: "hidden", border: "1px solid rgba(102,187,106,0.2)" }}>
             <div style={{ height: 3, background: "linear-gradient(90deg,#38a169,#2d8a5e)" }} />
 
-            {/* VISUAL CONEXIÓN — quién deriva y quién recibe */}
             <div style={{ padding: "16px 16px 12px" }}>
+              {/* VISUAL: quien deriva → quien recibe */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 14 }}>
 
                 {/* Quien deriva */}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
-                  onClick={() => { const p = derivadorPerfil || perfiles.find(x => x.email === d.derivadoPorEmail); if (p) setPerfilVista(p); }}>
-                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(derivadorNombre || ""), overflow: "hidden", border: `2px solid ${d.derivadoPorEmail === usuario.email ? "rgba(124,106,255,0.6)" : "rgba(102,187,106,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", cursor: "pointer", boxShadow: d.derivadoPorEmail === usuario.email ? "0 0 12px rgba(124,106,255,0.3)" : "none" }}>
-                    {derivadorPerfil?.fotoUrl ? <img src={derivadorPerfil.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : derivadorNombre?.[0]?.toUpperCase()}
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}
+                  onClick={() => { if (derivadorPerfil) setPerfilVista(derivadorPerfil); }}>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(d.derivadoPor || ""), overflow: "hidden", border: `2px solid ${d.derivadoPorEmail === usuario.email ? "rgba(124,106,255,0.6)" : "rgba(102,187,106,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", boxShadow: d.derivadoPorEmail === usuario.email ? "0 0 12px rgba(124,106,255,0.3)" : "none" }}>
+                    {derivadorPerfil?.fotoUrl ? <img src={derivadorPerfil.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : d.derivadoPor?.[0]?.toUpperCase()}
                   </div>
                   <div style={{ fontSize: 9, color: d.derivadoPorEmail === usuario.email ? "#a78bfa" : "#4a5270", fontWeight: 700, textAlign: "center", maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                    {d.derivadoPorEmail === usuario.email ? "Vos" : derivadorNombre}
+                    {d.derivadoPorEmail === usuario.email ? "Vos" : d.derivadoPor}
                   </div>
                   <div style={{ fontSize: 8, color: "#3a3a5a", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>deriva</div>
                 </div>
 
-                {/* Flecha central animada */}
+                {/* Flecha */}
                 <div style={{ display: "flex", alignItems: "center", gap: 0, margin: "0 8px", paddingBottom: 20 }}>
                   <div style={{ width: 16, height: 1, background: "linear-gradient(90deg,rgba(102,187,106,0),rgba(102,187,106,0.6))" }} />
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
@@ -527,9 +495,9 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
                 </div>
 
                 {/* Quien recibe */}
-                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}
-                  onClick={() => { const p = asignadoPerfil || perfiles.find(x => x.email === d.asignadoEmail); if (p) setPerfilVista(p); }}>
-                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(d.asignadoA || ""), overflow: "hidden", border: `2px solid ${d.asignadoEmail === usuario.email ? "rgba(124,106,255,0.6)" : "rgba(102,187,106,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", cursor: "pointer", boxShadow: d.asignadoEmail === usuario.email ? "0 0 12px rgba(124,106,255,0.3)" : "none" }}>
+                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}
+                  onClick={() => { if (asignadoPerfil) setPerfilVista(asignadoPerfil); }}>
+                  <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(d.asignadoA || ""), overflow: "hidden", border: `2px solid ${d.asignadoEmail === usuario.email ? "rgba(124,106,255,0.6)" : "rgba(102,187,106,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", boxShadow: d.asignadoEmail === usuario.email ? "0 0 12px rgba(124,106,255,0.3)" : "none" }}>
                     {asignadoPerfil?.fotoUrl ? <img src={asignadoPerfil.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : d.asignadoA?.[0]?.toUpperCase()}
                   </div>
                   <div style={{ fontSize: 9, color: d.asignadoEmail === usuario.email ? "#a78bfa" : "#4a5270", fontWeight: 700, textAlign: "center", maxWidth: 60, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
@@ -539,7 +507,7 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
                 </div>
               </div>
 
-              {/* Info derivación */}
+              {/* Info */}
               <div style={{ textAlign: "center", marginBottom: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 700, color: "white" }}>🧠 {d.especialidad}</div>
                 <div style={{ fontSize: 10, color: "#4a5270", marginTop: 2 }}>Derivación activa · {d.modalidad}</div>
@@ -556,7 +524,6 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
             {/* CHAT */}
             {isChatOpen && (
               <div style={{ borderTop: "1px solid rgba(124,106,255,0.1)" }}>
-                {/* Mensajes */}
                 <div style={{ maxHeight: 280, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
                   {msgs.length === 0 && (
                     <div style={{ textAlign: "center", padding: "20px 0" }}>
@@ -578,8 +545,6 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
                   })}
                   <div ref={chatEndRef} />
                 </div>
-
-                {/* Input */}
                 <div style={{ padding: "10px 12px", borderTop: "1px solid rgba(124,106,255,0.08)", display: "flex", gap: 8, alignItems: "center" }}>
                   <input value={textoMsg} onChange={e => setTextoMsg(e.target.value)}
                     onKeyDown={e => e.key === "Enter" && !e.shiftKey && enviarMensaje(d.id)}
@@ -597,8 +562,9 @@ function Conexiones({ derivaciones, usuario, perfiles }) {
     </div>
   );
 }
+
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
-export default function Derivaciones({ usuario, t, esAdmin }) {
+export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatInicialUsado }) {
   const [derivaciones, setDerivaciones] = useState([]);
   const [perfiles, setPerfiles] = useState([]);
   const [tab, setTab] = useState("propuestas");
@@ -620,6 +586,11 @@ export default function Derivaciones({ usuario, t, esAdmin }) {
     return () => { u1(); u2(); };
   }, []);
 
+  // Si viene chatInicial desde Red GRINS, ir a Conexiones
+  useEffect(() => {
+    if (chatInicial) setTab("conexiones");
+  }, [chatInicial]);
+
   function toggleArr(arr, val) { return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]; }
 
   function archivarLocal(d) {
@@ -639,8 +610,30 @@ export default function Derivaciones({ usuario, t, esAdmin }) {
 
   async function asignar(d, nombre, email) {
     await updateDoc(doc(db, "derivaciones", d.id), { asignadoA: nombre, asignadoEmail: email, estado: "asignada" });
-    await addDoc(collection(db, "notificaciones"), { para: email, de: usuario.email, deNombre: usuario.nombre, tipo: "derivacion_asignada", derivacionId: d.id, especialidad: d.especialidad, leida: false, creadoEn: serverTimestamp() });
-    await addDoc(collection(db, "notificaciones"), { para: d.derivadoPorEmail, de: email, deNombre: nombre, tipo: "derivacion_match", derivacionId: d.id, especialidad: d.especialidad, leida: false, creadoEn: serverTimestamp() });
+
+    // Notificación para el profesional DESIGNADO
+    await addDoc(collection(db, "notificaciones"), {
+      para: email,
+      de: usuario.email,
+      deNombre: usuario.nombre,
+      tipo: "derivacion_asignada",
+      derivacionId: d.id,
+      especialidad: d.especialidad,
+      leida: false,
+      creadoEn: serverTimestamp()
+    });
+
+    // Notificación para quien DERIVÓ (el que asigna)
+    await addDoc(collection(db, "notificaciones"), {
+      para: d.derivadoPorEmail,
+      de: email,
+      deNombre: nombre,
+      tipo: "derivacion_match",
+      derivacionId: d.id,
+      especialidad: d.especialidad,
+      leida: false,
+      creadoEn: serverTimestamp()
+    });
   }
 
   async function cerrar(d) { await updateDoc(doc(db, "derivaciones", d.id), { estado: "cerrada" }); }
@@ -666,14 +659,12 @@ export default function Derivaciones({ usuario, t, esAdmin }) {
   const inp = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(124,106,255,0.2)", fontSize: 13, marginBottom: 12, boxSizing: "border-box", outline: "none", background: "rgba(14,12,28,0.8)", color: "white" };
   const lbl = { display: "block", fontSize: 11, fontWeight: 700, color: "#a0a8c0", marginBottom: 6, textTransform: "uppercase", letterSpacing: .5 };
 
-  // Propuestas: de otros, disponibles y no archivadas
   const propuestas = derivaciones.filter(d =>
     d.derivadoPorEmail !== usuario.email &&
     d.estado === "disponible" &&
     !archivadas.includes(d.id)
   );
 
-  // Badge contadores
   const badgePropuestas = propuestas.length;
   const badgeMias = derivaciones.filter(d => d.derivadoPorEmail === usuario.email && d.interesados?.length > 0 && d.estado !== "asignada").length;
   const badgeConexiones = derivaciones.filter(d => d.estado === "asignada" && (d.derivadoPorEmail === usuario.email || d.asignadoEmail === usuario.email)).length;
@@ -686,7 +677,6 @@ export default function Derivaciones({ usuario, t, esAdmin }) {
 
   return (
     <div>
-      {/* HEADER + TABS */}
       <div style={{ padding: "14px 14px 0" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
           <div>
@@ -698,7 +688,6 @@ export default function Derivaciones({ usuario, t, esAdmin }) {
           </button>
         </div>
 
-        {/* TABS */}
         <div style={{ display: "flex", background: "rgba(14,12,28,0.8)", borderRadius: 12, padding: 3, border: "1px solid rgba(124,106,255,0.15)", marginBottom: 4 }}>
           {tabs.map(({ id, label, badge }) => (
             <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: "8px 4px", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: tab === id ? 700 : 500, fontSize: 11, background: tab === id ? "linear-gradient(135deg,#667eea,#764ba2)" : "transparent", color: tab === id ? "white" : "#a0a8c0", transition: "all 0.2s", position: "relative" }}>
@@ -709,7 +698,6 @@ export default function Derivaciones({ usuario, t, esAdmin }) {
         </div>
       </div>
 
-      {/* FORM NUEVA DERIVACIÓN */}
       {mostrarForm && (
         <div style={{ margin: "0 14px 12px", background: "rgba(14,12,28,0.9)", borderRadius: 18, padding: 18, border: "1px solid rgba(124,106,255,0.2)" }}>
           <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.1)", margin: "0 auto 16px" }} />
@@ -741,7 +729,6 @@ export default function Derivaciones({ usuario, t, esAdmin }) {
         </div>
       )}
 
-      {/* CONTENIDO POR TAB */}
       {tab === "propuestas" && (
         propuestas.length === 0 ? (
           <div style={{ padding: "32px 20px", textAlign: "center" }}>
@@ -758,7 +745,13 @@ export default function Derivaciones({ usuario, t, esAdmin }) {
       )}
 
       {tab === "conexiones" && (
-        <Conexiones derivaciones={derivaciones} usuario={usuario} perfiles={perfiles} />
+        <Conexiones
+          derivaciones={derivaciones}
+          usuario={usuario}
+          perfiles={perfiles}
+          chatInicial={chatInicial}
+          onChatInicialUsado={onChatInicialUsado}
+        />
       )}
     </div>
   );

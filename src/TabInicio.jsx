@@ -342,14 +342,14 @@ async function marcarLeida(id) {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 2 }}>
-            {n.tipo === "derivacion_asignada"
-              ? `¡Te asignaron una derivación!`
-              : `Nueva conexión por derivación`}
+           {n.tipo === "derivacion_asignada"
+  ? `¡Te eligieron para una derivación!`
+  : `¡Derivación asignada con éxito!`}
           </div>
           <div style={{ fontSize: 12, color: "#a0a8c0", marginBottom: 4 }}>
-            {n.tipo === "derivacion_asignada"
-              ? `${n.deNombre} te designó para el caso de ${n.especialidad}`
-              : `Vos y ${n.deNombre} están conectados para ${n.especialidad}`}
+          {n.tipo === "derivacion_asignada"
+  ? `${n.deNombre} te designó para atender un caso de ${n.especialidad}`
+  : `Designaste a ${n.deNombre} para tu derivación de ${n.especialidad}`}
           </div>
           <div style={{ fontSize: 11, color: "#4a5270" }}>Ir a Lazos → Conexiones para coordinar</div>
         </div>

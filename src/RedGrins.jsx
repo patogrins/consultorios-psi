@@ -102,6 +102,20 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
               </div>
             )}
 
+            {/* BOTÓN CHAT DESDE RED GRINS */}
+{!esMio && (
+  <button onClick={() => {
+    // Buscar conexión activa con este perfil
+    window.dispatchEvent(new CustomEvent("abrirChatConexion", { detail: { email: seleccionado.email } }));
+  }} style={{ width: "100%", padding: "10px 16px", borderRadius: 12, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(124,106,255,0.1)", color: "#7c6aff", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+    Enviar mensaje
+  </button>
+)}
+
+
+
+            
             <a href="https://www.grins.com.ar" target="_blank" rel="noreferrer" style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "rgba(124,106,255,0.1)", borderRadius: 12, padding: "10px 16px", border: "1px solid rgba(124,106,255,0.2)", textDecoration: "none", marginTop: 4 }}>
               <img src="/logohead.jpeg" alt="GRINS" style={{ height: 20, objectFit: "contain", opacity: 0.8 }} />
               <span style={{ fontSize: 12, color: "#7c6aff", fontWeight: 600 }}>grins.com.ar</span>

@@ -1,20 +1,15 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Derivaciones from "./Derivaciones";
 import RedGrins from "./RedGrins";
 
 export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, reservas = [] }) {
-const [seccion, setSeccion] = useState("red");
+  const [seccion, setSeccion] = useState("red");
 
-useEffect(() => {
-  const handler = () => { setSeccion("derivaciones"); };
-  window.addEventListener("abrirChatConexion", handler);
-  return () => window.removeEventListener("abrirChatConexion", handler);
-}, []);
-useEffect(() => {
-  const handler = () => { setSeccion("derivaciones"); };
-  window.addEventListener("abrirChatConexion", handler);
-  return () => window.removeEventListener("abrirChatConexion", handler);
-}, []);
+  useEffect(() => {
+    const handler = () => { setSeccion("derivaciones"); };
+    window.addEventListener("abrirChatConexion", handler);
+    return () => window.removeEventListener("abrirChatConexion", handler);
+  }, []);
 
   if (esPublico) return (
     <div className="tab-content" style={{ minHeight: "100vh", background: "#000000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: 32 }}>
@@ -39,10 +34,15 @@ useEffect(() => {
   return (
     <div className="tab-content" style={{ minHeight: "100vh", background: "#000000" }}>
 
-      {/* STICKY BAR */}
-      <div style={{ position: "sticky", top: 0, zIndex: 20, background: "rgba(0,0,0,0.92)", backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)", borderBottom: "1px solid rgba(124,106,255,0.15)" }}>
-
-        {/* Header */}
+      {/* HEADER STICKY */}
+      <div style={{
+        position: "sticky", top: 0, zIndex: 20,
+        background: "rgba(0,0,0,0.92)",
+        backdropFilter: "blur(24px)",
+        WebkitBackdropFilter: "blur(24px)",
+        borderBottom: "1px solid rgba(124,106,255,0.15)"
+      }}>
+        {/* Título */}
         <div style={{ padding: "54px 20px 0", background: "linear-gradient(180deg,#0a0a14 0%,transparent 100%)" }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
             <div>
@@ -59,20 +59,29 @@ useEffect(() => {
             const active = seccion === id;
             return (
               <button key={id} onClick={() => !soon && setSeccion(id)} style={{
-                padding: "10px 14px", border: "none",
+                padding: "10px 14px",
+                border: "none",
                 borderBottom: active ? "2px solid #7c6aff" : "2px solid transparent",
                 cursor: soon ? "not-allowed" : "pointer",
-                fontWeight: active ? 700 : 500, fontSize: 12,
+                fontWeight: active ? 700 : 500,
+                fontSize: 12,
                 background: "transparent",
                 color: active ? "#a78bfa" : "#4a5270",
-                whiteSpace: "nowrap", flexShrink: 0,
+                whiteSpace: "nowrap",
+                flexShrink: 0,
                 opacity: soon ? 0.4 : 1,
                 transition: "all 0.2s",
-                display: "flex", alignItems: "center", gap: 5
+                display: "flex",
+                alignItems: "center",
+                gap: 5
               }}>
                 <span>{icon}</span>
                 <span>{label}</span>
-                {soon && <span style={{ fontSize: 8, background: "rgba(124,106,255,0.15)", color: "#7c6aff", borderRadius: 4, padding: "1px 5px", fontWeight: 700 }}>pronto</span>}
+                {soon && (
+                  <span style={{ fontSize: 8, background: "rgba(124,106,255,0.15)", color: "#7c6aff", borderRadius: 4, padding: "1px 5px", fontWeight: 700 }}>
+                    pronto
+                  </span>
+                )}
               </button>
             );
           })}
@@ -82,11 +91,19 @@ useEffect(() => {
       {/* CONTENIDO */}
       <div style={{ paddingBottom: 80 }}>
         {seccion === "red" && (
-          <RedGrins usuario={usuario} t={t} reservas={reservas} />
+          <RedGrins
+            usuario={usuario}
+            t={t}
+            reservas={reservas}
+          />
         )}
 
         {seccion === "derivaciones" && (
-          <Derivaciones usuario={usuario} t={t} esAdmin={esAdmin} />
+          <Derivaciones
+            usuario={usuario}
+            t={t}
+            esAdmin={esAdmin}
+          />
         )}
 
         {seccion === "supervision" && (

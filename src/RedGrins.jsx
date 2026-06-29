@@ -130,7 +130,7 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
               </button>
             )}
 
-            
+            <a
               href="https://www.grins.com.ar"
               target="_blank"
               rel="noreferrer"
@@ -217,7 +217,7 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
 
               {/* Logo GRINS */}
               <div style={{ borderTop: "1px solid rgba(124,106,255,0.08)", padding: "6px 12px", display: "flex", justifyContent: "center" }}>
-                
+                <a
                   href="https://www.grins.com.ar"
                   target="_blank"
                   rel="noreferrer"

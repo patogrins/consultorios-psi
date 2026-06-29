@@ -50,6 +50,32 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
+const [notificaciones, setNotificaciones] = useState([]);
+
+useEffect(() => {
+  if (!usuario) return;
+  const unsub = onSnapshot(
+    collection(db, "notificaciones"),
+    snap => {
+      const data = snap.docs
+        .map(d => ({ ...d.data(), id: d.id }))
+        .filter(n => n.para === usuario.email)
+        .sort((a, b) => (b.creadoEn?.seconds || 0) - (a.creadoEn?.seconds || 0));
+      setNotificaciones(data);
+    }
+  );
+  return () => unsub();
+}, [usuario]);
+
+async function marcarLeida(id) {
+  const { updateDoc, doc } = await import("firebase/firestore");
+  await updateDoc(doc(db, "notificaciones", id), { leida: true });
+}
+
+
+
+
+  
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "mensajes_inicio"), snap => {
       const data = snap.docs.map(d => ({ ...d.data(), id: d.id }));
@@ -305,6 +331,41 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
 
       <div style={{ padding: "14px 14px 100px" }}>
 
+{/* ══ NOTIFICACIONES DE MATCH ══ */}
+{notificaciones.filter(n => !n.leida).length > 0 && (
+  <div style={{ marginBottom: 16 }}>
+    <div style={{ fontSize: 11, fontWeight: 700, color: "#a0a8c0", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>🔔 Notificaciones</div>
+    {notificaciones.filter(n => !n.leida).map(n => (
+      <div key={n.id} style={{ background: "rgba(124,106,255,0.1)", borderRadius: 14, padding: "12px 14px", marginBottom: 8, border: "1px solid rgba(124,106,255,0.25)", display: "flex", alignItems: "flex-start", gap: 10 }}>
+        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+          {n.tipo === "derivacion_asignada" ? "✅" : "🔗"}
+        </div>
+        <div style={{ flex: 1 }}>
+          <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 2 }}>
+            {n.tipo === "derivacion_asignada"
+              ? `¡Te asignaron una derivación!`
+              : `Nueva conexión por derivación`}
+          </div>
+          <div style={{ fontSize: 12, color: "#a0a8c0", marginBottom: 4 }}>
+            {n.tipo === "derivacion_asignada"
+              ? `${n.deNombre} te designó para el caso de ${n.especialidad}`
+              : `Vos y ${n.deNombre} están conectados para ${n.especialidad}`}
+          </div>
+          <div style={{ fontSize: 11, color: "#4a5270" }}>Ir a Lazos → Conexiones para coordinar</div>
+        </div>
+        <button onClick={() => marcarLeida(n.id)} style={{ background: "none", border: "none", color: "#4a5270", cursor: "pointer", fontSize: 16, padding: 0, flexShrink: 0 }}>✕</button>
+      </div>
+    ))}
+  </div>
+)}
+
+
+
+
+
+
+
+        
         {/* ══ TILES ══ */}
         <div style={{ marginBottom: 18 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 10 }}>

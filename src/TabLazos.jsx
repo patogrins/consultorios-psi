@@ -3,13 +3,15 @@ import Derivaciones from "./Derivaciones";
 import RedGrins from "./RedGrins";
 
 export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, reservas = [] }) {
-  const [seccion, setSeccion] = useState("red");
+  const [seccion, setSeccion] = useState("cartelera"); // "red" | "cartelera" | "conexiones"
   const [chatInicial, setChatInicial] = useState(null);
+  const [vistaDerivacionesInicial, setVistaDerivacionesInicial] = useState(null);
 
   useEffect(() => {
     const handler = (e) => {
       setChatInicial(e.detail?.email || null);
-      setSeccion("derivaciones");
+      setSeccion("cartelera");
+      setVistaDerivacionesInicial("conexiones");
     };
     window.addEventListener("abrirChatConexion", handler);
     return () => window.removeEventListener("abrirChatConexion", handler);
@@ -20,7 +22,7 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
       <div style={{ fontSize: 48, marginBottom: 16 }}>🔗</div>
       <h2 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800, color: "white", textAlign: "center" }}>Lazos</h2>
       <p style={{ margin: "0 0 24px", fontSize: 14, color: "#a0a8c0", textAlign: "center", lineHeight: 1.6 }}>
-        La red de profesionales GRINS. Directorio, derivaciones y comunidad.
+        La red de profesionales GRINS. Cartelera, conexiones y comunidad.
       </p>
       <button onClick={onLogin} style={{ padding: "10px 24px", borderRadius: 24, border: "none", background: "linear-gradient(135deg,#667eea,#764ba2)", color: "white", fontWeight: 700, fontSize: 13, cursor: "pointer" }}>
         Iniciar sesión para acceder →
@@ -28,58 +30,65 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
     </div>
   );
 
-  const secciones = [
-    { id: "red", label: "Red GRINS", icon: "👥", soon: false },
-    { id: "derivaciones", label: "Derivaciones", icon: "🔄", soon: false },
-    { id: "supervision", label: "Supervisión", icon: "🔍", soon: true },
-    { id: "agora", label: "Ágora", icon: "🏛️", soon: true },
-  ];
-
   return (
     <div className="tab-content" style={{ minHeight: "100vh", background: "#000000" }}>
 
-      {/* HEADER STICKY */}
+      {/* HEADER STICKY — Red Lazos | Cartelera | Conexiones */}
       <div style={{
         position: "sticky", top: 0, zIndex: 20,
         background: "rgba(0,0,0,0.92)",
         backdropFilter: "blur(24px)",
         WebkitBackdropFilter: "blur(24px)",
-        borderBottom: "1px solid rgba(124,106,255,0.15)"
+        borderBottom: "1px solid rgba(124,106,255,0.15)",
+        padding: "54px 14px 12px",
       }}>
-        <div style={{ padding: "54px 20px 0", background: "linear-gradient(180deg,#0a0a14 0%,transparent 100%)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
-            <div>
-              <h1 style={{ margin: 0, fontSize: 22, fontWeight: 800, color: "white" }}>Lazos</h1>
-              <p style={{ margin: "2px 0 0", fontSize: 11, color: "#4a5270" }}>Red profesional GRINS</p>
-            </div>
-            <div style={{ width: 40, height: 40, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18 }}>🔗</div>
-          </div>
-        </div>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
 
-        <div style={{ display: "flex", overflowX: "auto", padding: "0 14px", gap: 0 }}>
-          {secciones.map(({ id, label, icon, soon }) => {
-            const active = seccion === id;
-            return (
-              <button key={id} onClick={() => !soon && setSeccion(id)} style={{
-                padding: "10px 14px", border: "none",
-                borderBottom: active ? "2px solid #7c6aff" : "2px solid transparent",
-                cursor: soon ? "not-allowed" : "pointer",
-                fontWeight: active ? 700 : 500, fontSize: 12,
-                background: "transparent",
-                color: active ? "#a78bfa" : "#4a5270",
-                whiteSpace: "nowrap", flexShrink: 0,
-                opacity: soon ? 0.4 : 1,
-                transition: "all 0.2s",
-                display: "flex", alignItems: "center", gap: 5
-              }}>
-                <span>{icon}</span>
-                <span>{label}</span>
-                {soon && (
-                  <span style={{ fontSize: 8, background: "rgba(124,106,255,0.15)", color: "#7c6aff", borderRadius: 4, padding: "1px 5px", fontWeight: 700 }}>pronto</span>
-                )}
-              </button>
-            );
-          })}
+          {/* RED LAZOS — izquierda */}
+          <button onClick={() => setSeccion("red")} style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            padding: "4px 8px", opacity: seccion === "red" ? 1 : 0.5, transition: "opacity 0.2s",
+            flex: 1
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={seccion === "red" ? "#7c6aff" : "#a0a8c0"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="9"/><line x1="3" y1="12" x2="21" y2="12"/>
+              <path d="M12 3a14 14 0 010 18a14 14 0 010-18z"/>
+            </svg>
+            <span style={{ fontSize: 10, fontWeight: seccion === "red" ? 800 : 600, color: seccion === "red" ? "#7c6aff" : "#a0a8c0", whiteSpace: "nowrap" }}>Red Lazos</span>
+          </button>
+
+          {/* CARTELERA — centro, principal */}
+          <button onClick={() => setSeccion("cartelera")} style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            padding: "4px 8px", flex: 1.3
+          }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={seccion === "cartelera" ? "#7c6aff" : "#a0a8c0"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="2" x2="12" y2="6"/>
+                <rect x="5" y="6" width="14" height="14" rx="2"/>
+                <line x1="9" y1="11" x2="15" y2="11"/>
+                <line x1="9" y1="15" x2="13" y2="15"/>
+              </svg>
+              <span style={{ fontSize: 13, fontWeight: 800, color: seccion === "cartelera" ? "#7c6aff" : "white" }}>Cartelera</span>
+            </div>
+            {seccion === "cartelera" && <div style={{ width: 24, height: 2, borderRadius: 2, background: "#7c6aff" }} />}
+          </button>
+
+          {/* CONEXIONES — derecha */}
+          <button onClick={() => setSeccion("conexiones")} style={{
+            background: "transparent", border: "none", cursor: "pointer",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 4,
+            padding: "4px 8px", opacity: seccion === "conexiones" ? 1 : 0.5, transition: "opacity 0.2s",
+            flex: 1
+          }}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={seccion === "conexiones" ? "#7c6aff" : "#a0a8c0"} strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/>
+            </svg>
+            <span style={{ fontSize: 10, fontWeight: seccion === "conexiones" ? 800 : 600, color: seccion === "conexiones" ? "#7c6aff" : "#a0a8c0", whiteSpace: "nowrap" }}>Conexiones</span>
+          </button>
         </div>
       </div>
 
@@ -89,34 +98,26 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
           <RedGrins usuario={usuario} t={t} reservas={reservas} />
         )}
 
-        {seccion === "derivaciones" && (
+        {seccion === "cartelera" && (
+          <Derivaciones
+            usuario={usuario}
+            t={t}
+            esAdmin={esAdmin}
+            chatInicial={null}
+            onChatInicialUsado={() => {}}
+            vistaInicial="cartelera"
+          />
+        )}
+
+        {seccion === "conexiones" && (
           <Derivaciones
             usuario={usuario}
             t={t}
             esAdmin={esAdmin}
             chatInicial={chatInicial}
             onChatInicialUsado={() => setChatInicial(null)}
+            vistaInicial="conexiones"
           />
-        )}
-
-        {seccion === "supervision" && (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>🔍</div>
-            <h3 style={{ color: "white", margin: "0 0 8px", fontSize: 18, fontWeight: 800 }}>Supervisión</h3>
-            <p style={{ color: "#a0a8c0", fontSize: 13, lineHeight: 1.6, maxWidth: 280, margin: "0 auto" }}>
-              Encontrá un profesional para supervisar tus casos. Próximamente.
-            </p>
-          </div>
-        )}
-
-        {seccion === "agora" && (
-          <div style={{ padding: "40px 20px", textAlign: "center" }}>
-            <div style={{ fontSize: 56, marginBottom: 16 }}>🏛️</div>
-            <h3 style={{ color: "white", margin: "0 0 8px", fontSize: 18, fontWeight: 800 }}>Ágora</h3>
-            <p style={{ color: "#a0a8c0", fontSize: 13, lineHeight: 1.6, maxWidth: 280, margin: "0 auto" }}>
-              Espacio de encuentro para talleres y grupos de estudio. Próximamente.
-            </p>
-          </div>
         )}
       </div>
     </div>

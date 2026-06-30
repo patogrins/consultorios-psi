@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { db } from "./firebase";
 import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
 
@@ -26,128 +26,275 @@ function Tag({ label }) {
   return <span style={{ background: "rgba(14,12,28,0.9)", color: "#a0a8c0", border: "1px solid rgba(124,106,255,0.15)", borderRadius: 8, padding: "2px 8px", fontSize: 10, fontWeight: 600 }}>{label}</span>;
 }
 
-// ── PILA TINDER ───────────────────────────────────────────────────────────────
-function PilaTinder({ derivaciones, usuario, perfiles, onInteresa, onArchivar }) {
-  const [respondidas, setRespondidas] = useState({});
+// ── CHAT FULLSCREEN ESTILO WHATSAPP ──────────────────────────────────────────
+function ChatFullscreen({ derivacionId, usuario, otroNombre, otroPerfil, onCerrar }) {
+  const [msgs, setMsgs] = useState([]);
+  const [texto, setTexto] = useState("");
+  const endRef = useRef(null);
+  const inicial = otroNombre?.[0]?.toUpperCase() || "?";
+
+  useEffect(() => {
+    const unsub = onSnapshot(
+      collection(db, `chats_derivacion/${derivacionId}/mensajes`),
+      snap => {
+        const data = snap.docs.map(d => ({ ...d.data(), id: d.id }))
+          .sort((a, b) => (a.creadoEn?.seconds || 0) - (b.creadoEn?.seconds || 0));
+        setMsgs(data);
+        setTimeout(() => endRef.current?.scrollIntoView({ behavior: "smooth" }), 80);
+      }
+    );
+    return () => unsub();
+  }, [derivacionId]);
+
+  async function enviar() {
+    if (!texto.trim()) return;
+    await addDoc(collection(db, `chats_derivacion/${derivacionId}/mensajes`), {
+      texto: texto.trim(),
+      autorEmail: usuario.email,
+      autorNombre: usuario.nombre,
+      creadoEn: serverTimestamp()
+    });
+    setTexto("");
+  }
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "#000000", zIndex: 5000, display: "flex", flexDirection: "column" }}>
+
+      {/* HEADER CHAT */}
+      <div style={{ padding: "54px 16px 14px", background: "linear-gradient(180deg,#0a0a14 0%,#000000 100%)", borderBottom: "1px solid rgba(124,106,255,0.15)", display: "flex", alignItems: "center", gap: 12, flexShrink: 0 }}>
+        <button onClick={onCerrar} style={{ background: "none", border: "none", color: "white", fontSize: 22, cursor: "pointer", padding: 0, display: "flex", alignItems: "center" }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div style={{ width: 38, height: 38, borderRadius: "50%", background: avatarColor(otroNombre || ""), overflow: "hidden", border: "1.5px solid rgba(124,106,255,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14, fontWeight: 800, color: "white", flexShrink: 0 }}>
+          {otroPerfil?.fotoUrl ? <img src={otroPerfil.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : inicial}
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: "white", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{otroNombre}</div>
+          {otroPerfil?.especialidad && <div style={{ fontSize: 11, color: "#7c6aff", fontWeight: 600 }}>{otroPerfil.especialidad}</div>}
+        </div>
+      </div>
+
+      {/* MENSAJES */}
+      <div style={{ flex: 1, overflowY: "auto", padding: "16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
+        {msgs.length === 0 && (
+          <div style={{ textAlign: "center", padding: "40px 0" }}>
+            <div style={{ fontSize: 32, marginBottom: 10 }}>💬</div>
+            <p style={{ margin: 0, fontSize: 13, color: "#4a5270" }}>Empezá la conversación con {otroNombre}</p>
+          </div>
+        )}
+        {msgs.map(m => {
+          const esMio = m.autorEmail === usuario.email;
+          const fecha = m.creadoEn?.toDate?.()?.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) || "";
+          return (
+            <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: esMio ? "flex-end" : "flex-start" }}>
+              {!esMio && <div style={{ fontSize: 9, color: "#4a5270", marginBottom: 3, marginLeft: 4 }}>{m.autorNombre}</div>}
+              <div style={{ maxWidth: "80%", padding: "10px 14px", borderRadius: esMio ? "18px 18px 4px 18px" : "18px 18px 18px 4px", background: esMio ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(255,255,255,0.08)", color: "white", fontSize: 14, lineHeight: 1.4, wordBreak: "break-word" }}>
+                {m.texto}
+              </div>
+              <div style={{ fontSize: 9, color: "#3a3a5a", marginTop: 3, marginLeft: esMio ? 0 : 4, marginRight: esMio ? 4 : 0 }}>{fecha}</div>
+            </div>
+          );
+        })}
+        <div ref={endRef} />
+      </div>
+
+      {/* INPUT */}
+      <div style={{ padding: "10px 12px", paddingBottom: "calc(10px + env(safe-area-inset-bottom))", borderTop: "1px solid rgba(124,106,255,0.1)", background: "rgba(10,10,20,0.95)", display: "flex", gap: 8, alignItems: "center", flexShrink: 0 }}>
+        <input value={texto} onChange={e => setTexto(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && !e.shiftKey && enviar()}
+          placeholder={`Escribile a ${otroNombre}...`}
+          style={{ flex: 1, padding: "11px 16px", borderRadius: 24, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(255,255,255,0.05)", color: "white", fontSize: 14, outline: "none" }} />
+        <button onClick={enviar} disabled={!texto.trim()} style={{ width: 42, height: 42, borderRadius: "50%", border: "none", background: texto.trim() ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(255,255,255,0.05)", cursor: texto.trim() ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── LOOP VERTICAL INFINITO DE FICHAS (CARTELERA) ─────────────────────────────
+function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar }) {
+  const [respondidas, setRespondidas] = useState(new Set());
+  const [idx, setIdx] = useState(0);
+  const startY = useRef(null);
+  const [offsetY, setOffsetY] = useState(0);
   const startX = useRef(null);
   const [offsetX, setOffsetX] = useState(0);
-  const [swipeDir, setSwipeDir] = useState(null);
-  const [animating, setAnimating] = useState(null);
-  const THRESHOLD = 80;
+  const [swipeDir, setSwipeDir] = useState(null); // "left" | "right" para acción horizontal
+  const [animandoVertical, setAnimandoVertical] = useState(null); // "up" | "down"
+  const [animandoHorizontal, setAnimandoHorizontal] = useState(null); // "left" | "right"
+  const THRESHOLD_V = 60;
+  const THRESHOLD_H = 80;
 
-  const pendientes = derivaciones.filter(d => !respondidas[d.id]);
+  const disponibles = useMemo(() => fichas.filter(f => !respondidas.has(f.id)), [fichas, respondidas]);
 
-  function onTouchStart(e) { startX.current = e.touches[0].clientX; }
-  function onTouchMove(e) {
-    if (startX.current === null) return;
-    const dx = e.touches[0].clientX - startX.current;
-    setOffsetX(dx);
-    setSwipeDir(dx > 20 ? "right" : dx < -20 ? "left" : null);
-  }
-  function onTouchEnd() {
-    if (offsetX > THRESHOLD) triggerSwipe("right");
-    else if (offsetX < -THRESHOLD) triggerSwipe("left");
-    else { setOffsetX(0); setSwipeDir(null); }
-    startX.current = null;
-  }
+  // Si el índice quedó fuera de rango (porque sacamos una ficha), lo ajustamos
+  useEffect(() => {
+    if (idx >= disponibles.length && disponibles.length > 0) setIdx(0);
+  }, [disponibles.length]);
 
-  function triggerSwipe(dir) {
-    setAnimating(dir);
-    setTimeout(() => {
-      const d = pendientes[0];
-      if (!d) return;
-      if (dir === "right") { onInteresa(d); setRespondidas(r => ({ ...r, [d.id]: "interesa" })); }
-      else { onArchivar(d); setRespondidas(r => ({ ...r, [d.id]: "archivada" })); }
-      setOffsetX(0); setSwipeDir(null); setAnimating(null);
-    }, 300);
-  }
-
-  if (pendientes.length === 0) return (
-    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "40px 20px", textAlign: "center" }}>
-      <div style={{ fontSize: 56, marginBottom: 16 }}>🎉</div>
-      <h3 style={{ margin: "0 0 8px", color: "white", fontSize: 18, fontWeight: 800 }}>¡Revisaste todas!</h3>
-      <p style={{ margin: 0, color: "#4a5270", fontSize: 13 }}>No hay más propuestas por ahora.</p>
-      <button onClick={() => setRespondidas({})} style={{ marginTop: 20, padding: "9px 20px", borderRadius: 20, border: "1px solid rgba(124,106,255,0.3)", background: "transparent", color: "#7c6aff", fontSize: 12, fontWeight: 600, cursor: "pointer" }}>Ver de nuevo</button>
+  if (disponibles.length === 0) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "60px 20px", textAlign: "center", minHeight: "50vh" }}>
+      <div style={{ fontSize: 56, marginBottom: 16 }}>📌</div>
+      <h3 style={{ margin: "0 0 8px", color: "white", fontSize: 18, fontWeight: 800 }}>Cartelera al día</h3>
+      <p style={{ margin: 0, color: "#4a5270", fontSize: 13 }}>No hay fichas nuevas por ahora.</p>
     </div>
   );
 
-  const d = pendientes[0];
-  const siguiente = pendientes[1];
-  const yaInteresado = d.interesadosEmails?.includes(usuario.email);
-  const translateX = animating === "right" ? 400 : animating === "left" ? -400 : offsetX;
-  const opacity = animating ? 0 : Math.max(0.4, 1 - Math.abs(offsetX) / 250);
-  const rotation = offsetX * 0.04;
+  const ficha = disponibles[idx % disponibles.length];
+  const yaInteresado = ficha.interesadosEmails?.includes(usuario.email);
+
+  function siguienteIdx() { return (idx + 1) % disponibles.length; }
+  function anteriorIdx() { return (idx - 1 + disponibles.length) % disponibles.length; }
+
+  // Swipe vertical = navegar (loop), swipe horizontal = responder
+  function onTouchStart(e) {
+    if (e.touches.length !== 1) return;
+    startY.current = e.touches[0].clientY;
+    startX.current = e.touches[0].clientX;
+  }
+  function onTouchMove(e) {
+    if (startY.current === null) return;
+    const dy = e.touches[0].clientY - startY.current;
+    const dx = e.touches[0].clientX - startX.current;
+    if (Math.abs(dx) > Math.abs(dy)) {
+      setOffsetX(dx);
+      setOffsetY(0);
+      setSwipeDir(dx > 20 ? "right" : dx < -20 ? "left" : null);
+    } else {
+      setOffsetY(dy);
+      setOffsetX(0);
+      setSwipeDir(null);
+    }
+  }
+  function onTouchEnd() {
+    if (Math.abs(offsetX) > THRESHOLD_H) {
+      triggerHorizontal(offsetX > 0 ? "right" : "left");
+    } else if (offsetY > THRESHOLD_V) {
+      triggerVertical("down"); // swipe hacia abajo = ficha anterior
+    } else if (offsetY < -THRESHOLD_V) {
+      triggerVertical("up"); // swipe hacia arriba = ficha siguiente
+    } else {
+      setOffsetY(0); setOffsetX(0); setSwipeDir(null);
+    }
+    startY.current = null; startX.current = null;
+  }
+
+  function triggerVertical(dir) {
+    setAnimandoVertical(dir);
+    setTimeout(() => {
+      setIdx(dir === "up" ? siguienteIdx() : anteriorIdx());
+      setOffsetY(0); setAnimandoVertical(null);
+    }, 220);
+  }
+
+  function triggerHorizontal(dir) {
+    setAnimandoHorizontal(dir);
+    setTimeout(() => {
+      if (dir === "right") onInteresa(ficha);
+      else onArchivar(ficha);
+      setRespondidas(prev => new Set(prev).add(ficha.id));
+      setOffsetX(0); setOffsetY(0); setSwipeDir(null); setAnimandoHorizontal(null);
+    }, 260);
+  }
+
+  const translateY = animandoVertical === "up" ? -120 : animandoVertical === "down" ? 120 : offsetY;
+  const translateX = animandoHorizontal === "right" ? 420 : animandoHorizontal === "left" ? -420 : offsetX;
+  const rotation = offsetX * 0.035;
+  const opacityV = animandoVertical ? 0 : 1 - Math.min(Math.abs(offsetY) / 200, 0.5);
+  const opacityH = animandoHorizontal ? 0 : Math.max(0.4, 1 - Math.abs(offsetX) / 260);
+  const opacity = Math.min(opacityV, opacityH);
 
   return (
-    <div style={{ padding: "12px 16px 20px" }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+    <div style={{ padding: "14px 16px 10px" }}>
+
+      {/* Hints */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, padding: "0 4px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: swipeDir === "left" ? 1 : 0.3, transition: "opacity 0.2s" }}>
-          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(239,83,80,0.15)", border: "1.5px solid #ef5350", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 12, color: "#ef5350" }}>✕</span>
+          <div style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(239,83,80,0.15)", border: "1.5px solid #ef5350", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 11, color: "#ef5350" }}>✕</span>
           </div>
-          <span style={{ fontSize: 10, color: "#ef5350", fontWeight: 600 }}>Archivar</span>
+          <span style={{ fontSize: 9, color: "#ef5350", fontWeight: 600 }}>Archivar</span>
         </div>
-        <span style={{ fontSize: 10, color: "#4a5270" }}>{pendientes.length} restante{pendientes.length !== 1 ? "s" : ""}</span>
+        <span style={{ fontSize: 10, color: "#4a5270" }}>{idx % disponibles.length + 1} / {disponibles.length}</span>
         <div style={{ display: "flex", alignItems: "center", gap: 6, opacity: swipeDir === "right" ? 1 : 0.3, transition: "opacity 0.2s" }}>
-          <span style={{ fontSize: 10, color: "#66bb6a", fontWeight: 600 }}>Me interesa</span>
-          <div style={{ width: 28, height: 28, borderRadius: "50%", background: "rgba(102,187,106,0.15)", border: "1.5px solid #66bb6a", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ fontSize: 12, color: "#66bb6a" }}>♥</span>
+          <span style={{ fontSize: 9, color: "#66bb6a", fontWeight: 600 }}>Me interesa</span>
+          <div style={{ width: 26, height: 26, borderRadius: "50%", background: "rgba(102,187,106,0.15)", border: "1.5px solid #66bb6a", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <span style={{ fontSize: 11, color: "#66bb6a" }}>♥</span>
           </div>
         </div>
       </div>
 
-      <div style={{ position: "relative", height: 380 }}>
-        {siguiente && (
-          <div style={{ position: "absolute", inset: 0, borderRadius: 20, background: "rgba(14,12,28,0.7)", border: "1px solid rgba(124,106,255,0.1)", transform: "scale(0.95) translateY(8px)", zIndex: 1 }} />
-        )}
+      {/* Pila visual: ficha siguiente y anterior apenas asomadas, dan sensación de loop continuo */}
+      <div style={{ position: "relative", height: 400, touchAction: "pan-y" }}>
 
+        {/* Ficha "siguiente" asomando abajo */}
+        <div style={{ position: "absolute", inset: 0, borderRadius: 22, background: "rgba(14,12,28,0.5)", border: "1px solid rgba(124,106,255,0.08)", transform: "scale(0.94) translateY(14px)", zIndex: 1 }} />
+        {/* Ficha "anterior" asomando arriba */}
+        <div style={{ position: "absolute", inset: 0, borderRadius: 22, background: "rgba(14,12,28,0.35)", border: "1px solid rgba(124,106,255,0.06)", transform: "scale(0.9) translateY(-14px)", zIndex: 0 }} />
+
+        {/* Ficha activa */}
         <div
           onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-          style={{ position: "absolute", inset: 0, background: "rgba(14,12,28,0.95)", borderRadius: 20, border: `1px solid ${swipeDir === "right" ? "rgba(102,187,106,0.5)" : swipeDir === "left" ? "rgba(239,83,80,0.5)" : "rgba(124,106,255,0.25)"}`, overflow: "hidden", zIndex: 2, transform: `translateX(${translateX}px) rotate(${rotation}deg)`, opacity, transition: animating ? "transform 0.3s ease, opacity 0.3s ease" : "border 0.15s", cursor: "grab", userSelect: "none", touchAction: "none" }}>
+          style={{
+            position: "absolute", inset: 0, zIndex: 2,
+            background: "rgba(14,12,28,0.97)", borderRadius: 22, overflow: "hidden",
+            border: `1px solid ${swipeDir === "right" ? "rgba(102,187,106,0.5)" : swipeDir === "left" ? "rgba(239,83,80,0.5)" : "rgba(124,106,255,0.25)"}`,
+            transform: `translate(${translateX}px, ${translateY}px) rotate(${rotation}deg)`,
+            opacity,
+            transition: (animandoVertical || animandoHorizontal) ? "transform 0.22s ease, opacity 0.22s ease" : "border 0.15s",
+            cursor: "grab", userSelect: "none", touchAction: "none",
+            boxShadow: "0 12px 40px rgba(0,0,0,0.4)"
+          }}>
 
           <div style={{ height: 3, background: "linear-gradient(90deg,#667eea,#764ba2)" }} />
 
+          {/* Sellos overlay */}
           {swipeDir === "right" && (
             <div style={{ position: "absolute", top: 16, left: 16, zIndex: 5, background: "rgba(102,187,106,0.9)", borderRadius: 8, padding: "4px 12px", border: "2px solid #66bb6a", transform: "rotate(-12deg)" }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: "white" }}>♥ ME INTERESA</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>♥ ME INTERESA</span>
             </div>
           )}
           {swipeDir === "left" && (
             <div style={{ position: "absolute", top: 16, right: 16, zIndex: 5, background: "rgba(239,83,80,0.9)", borderRadius: 8, padding: "4px 12px", border: "2px solid #ef5350", transform: "rotate(12deg)" }}>
-              <span style={{ fontSize: 14, fontWeight: 800, color: "white" }}>ARCHIVAR ✕</span>
+              <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>ARCHIVAR ✕</span>
             </div>
           )}
 
-          <div style={{ padding: 16 }}>
+          <div style={{ padding: 16, height: "calc(100% - 3px)", display: "flex", flexDirection: "column" }}>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 14 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 44, height: 44, borderRadius: "50%", background: "linear-gradient(135deg,#667eea22,#764ba222)", border: "1px solid rgba(124,106,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20 }}>🧠</div>
+                <div style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(135deg,#667eea22,#764ba222)", border: "1px solid rgba(124,106,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 19 }}>📌</div>
                 <div>
-                  <div style={{ fontSize: 16, fontWeight: 800, color: "white" }}>{d.especialidad}</div>
-                  <div style={{ fontSize: 11, color: "#4a5270" }}>por {d.derivadoPor}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: "white" }}>{ficha.especialidad}</div>
+                  <div style={{ fontSize: 11, color: "#4a5270" }}>por {ficha.derivadoPor}</div>
                 </div>
               </div>
               <div style={{ textAlign: "right" }}>
-                <span style={{ fontSize: 9, color: "#4a5270" }}>{tiempoRelativo(d.creadoEn?.seconds)}</span>
+                <span style={{ fontSize: 9, color: "#4a5270" }}>{tiempoRelativo(ficha.creadoEn?.seconds)}</span>
                 {yaInteresado && <div style={{ marginTop: 3, fontSize: 9, background: "rgba(102,187,106,0.15)", color: "#66bb6a", borderRadius: 6, padding: "1px 6px", fontWeight: 700 }}>Ya te postulaste</div>}
               </div>
             </div>
 
-            {d.nota && <p style={{ margin: "0 0 12px", fontSize: 13, color: "#e2e8f0", lineHeight: 1.6, padding: "10px 12px", background: "rgba(124,106,255,0.06)", borderRadius: 10, borderLeft: "2px solid rgba(124,106,255,0.4)" }}>"{d.nota}"</p>}
+            {ficha.nota && (
+              <p style={{ margin: "0 0 12px", fontSize: 13, color: "#e2e8f0", lineHeight: 1.6, padding: "10px 12px", background: "rgba(124,106,255,0.06)", borderRadius: 10, borderLeft: "2px solid rgba(124,106,255,0.4)", overflowY: "auto", maxHeight: 110 }}>
+                "{ficha.nota}"
+              </p>
+            )}
 
-            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-              <Tag label={`📍 ${d.modalidad}`} />
-              {d.genero !== "Indistinto" && <Tag label={`${d.genero === "Femenino" ? "👩" : "👨"} ${d.genero}`} />}
-              {d.edad !== "Indistinto" && <Tag label={`🎂 ${d.edad}`} />}
-              {d.dias?.length > 0 && <Tag label={`📅 ${d.dias.join(" · ")}`} />}
-              {d.franjas?.length > 0 && <Tag label={`⏰ ${d.franjas.join(" · ")}`} />}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: "auto" }}>
+              <Tag label={`📍 ${ficha.modalidad}`} />
+              {ficha.genero !== "Indistinto" && <Tag label={`${ficha.genero === "Femenino" ? "👩" : "👨"} ${ficha.genero}`} />}
+              {ficha.edad !== "Indistinto" && <Tag label={`🎂 ${ficha.edad}`} />}
+              {ficha.dias?.length > 0 && <Tag label={`📅 ${ficha.dias.join(" · ")}`} />}
+              {ficha.franjas?.length > 0 && <Tag label={`⏰ ${ficha.franjas.join(" · ")}`} />}
             </div>
 
-            <div style={{ display: "flex", gap: 10 }}>
-              <button onClick={() => triggerSwipe("left")} style={{ flex: 1, padding: "12px", borderRadius: 14, border: "1px solid rgba(239,83,80,0.3)", background: "rgba(239,83,80,0.08)", color: "#ef5350", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+            <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+              <button onClick={() => triggerHorizontal("left")} style={{ flex: 1, padding: "11px", borderRadius: 14, border: "1px solid rgba(239,83,80,0.3)", background: "rgba(239,83,80,0.08)", color: "#ef5350", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <span>✕</span> Archivar
               </button>
-              <button onClick={() => triggerSwipe("right")} style={{ flex: 2, padding: "12px", borderRadius: 14, border: "none", background: yaInteresado ? "rgba(102,187,106,0.15)" : "linear-gradient(135deg,#38a169,#2d8a5e)", color: yaInteresado ? "#66bb6a" : "white", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <button onClick={() => triggerHorizontal("right")} style={{ flex: 2, padding: "11px", borderRadius: 14, border: "none", background: yaInteresado ? "rgba(102,187,106,0.15)" : "linear-gradient(135deg,#38a169,#2d8a5e)", color: yaInteresado ? "#66bb6a" : "white", fontWeight: 700, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <span>♥</span> {yaInteresado ? "Ya te postulaste" : "Me interesa"}
               </button>
             </div>
@@ -155,41 +302,17 @@ function PilaTinder({ derivaciones, usuario, perfiles, onInteresa, onArchivar })
         </div>
       </div>
 
-      <div style={{ display: "flex", justifyContent: "center", alignItems: "center", gap: 8, marginTop: 10, opacity: 0.4 }}>
-        <span style={{ fontSize: 10, color: "#ef5350" }}>← Archivar</span>
-        <span style={{ fontSize: 9, color: "#3a3a5a" }}>· deslizá para elegir ·</span>
-        <span style={{ fontSize: 10, color: "#66bb6a" }}>Me interesa →</span>
+      {/* Hints navegación vertical */}
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2, marginTop: 12, opacity: 0.35 }}>
+        <span style={{ fontSize: 9, color: "#a0a8c0" }}>↑ deslizá arriba/abajo para ver más fichas ↓</span>
+        <span style={{ fontSize: 9, color: "#a0a8c0" }}>← deslizá a los lados para responder →</span>
       </div>
-
-      {Object.keys(respondidas).length > 0 && (
-        <div style={{ marginTop: 20 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: "#4a5270", textTransform: "uppercase", letterSpacing: 1, marginBottom: 10 }}>Respondidas esta sesión</div>
-          {Object.entries(respondidas).map(([id, resp]) => {
-            const der = derivaciones.find(x => x.id === id);
-            if (!der) return null;
-            return (
-              <div key={id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", background: "rgba(14,12,28,0.6)", borderRadius: 12, marginBottom: 8, border: `1px solid ${resp === "interesa" ? "rgba(102,187,106,0.2)" : "rgba(255,255,255,0.06)"}` }}>
-                <div style={{ width: 32, height: 32, borderRadius: "50%", background: resp === "interesa" ? "rgba(102,187,106,0.15)" : "rgba(255,255,255,0.05)", border: `1.5px solid ${resp === "interesa" ? "#66bb6a" : "#3a3a5a"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 14 }}>
-                  {resp === "interesa" ? "♥" : "✕"}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: resp === "interesa" ? "white" : "#4a5270" }}>🧠 {der.especialidad}</div>
-                  <div style={{ fontSize: 10, color: "#4a5270" }}>por {der.derivadoPor}</div>
-                </div>
-                <span style={{ fontSize: 10, fontWeight: 700, color: resp === "interesa" ? "#66bb6a" : "#4a5270" }}>
-                  {resp === "interesa" ? "Me interesa" : "Archivada"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      )}
     </div>
   );
 }
 
-// ── MIS DERIVACIONES ──────────────────────────────────────────────────────────
-function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, onCerrar, onEliminar }) {
+// ── MIS PUBLICACIONES (antes "Mis derivaciones") ─────────────────────────────
+function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, onCerrar, onEliminar, onAbrirChat }) {
   const [expandida, setExpandida] = useState(null);
   const [matchModal, setMatchModal] = useState(null);
 
@@ -198,7 +321,7 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
   if (mias.length === 0) return (
     <div style={{ padding: "32px 20px", textAlign: "center" }}>
       <div style={{ fontSize: 40, marginBottom: 10 }}>📋</div>
-      <p style={{ margin: 0, color: "#4a5270", fontSize: 13 }}>No publicaste derivaciones aún.</p>
+      <p style={{ margin: 0, color: "#4a5270", fontSize: 13 }}>No publicaste fichas aún.</p>
     </div>
   );
 
@@ -212,7 +335,6 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
   return (
     <div style={{ padding: "12px 14px 20px" }}>
 
-      {/* MODAL MATCH */}
       {matchModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.92)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center", padding: 24 }}>
           <div style={{ background: "rgba(14,12,28,0.98)", borderRadius: 24, padding: "32px 24px", width: "100%", maxWidth: 360, textAlign: "center", border: "1px solid rgba(124,106,255,0.3)", boxShadow: "0 0 60px rgba(124,106,255,0.2)" }}>
@@ -230,7 +352,7 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
                 {matchModal.asignado.fotoUrl ? <img src={matchModal.asignado.fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : matchModal.asignado.nombre?.[0]?.toUpperCase()}
               </div>
             </div>
-            <h2 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800, color: "white" }}>¡Derivación asignada!</h2>
+            <h2 style={{ margin: "0 0 8px", fontSize: 20, fontWeight: 800, color: "white" }}>¡Ficha asignada!</h2>
             <p style={{ margin: "0 0 20px", fontSize: 14, color: "#a0a8c0", lineHeight: 1.5 }}>
               Vos y <strong style={{ color: "white" }}>{matchModal.asignado.nombre}</strong> están conectados para este caso.
             </p>
@@ -259,7 +381,7 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
             <div style={{ padding: "14px 16px" }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 10 }}>
                 <div>
-                  <div style={{ fontSize: 15, fontWeight: 800, color: cerrada ? "#4a5270" : "white" }}>🧠 {d.especialidad}</div>
+                  <div style={{ fontSize: 15, fontWeight: 800, color: cerrada ? "#4a5270" : "white" }}>📌 {d.especialidad}</div>
                   <div style={{ fontSize: 10, color: "#4a5270", marginTop: 2 }}>{tiempoRelativo(d.creadoEn?.seconds)} · {d.modalidad}</div>
                 </div>
                 <span style={{ fontSize: 10, fontWeight: 700, borderRadius: 20, padding: "3px 10px", background: asignada ? "rgba(102,187,106,0.12)" : conInteresados ? "rgba(124,106,255,0.15)" : "rgba(255,255,255,0.05)", color: asignada ? "#66bb6a" : conInteresados ? "#a78bfa" : "#4a5270", border: `1px solid ${asignada ? "rgba(102,187,106,0.3)" : conInteresados ? "rgba(124,106,255,0.3)" : "rgba(255,255,255,0.08)"}` }}>
@@ -323,9 +445,14 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
               )}
 
               {asignada && (
-                <div style={{ padding: "10px 12px", background: "rgba(102,187,106,0.08)", borderRadius: 10, marginBottom: 10, border: "1px solid rgba(102,187,106,0.2)", display: "flex", alignItems: "center", gap: 8 }}>
-                  <span>🔗</span>
-                  <span style={{ fontSize: 12, color: "#66bb6a", fontWeight: 600 }}>Asignada a {d.asignadoA}</span>
+                <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
+                  <div style={{ flex: 1, padding: "10px 12px", background: "rgba(102,187,106,0.08)", borderRadius: 10, border: "1px solid rgba(102,187,106,0.2)", display: "flex", alignItems: "center", gap: 8 }}>
+                    <span>🔗</span>
+                    <span style={{ fontSize: 12, color: "#66bb6a", fontWeight: 600 }}>Asignada a {d.asignadoA}</span>
+                  </div>
+                  <button onClick={() => onAbrirChat(d.id, d.asignadoA, d.asignadoEmail)} style={{ padding: "0 14px", borderRadius: 10, border: "1px solid rgba(124,106,255,0.25)", background: "rgba(124,106,255,0.1)", color: "#a78bfa", fontWeight: 700, fontSize: 11, cursor: "pointer", display: "flex", alignItems: "center", gap: 5 }}>
+                    💬 Chatear
+                  </button>
                 </div>
               )}
 
@@ -346,53 +473,27 @@ function MisDerivaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, 
   );
 }
 
-// ── CONEXIONES ────────────────────────────────────────────────────────────────
-function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicialUsado }) {
+// ── CONEXIONES (sin cambios de lógica, chat ahora fullscreen) ────────────────
+function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicialUsado, onAbrirChat }) {
   const [filtro, setFiltro] = useState("todas");
-  const [chatAbierto, setChatAbierto] = useState(null);
-  const [mensajesChat, setMensajesChat] = useState({});
-  const [textoMsg, setTextoMsg] = useState("");
   const [perfilVista, setPerfilVista] = useState(null);
-  const chatEndRef = useRef(null);
 
   const conexiones = derivaciones.filter(d =>
     d.estado === "asignada" && (d.derivadoPorEmail === usuario.email || d.asignadoEmail === usuario.email)
   );
 
-  // Abrir chat automáticamente si viene desde Red GRINS
   useEffect(() => {
     if (!chatInicial) return;
     const conexion = conexiones.find(d =>
       d.derivadoPorEmail === chatInicial || d.asignadoEmail === chatInicial
     );
-    if (conexion) setChatAbierto(conexion.id);
+    if (conexion) {
+      const otroEmail = conexion.derivadoPorEmail === usuario.email ? conexion.asignadoEmail : conexion.derivadoPorEmail;
+      const otroNombre = conexion.derivadoPorEmail === usuario.email ? conexion.asignadoA : conexion.derivadoPor;
+      onAbrirChat(conexion.id, otroNombre, otroEmail);
+    }
     onChatInicialUsado?.();
   }, [chatInicial, conexiones]);
-
-  useEffect(() => {
-    if (!chatAbierto) return;
-    const unsub = onSnapshot(
-      collection(db, `chats_derivacion/${chatAbierto}/mensajes`),
-      snap => {
-        const msgs = snap.docs.map(d => ({ ...d.data(), id: d.id }))
-          .sort((a, b) => (a.creadoEn?.seconds || 0) - (b.creadoEn?.seconds || 0));
-        setMensajesChat(prev => ({ ...prev, [chatAbierto]: msgs }));
-        setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: "smooth" }), 100);
-      }
-    );
-    return () => unsub();
-  }, [chatAbierto]);
-
-  async function enviarMensaje(derivacionId) {
-    if (!textoMsg.trim()) return;
-    await addDoc(collection(db, `chats_derivacion/${derivacionId}/mensajes`), {
-      texto: textoMsg.trim(),
-      autorEmail: usuario.email,
-      autorNombre: usuario.nombre,
-      creadoEn: serverTimestamp()
-    });
-    setTextoMsg("");
-  }
 
   const filtradas = conexiones.filter(d => {
     if (filtro === "derive") return d.derivadoPorEmail === usuario.email;
@@ -400,7 +501,6 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
     return true;
   });
 
-  // Vista perfil del otro
   if (perfilVista) {
     const inicial = perfilVista.nombre?.[0]?.toUpperCase() || "?";
     return (
@@ -459,18 +559,13 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
         const asignadoPerfil = perfiles.find(p => p.email === d.asignadoEmail);
         const otroEmail = d.derivadoPorEmail === usuario.email ? d.asignadoEmail : d.derivadoPorEmail;
         const otroNombre = d.derivadoPorEmail === usuario.email ? d.asignadoA : d.derivadoPor;
-        const isChatOpen = chatAbierto === d.id;
-        const msgs = mensajesChat[d.id] || [];
 
         return (
           <div key={d.id} style={{ background: "rgba(14,12,28,0.9)", borderRadius: 18, marginBottom: 12, overflow: "hidden", border: "1px solid rgba(102,187,106,0.2)" }}>
             <div style={{ height: 3, background: "linear-gradient(90deg,#38a169,#2d8a5e)" }} />
 
             <div style={{ padding: "16px 16px 12px" }}>
-              {/* VISUAL: quien deriva → quien recibe */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 0, marginBottom: 14 }}>
-
-                {/* Quien deriva */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}
                   onClick={() => { if (derivadorPerfil) setPerfilVista(derivadorPerfil); }}>
                   <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(d.derivadoPor || ""), overflow: "hidden", border: `2px solid ${d.derivadoPorEmail === usuario.email ? "rgba(124,106,255,0.6)" : "rgba(102,187,106,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", boxShadow: d.derivadoPorEmail === usuario.email ? "0 0 12px rgba(124,106,255,0.3)" : "none" }}>
@@ -482,7 +577,6 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
                   <div style={{ fontSize: 8, color: "#3a3a5a", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.5 }}>deriva</div>
                 </div>
 
-                {/* Flecha */}
                 <div style={{ display: "flex", alignItems: "center", gap: 0, margin: "0 8px", paddingBottom: 20 }}>
                   <div style={{ width: 16, height: 1, background: "linear-gradient(90deg,rgba(102,187,106,0),rgba(102,187,106,0.6))" }} />
                   <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 2 }}>
@@ -494,7 +588,6 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
                   <div style={{ width: 16, height: 1, background: "linear-gradient(90deg,rgba(102,187,106,0.6),rgba(102,187,106,0))" }} />
                 </div>
 
-                {/* Quien recibe */}
                 <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, cursor: "pointer" }}
                   onClick={() => { if (asignadoPerfil) setPerfilVista(asignadoPerfil); }}>
                   <div style={{ width: 52, height: 52, borderRadius: "50%", background: avatarColor(d.asignadoA || ""), overflow: "hidden", border: `2px solid ${d.asignadoEmail === usuario.email ? "rgba(124,106,255,0.6)" : "rgba(102,187,106,0.3)"}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 20, fontWeight: 800, color: "white", boxShadow: d.asignadoEmail === usuario.email ? "0 0 12px rgba(124,106,255,0.3)" : "none" }}>
@@ -507,55 +600,16 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
                 </div>
               </div>
 
-              {/* Info */}
               <div style={{ textAlign: "center", marginBottom: 12 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: "white" }}>🧠 {d.especialidad}</div>
-                <div style={{ fontSize: 10, color: "#4a5270", marginTop: 2 }}>Derivación activa · {d.modalidad}</div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: "white" }}>📌 {d.especialidad}</div>
+                <div style={{ fontSize: 10, color: "#4a5270", marginTop: 2 }}>Ficha activa · {d.modalidad}</div>
               </div>
 
-              {/* Botón chat */}
-              <button onClick={() => setChatAbierto(isChatOpen ? null : d.id)} style={{ width: "100%", padding: "10px", borderRadius: 12, border: `1px solid ${isChatOpen ? "rgba(124,106,255,0.4)" : "rgba(124,106,255,0.2)"}`, background: isChatOpen ? "rgba(124,106,255,0.15)" : "transparent", color: "#a78bfa", fontWeight: 600, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6, transition: "all 0.2s" }}>
+              <button onClick={() => onAbrirChat(d.id, otroNombre, otroEmail)} style={{ width: "100%", padding: "10px", borderRadius: 12, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(124,106,255,0.08)", color: "#a78bfa", fontWeight: 700, fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
-                {isChatOpen ? "Cerrar chat" : `Chat con ${otroNombre}`}
-                {msgs.length > 0 && !isChatOpen && <span style={{ background: "#667eea", color: "white", borderRadius: 20, padding: "1px 6px", fontSize: 9, fontWeight: 700 }}>{msgs.length}</span>}
+                Chatear con {otroNombre}
               </button>
             </div>
-
-            {/* CHAT */}
-            {isChatOpen && (
-              <div style={{ borderTop: "1px solid rgba(124,106,255,0.1)" }}>
-                <div style={{ maxHeight: 280, overflowY: "auto", padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
-                  {msgs.length === 0 && (
-                    <div style={{ textAlign: "center", padding: "20px 0" }}>
-                      <p style={{ margin: 0, fontSize: 12, color: "#3a3a5a" }}>Empezá la conversación con {otroNombre}</p>
-                    </div>
-                  )}
-                  {msgs.map(m => {
-                    const esMio = m.autorEmail === usuario.email;
-                    const fecha = m.creadoEn?.toDate?.()?.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) || "";
-                    return (
-                      <div key={m.id} style={{ display: "flex", flexDirection: "column", alignItems: esMio ? "flex-end" : "flex-start" }}>
-                        {!esMio && <div style={{ fontSize: 9, color: "#4a5270", marginBottom: 3, marginLeft: 4 }}>{m.autorNombre}</div>}
-                        <div style={{ maxWidth: "78%", padding: "9px 13px", borderRadius: esMio ? "16px 16px 4px 16px" : "16px 16px 16px 4px", background: esMio ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(255,255,255,0.07)", color: "white", fontSize: 13, lineHeight: 1.4, wordBreak: "break-word" }}>
-                          {m.texto}
-                        </div>
-                        <div style={{ fontSize: 9, color: "#3a3a5a", marginTop: 3, marginLeft: esMio ? 0 : 4, marginRight: esMio ? 4 : 0 }}>{fecha}</div>
-                      </div>
-                    );
-                  })}
-                  <div ref={chatEndRef} />
-                </div>
-                <div style={{ padding: "10px 12px", borderTop: "1px solid rgba(124,106,255,0.08)", display: "flex", gap: 8, alignItems: "center" }}>
-                  <input value={textoMsg} onChange={e => setTextoMsg(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && !e.shiftKey && enviarMensaje(d.id)}
-                    placeholder={`Escribile a ${otroNombre}...`}
-                    style={{ flex: 1, padding: "9px 13px", borderRadius: 20, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(0,0,0,0.4)", color: "white", fontSize: 13, outline: "none" }} />
-                  <button onClick={() => enviarMensaje(d.id)} disabled={!textoMsg.trim()} style={{ width: 36, height: 36, borderRadius: "50%", border: "none", background: textoMsg.trim() ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(255,255,255,0.05)", cursor: textoMsg.trim() ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
-                  </button>
-                </div>
-              </div>
-            )}
           </div>
         );
       })}
@@ -564,11 +618,12 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
 }
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
-export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatInicialUsado }) {
+export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatInicialUsado, vistaInicial }) {
   const [derivaciones, setDerivaciones] = useState([]);
   const [perfiles, setPerfiles] = useState([]);
-  const [tab, setTab] = useState("propuestas");
+  const [vista, setVista] = useState(vistaInicial || "cartelera"); // "cartelera" | "misPublicaciones"
   const [mostrarForm, setMostrarForm] = useState(false);
+  const [chatAbierto, setChatAbierto] = useState(null); // { derivacionId, otroNombre, otroEmail }
   const [archivadas, setArchivadas] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`grins_arch_${usuario?.email}`) || "[]"); } catch { return []; }
   });
@@ -586,10 +641,11 @@ export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatI
     return () => { u1(); u2(); };
   }, []);
 
-  // Si viene chatInicial desde Red GRINS, ir a Conexiones
-  useEffect(() => {
-    if (chatInicial) setTab("conexiones");
-  }, [chatInicial]);
+  useEffect(() => { if (vistaInicial) setVista(vistaInicial); }, [vistaInicial]);
+
+  function abrirChat(derivacionId, otroNombre, otroEmail) {
+    setChatAbierto({ derivacionId, otroNombre, otroEmail });
+  }
 
   function toggleArr(arr, val) { return arr.includes(val) ? arr.filter(x => x !== val) : [...arr, val]; }
 
@@ -611,28 +667,16 @@ export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatI
   async function asignar(d, nombre, email) {
     await updateDoc(doc(db, "derivaciones", d.id), { asignadoA: nombre, asignadoEmail: email, estado: "asignada" });
 
-    // Notificación para el profesional DESIGNADO
     await addDoc(collection(db, "notificaciones"), {
-      para: email,
-      de: usuario.email,
-      deNombre: usuario.nombre,
-      tipo: "derivacion_asignada",
-      derivacionId: d.id,
-      especialidad: d.especialidad,
-      leida: false,
-      creadoEn: serverTimestamp()
+      para: email, de: usuario.email, deNombre: usuario.nombre,
+      tipo: "derivacion_asignada", derivacionId: d.id, especialidad: d.especialidad,
+      leida: false, creadoEn: serverTimestamp()
     });
 
-    // Notificación para quien DERIVÓ (el que asigna)
     await addDoc(collection(db, "notificaciones"), {
-      para: d.derivadoPorEmail,
-      de: email,
-      deNombre: nombre,
-      tipo: "derivacion_match",
-      derivacionId: d.id,
-      especialidad: d.especialidad,
-      leida: false,
-      creadoEn: serverTimestamp()
+      para: d.derivadoPorEmail, de: email, deNombre: nombre,
+      tipo: "derivacion_match", derivacionId: d.id, especialidad: d.especialidad,
+      leida: false, creadoEn: serverTimestamp()
     });
   }
 
@@ -659,99 +703,90 @@ export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatI
   const inp = { width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(124,106,255,0.2)", fontSize: 13, marginBottom: 12, boxSizing: "border-box", outline: "none", background: "rgba(14,12,28,0.8)", color: "white" };
   const lbl = { display: "block", fontSize: 11, fontWeight: 700, color: "#a0a8c0", marginBottom: 6, textTransform: "uppercase", letterSpacing: .5 };
 
-  const propuestas = derivaciones.filter(d =>
+  const fichasCartelera = derivaciones.filter(d =>
     d.derivadoPorEmail !== usuario.email &&
     d.estado === "disponible" &&
     !archivadas.includes(d.id)
   );
 
-  const badgePropuestas = propuestas.length;
-  const badgeMias = derivaciones.filter(d => d.derivadoPorEmail === usuario.email && d.interesados?.length > 0 && d.estado !== "asignada").length;
-  const badgeConexiones = derivaciones.filter(d => d.estado === "asignada" && (d.derivadoPorEmail === usuario.email || d.asignadoEmail === usuario.email)).length;
-
-  const tabs = [
-    { id: "propuestas", label: "Propuestas", badge: badgePropuestas },
-    { id: "mias", label: "Mis deriv.", badge: badgeMias },
-    { id: "conexiones", label: "Conexiones", badge: badgeConexiones },
-  ];
+  // Si el chat está abierto, lo mostramos fullscreen por encima de todo
+  if (chatAbierto) {
+    const otroPerfil = perfiles.find(p => p.email === chatAbierto.otroEmail);
+    return (
+      <ChatFullscreen
+        derivacionId={chatAbierto.derivacionId}
+        usuario={usuario}
+        otroNombre={chatAbierto.otroNombre}
+        otroPerfil={otroPerfil}
+        onCerrar={() => setChatAbierto(null)}
+      />
+    );
+  }
 
   return (
     <div>
-      <div style={{ padding: "14px 14px 0" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-          <div>
-            <h2 style={{ margin: 0, fontSize: 16, fontWeight: 800, color: "white" }}>Derivaciones</h2>
-            <p style={{ margin: "2px 0 0", fontSize: 11, color: "#4a5270" }}>Red de derivaciones GRINS</p>
-          </div>
-          <button onClick={() => setMostrarForm(f => !f)} style={{ padding: "8px 16px", borderRadius: 20, border: mostrarForm ? "1px solid rgba(124,106,255,0.2)" : "none", background: mostrarForm ? "rgba(14,12,28,0.8)" : "linear-gradient(135deg,#667eea,#764ba2)", color: "white", fontWeight: 700, fontSize: 12, cursor: "pointer" }}>
-            {mostrarForm ? "Cancelar" : "+ Nueva"}
-          </button>
-        </div>
-
-        <div style={{ display: "flex", background: "rgba(14,12,28,0.8)", borderRadius: 12, padding: 3, border: "1px solid rgba(124,106,255,0.15)", marginBottom: 4 }}>
-          {tabs.map(({ id, label, badge }) => (
-            <button key={id} onClick={() => setTab(id)} style={{ flex: 1, padding: "8px 4px", borderRadius: 9, border: "none", cursor: "pointer", fontWeight: tab === id ? 700 : 500, fontSize: 11, background: tab === id ? "linear-gradient(135deg,#667eea,#764ba2)" : "transparent", color: tab === id ? "white" : "#a0a8c0", transition: "all 0.2s", position: "relative" }}>
-              {label}
-              {badge > 0 && <span style={{ position: "absolute", top: 2, right: 6, width: 16, height: 16, borderRadius: "50%", background: "#ef5350", color: "white", fontSize: 9, fontWeight: 800, display: "flex", alignItems: "center", justifyContent: "center" }}>{badge > 9 ? "9+" : badge}</span>}
-            </button>
-          ))}
-        </div>
-      </div>
-
+      {/* FORM NUEVA FICHA — modal */}
       {mostrarForm && (
-        <div style={{ margin: "0 14px 12px", background: "rgba(14,12,28,0.9)", borderRadius: 18, padding: 18, border: "1px solid rgba(124,106,255,0.2)" }}>
-          <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.1)", margin: "0 auto 16px" }} />
-          <h3 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 800, color: "white" }}>Nueva derivación</h3>
-          <label style={lbl}>Especialidad requerida</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>{ESPECIALIDADES.map(e => chip(e, form.especialidad === e, () => setForm(f => ({ ...f, especialidad: e }))))}</div>
-          {form.especialidad === "Otro" && <input value={form.otraEspecialidad} onChange={e => setForm(f => ({ ...f, otraEspecialidad: e.target.value }))} placeholder="Especificá la especialidad" style={inp} />}
-          <label style={lbl}>Modalidad</label>
-          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{MODALIDADES.map(m => chip(m, form.modalidad === m, () => setForm(f => ({ ...f, modalidad: m }))))}</div>
-          <label style={lbl}>Días disponibles</label>
-          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>{DIAS.map(d => chip(d, form.dias.includes(d), () => setForm(f => ({ ...f, dias: toggleArr(f.dias, d) }))))}</div>
-          <label style={lbl}>Franjas horarias</label>
-          <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{FRANJAS.map(f => chip(f, form.franjas.includes(f), () => setForm(fr => ({ ...fr, franjas: toggleArr(fr.franjas, f) }))))}</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
-            <div>
-              <label style={lbl}>Género</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{["Indistinto", "Femenino", "Masculino"].map(g => chip(g, form.genero === g, () => setForm(f => ({ ...f, genero: g }))))}</div>
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", display: "flex", alignItems: "flex-end", justifyContent: "center", zIndex: 3000 }}>
+          <div style={{ background: "#0a0a14", borderRadius: "24px 24px 0 0", padding: "20px 20px 40px", width: "100%", maxWidth: 520, border: "1px solid rgba(124,106,255,0.2)", maxHeight: "85vh", overflowY: "auto" }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: "rgba(255,255,255,0.1)", margin: "0 auto 16px" }} />
+            <h3 style={{ margin: "0 0 16px", fontSize: 15, fontWeight: 800, color: "white" }}>Nueva ficha</h3>
+            <label style={lbl}>Especialidad requerida</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>{ESPECIALIDADES.map(e => chip(e, form.especialidad === e, () => setForm(f => ({ ...f, especialidad: e }))))}</div>
+            {form.especialidad === "Otro" && <input value={form.otraEspecialidad} onChange={e => setForm(f => ({ ...f, otraEspecialidad: e.target.value }))} placeholder="Especificá la especialidad" style={inp} />}
+            <label style={lbl}>Modalidad</label>
+            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{MODALIDADES.map(m => chip(m, form.modalidad === m, () => setForm(f => ({ ...f, modalidad: m }))))}</div>
+            <label style={lbl}>Días disponibles</label>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>{DIAS.map(d => chip(d, form.dias.includes(d), () => setForm(f => ({ ...f, dias: toggleArr(f.dias, d) }))))}</div>
+            <label style={lbl}>Franjas horarias</label>
+            <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>{FRANJAS.map(f => chip(f, form.franjas.includes(f), () => setForm(fr => ({ ...fr, franjas: toggleArr(fr.franjas, f) }))))}</div>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginBottom: 14 }}>
+              <div>
+                <label style={lbl}>Género</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{["Indistinto", "Femenino", "Masculino"].map(g => chip(g, form.genero === g, () => setForm(f => ({ ...f, genero: g }))))}</div>
+              </div>
+              <div>
+                <label style={lbl}>Franja etaria</label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{["Indistinto", "Joven", "Adulto"].map(e => chip(e, form.edad === e, () => setForm(f => ({ ...f, edad: e }))))}</div>
+              </div>
             </div>
-            <div>
-              <label style={lbl}>Franja etaria</label>
-              <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>{["Indistinto", "Joven", "Adulto"].map(e => chip(e, form.edad === e, () => setForm(f => ({ ...f, edad: e }))))}</div>
+            <label style={lbl}>Nota clínica (sin datos del paciente)</label>
+            <textarea value={form.nota} onChange={e => setForm(f => ({ ...f, nota: e.target.value }))} placeholder="Contexto clínico sin datos identificatorios..." rows={3} style={{ ...inp, resize: "vertical", fontFamily: "inherit" }} />
+            <div style={{ display: "flex", gap: 10 }}>
+              <button onClick={() => setMostrarForm(false)} style={{ flex: 1, padding: 13, borderRadius: 12, border: "1px solid rgba(124,106,255,0.2)", background: "transparent", color: "#a0a8c0", fontWeight: 600, fontSize: 13, cursor: "pointer" }}>Cancelar</button>
+              <button onClick={publicar} disabled={!form.especialidad} style={{ flex: 2, padding: 13, borderRadius: 12, border: "none", background: form.especialidad ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(255,255,255,0.05)", color: "white", fontWeight: 800, fontSize: 13, cursor: form.especialidad ? "pointer" : "not-allowed" }}>
+                Publicar ficha
+              </button>
             </div>
           </div>
-          <label style={lbl}>Nota clínica (sin datos del paciente)</label>
-          <textarea value={form.nota} onChange={e => setForm(f => ({ ...f, nota: e.target.value }))} placeholder="Contexto clínico sin datos identificatorios..." rows={3} style={{ ...inp, resize: "vertical", fontFamily: "inherit" }} />
-          <button onClick={publicar} disabled={!form.especialidad} style={{ width: "100%", padding: 13, borderRadius: 12, border: "none", background: form.especialidad ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(255,255,255,0.05)", color: "white", fontWeight: 800, fontSize: 13, cursor: form.especialidad ? "pointer" : "not-allowed" }}>
-            Publicar derivación
-          </button>
         </div>
       )}
 
-      {tab === "propuestas" && (
-        propuestas.length === 0 ? (
-          <div style={{ padding: "32px 20px", textAlign: "center" }}>
-            <div style={{ fontSize: 40, marginBottom: 10 }}>✨</div>
-            <p style={{ margin: 0, color: "#4a5270", fontSize: 13 }}>No hay propuestas disponibles ahora.</p>
-          </div>
-        ) : (
-          <PilaTinder derivaciones={propuestas} usuario={usuario} perfiles={perfiles} onInteresa={meInteresa} onArchivar={archivarLocal} />
-        )
+      {/* VISTA CARTELERA (loop infinito) */}
+      {vista === "cartelera" && (
+        <CarteleraLoop fichas={fichasCartelera} usuario={usuario} onInteresa={meInteresa} onArchivar={archivarLocal} />
       )}
 
-      {tab === "mias" && (
-        <MisDerivaciones derivaciones={derivaciones} usuario={usuario} perfiles={perfiles} esAdmin={esAdmin} onAsignar={asignar} onCerrar={cerrar} onEliminar={eliminar} />
+      {/* VISTA MIS PUBLICACIONES */}
+      {vista === "misPublicaciones" && (
+        <MisPublicaciones derivaciones={derivaciones} usuario={usuario} perfiles={perfiles} esAdmin={esAdmin} onAsignar={asignar} onCerrar={cerrar} onEliminar={eliminar} onAbrirChat={abrirChat} />
       )}
 
-      {tab === "conexiones" && (
-        <Conexiones
-          derivaciones={derivaciones}
-          usuario={usuario}
-          perfiles={perfiles}
-          chatInicial={chatInicial}
-          onChatInicialUsado={onChatInicialUsado}
-        />
+      {/* VISTA CONEXIONES */}
+      {vista === "conexiones" && (
+        <Conexiones derivaciones={derivaciones} usuario={usuario} perfiles={perfiles} chatInicial={chatInicial} onChatInicialUsado={onChatInicialUsado} onAbrirChat={abrirChat} />
+      )}
+
+      {/* BARRA INFERIOR: + nueva ficha / revisar publicaciones — solo visible en vista cartelera */}
+      {vista === "cartelera" && (
+        <div style={{ position: "fixed", bottom: 90, left: "50%", transform: "translateX(-50%)", zIndex: 60, display: "flex", alignItems: "center", gap: 10, background: "rgba(10,10,20,0.9)", backdropFilter: "blur(20px)", WebkitBackdropFilter: "blur(20px)", border: "1px solid rgba(124,106,255,0.2)", borderRadius: 30, padding: "8px 10px 8px 18px", boxShadow: "0 8px 30px rgba(0,0,0,0.4)" }}>
+          <button onClick={() => setVista("misPublicaciones")} style={{ background: "transparent", border: "none", color: "#a0a8c0", fontSize: 11, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", gap: 5, padding: "6px 4px", whiteSpace: "nowrap" }}>
+            📂 Mis publicaciones
+          </button>
+          <button onClick={() => setMostrarForm(true)} style={{ width: 46, height: 46, borderRadius: "50%", border: "none", background: "linear-gradient(135deg,#667eea,#764ba2)", color: "white", fontSize: 24, fontWeight: 300, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, boxShadow: "0 4px 16px rgba(124,106,255,0.4)" }}>
+            +
+          </button>
+        </div>
       )}
     </div>
   );

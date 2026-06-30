@@ -74,7 +74,6 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
 
         <div style={{ background: "rgba(14,12,28,0.9)", borderRadius: 20, overflow: "hidden", border: "1px solid rgba(124,106,255,0.2)", marginBottom: 14 }}>
 
-          {/* Header con foto */}
           <div style={{ background: "linear-gradient(180deg,#0a0a18,#0d0d20)", padding: "28px 20px 20px", textAlign: "center" }}>
             <div style={{ width: 80, height: 80, borderRadius: "50%", background: avatarColor(seleccionado.nombre), overflow: "hidden", border: "3px solid rgba(124,106,255,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, fontWeight: 800, color: "white", margin: "0 auto 12px", boxShadow: "0 0 30px rgba(124,106,255,0.2)" }}>
               {seleccionado.fotoUrl
@@ -116,7 +115,7 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
               </div>
             )}
 
-            {/* BOTÓN CHAT — dispara evento global que TabLazos escucha */}
+            {/* BOTÓN CHAT — dispara evento global, abre fullscreen directo en Conexiones */}
             {!esMio && (
               <button
                 onClick={() => {
@@ -150,7 +149,7 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
   return (
     <div style={{ padding: "16px 14px 100px" }}>
       <div style={{ marginBottom: 14 }}>
-        <h2 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800, color: "white" }}>Red GRINS</h2>
+        <h2 style={{ margin: "0 0 4px", fontSize: 16, fontWeight: 800, color: "white" }}>Red Lazos</h2>
         <p style={{ margin: "0 0 12px", fontSize: 11, color: "#4a5270" }}>
           {perfilesFiltrados.length} profesionale{perfilesFiltrados.length !== 1 ? "s" : ""} en la comunidad
         </p>
@@ -188,7 +187,6 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
                 <div style={{ position: "absolute", top: 8, right: 8, fontSize: 9, background: "rgba(124,106,255,0.2)", color: "#7c6aff", borderRadius: 6, padding: "2px 6px", fontWeight: 700, zIndex: 1 }}>Yo</div>
               )}
 
-              {/* Foto */}
               <div style={{ padding: "16px 16px 10px", display: "flex", flexDirection: "column", alignItems: "center" }}>
                 <div style={{ width: 56, height: 56, borderRadius: "50%", background: avatarColor(p.nombre), overflow: "hidden", border: "2px solid rgba(124,106,255,0.3)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 22, fontWeight: 800, color: "white", marginBottom: 8 }}>
                   {p.fotoUrl
@@ -201,7 +199,6 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
                 )}
               </div>
 
-              {/* Info */}
               <div style={{ padding: "0 12px 12px" }}>
                 <div style={{ display: "flex", justifyContent: "center", marginBottom: 8 }}>
                   <span style={{ background: actividad.bg, color: actividad.color, borderRadius: 20, padding: "2px 8px", fontSize: 9, fontWeight: 700 }}>
@@ -217,7 +214,6 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
                 )}
               </div>
 
-              {/* Logo GRINS */}
               <div style={{ borderTop: "1px solid rgba(124,106,255,0.08)", padding: "6px 12px", display: "flex", justifyContent: "center" }}>
                 <a
                   href="https://www.grins.com.ar"

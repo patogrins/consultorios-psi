@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 
 const HORA_PRECIO = 3500;
 const HORAS = Array.from({ length: 14 }, (_, i) => i + 8);
-const CONSULTORIOS = ["Consultorio 1", "Consultorio 2", "Consultorio 3"];
+const CONSULTORIOS = ["Consultorio 3", "Consultorio 4", "Consultorio 5"];
 const DIAS_SEMANA = ["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"];
 
 const COLORES_PROF = [
@@ -81,7 +81,6 @@ function usePinchZoom(onZoomIn, onZoomOut) {
   return ref;
 }
 
-// Hora actual con minutos para la línea
 function getHoraActualPct() {
   const now = new Date();
   const minutos = (now.getHours() - 8) * 60 + now.getMinutes();
@@ -95,20 +94,18 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
   const [mesOffset, setMesOffset] = useState(0);
   const [diaSelIdx, setDiaSelIdx] = useState(() => { const d = new Date().getDay(); return d === 0 ? 0 : d - 1; });
   const [consultorioSel, setConsultorioSel] = useState(0);
-  const [seleccionadas, setSeleccionadas] = useState([]); // [{consultorio, fechaKey, hora}]
+  const [seleccionadas, setSeleccionadas] = useState([]);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ profesional: "", horaInicio: 8, horaFin: 9, repeteSemanal: false });
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [errorSolapamiento, setErrorSolapamiento] = useState("");
   const [horaActualPct, setHoraActualPct] = useState(getHoraActualPct());
 
-  // Actualizar línea de hora cada minuto
   useEffect(() => {
     const interval = setInterval(() => setHoraActualPct(getHoraActualPct()), 60000);
     return () => clearInterval(interval);
   }, []);
 
-  // Bloquear zoom nativo del navegador
   useEffect(() => {
     const meta = document.querySelector("meta[name=viewport]");
     if (meta) meta.content = "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no";
@@ -261,7 +258,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
               <th style={{ width: 36, background: "rgba(0,0,0,0.8)", position: "sticky", left: 0, zIndex: 5, borderBottom: "1px solid rgba(255,255,255,0.06)" }} />
               {dias.map(fecha => CONSULTORIOS.map((c, ci) => (
                 <th key={`${dateKey(fecha)}-${c}`} style={{ background: "rgba(0,0,0,0.6)", color: "#4a5270", fontSize: 8, fontWeight: 700, padding: "3px 1px", textAlign: "center", borderLeft: ci === 0 ? "2px solid rgba(255,255,255,0.08)" : "1px solid rgba(255,255,255,0.04)", borderBottom: "1px solid rgba(255,255,255,0.06)", width: colWidth }}>
-                  C{ci + 1}
+                  C{ci + 3}
                 </th>
               )))}
             </tr>
@@ -285,7 +282,6 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
           </tbody>
         </table>
 
-        {/* LÍNEA HORA ACTUAL */}
         {hoyEnDias && (
           <div style={{ position: "absolute", top: 70 + lineaTop, left: 0, right: 0, zIndex: 10, pointerEvents: "none", display: "flex", alignItems: "center" }}>
             <div style={{ width: 36, flexShrink: 0 }} />
@@ -310,7 +306,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
               <th style={{ width: 42, background: "rgba(0,0,0,0.8)", borderBottom: "1px solid rgba(255,255,255,0.08)", position: "sticky", top: 0, zIndex: 3 }} />
               {CONSULTORIOS.map((c, ci) => (
                 <th key={c} style={{ background: "rgba(0,0,0,0.8)", color: "white", fontSize: 12, fontWeight: 700, padding: "8px 4px", textAlign: "center", borderLeft: "1px solid rgba(255,255,255,0.07)", borderBottom: "1px solid rgba(255,255,255,0.08)", position: "sticky", top: 0, zIndex: 3 }}>
-                  C{ci + 1}
+                  C{ci + 3}
                 </th>
               ))}
             </tr>
@@ -445,7 +441,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
             {zoom === 4 && (
               <div style={{ display: "flex", gap: 5, marginBottom: 8 }}>
                 {CONSULTORIOS.map((c, ci) => (
-                  <button key={c} onClick={() => setConsultorioSel(ci)} style={{ flex: 1, padding: "6px", borderRadius: 9, border: "none", background: consultorioSel === ci ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(14,12,28,0.8)", color: consultorioSel === ci ? "white" : "#a0a8c0", fontWeight: 600, fontSize: 11, cursor: "pointer" }}>C{ci + 1}</button>
+                  <button key={c} onClick={() => setConsultorioSel(ci)} style={{ flex: 1, padding: "6px", borderRadius: 9, border: "none", background: consultorioSel === ci ? "linear-gradient(135deg,#667eea,#764ba2)" : "rgba(14,12,28,0.8)", color: consultorioSel === ci ? "white" : "#a0a8c0", fontWeight: 600, fontSize: 11, cursor: "pointer" }}>C{ci + 3}</button>
                 ))}
               </div>
             )}

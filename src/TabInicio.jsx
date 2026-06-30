@@ -3,7 +3,7 @@ import { db } from "./firebase";
 import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 
 const HORAS = Array.from({ length: 14 }, (_, i) => i + 8);
-const CONSULTORIOS = ["Consultorio 1", "Consultorio 2", "Consultorio 3"];
+const CONSULTORIOS = ["Consultorio 3", "Consultorio 4", "Consultorio 5"];
 const CLOUDINARY_CLOUD = "dimsvpxri";
 const CLOUDINARY_PRESET = "grins_perfiles";
 
@@ -200,7 +200,7 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
     const pct = totalHoras > 0 ? (totalLibres / totalHoras) * 100 : 100;
     const masLibre = totales.sort((a, b) => b.libres - a.libres)[0];
     if (pct < 25) return { msg: "Alta demanda hoy: quedan pocos horarios disponibles", color: "#ef5350", emoji: "🔥" };
-    if (pct < 50) return { msg: `Ocupación media. ${masLibre.consultorio.replace("Consultorio ", "C")} tiene más disponibilidad`, color: "#f59e0b", emoji: "📊" };
+    if (pct < 50) return { msg: `Ocupación media. ${masLibre.consultorio} tiene más disponibilidad`, color: "#f59e0b", emoji: "📊" };
     return { msg: `${masLibre.consultorio} tiene varios horarios libres hoy`, color: "#66bb6a", emoji: "✨" };
   }, [ocupacionHoy, horaActual]);
 
@@ -376,7 +376,7 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
                 <div key={consultorio} style={{ background: "rgba(14,12,28,0.8)", borderRadius: 16, overflow: "hidden", border: "1px solid rgba(124,106,255,0.1)", backdropFilter: "blur(12px)" }}>
                   <div style={{ padding: "12px 14px 8px", borderBottom: "1px solid rgba(124,106,255,0.08)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>C{ci + 1} — {consultorio}</span>
+                      <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>C{ci + 3} — {consultorio}</span>
                       <span style={{ fontSize: 10, color: "#4a5270" }}>{pctOcupado}% ocupado</span>
                     </div>
                     <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>

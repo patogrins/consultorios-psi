@@ -39,6 +39,7 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
   const [yaInstalado, setYaInstalado] = useState(false);
   const [mostrarIOSGuide, setMostrarIOSGuide] = useState(false);
   const [horaActual, setHoraActual] = useState(new Date().getHours());
+  const [notificaciones, setNotificaciones] = useState([]);
   const scrollRef = useRef(null);
   const fileRef = useRef(null);
   const isStandalone = window.matchMedia("(display-mode: standalone)").matches;
@@ -50,32 +51,23 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
     return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
-const [notificaciones, setNotificaciones] = useState([]);
-
-useEffect(() => {
-  if (!usuario) return;
-  const unsub = onSnapshot(
-    collection(db, "notificaciones"),
-    snap => {
+  // Notificaciones de match / derivación
+  useEffect(() => {
+    if (!usuario) return;
+    const unsub = onSnapshot(collection(db, "notificaciones"), snap => {
       const data = snap.docs
         .map(d => ({ ...d.data(), id: d.id }))
         .filter(n => n.para === usuario.email)
         .sort((a, b) => (b.creadoEn?.seconds || 0) - (a.creadoEn?.seconds || 0));
       setNotificaciones(data);
-    }
-  );
-  return () => unsub();
-}, [usuario]);
+    });
+    return () => unsub();
+  }, [usuario]);
 
-async function marcarLeida(id) {
-  const { updateDoc, doc } = await import("firebase/firestore");
-  await updateDoc(doc(db, "notificaciones", id), { leida: true });
-}
+  async function marcarLeida(id) {
+    await updateDoc(doc(db, "notificaciones", id), { leida: true });
+  }
 
-
-
-
-  
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "mensajes_inicio"), snap => {
       const data = snap.docs.map(d => ({ ...d.data(), id: d.id }));
@@ -127,7 +119,6 @@ async function marcarLeida(id) {
   const mensajeDinamico = useMemo(() => {
     if (esPublico) return null;
     if (misReservasHoy.length > 0) {
-      const primera = misReservasHoy[0];
       const proxima = misReservasHoy.find(r => r.horaInicio >= horaActual);
       if (proxima) return {
         emoji: "🏢",
@@ -177,7 +168,6 @@ async function marcarLeida(id) {
     return map;
   }, [reservas, hoyKey, diaSemana]);
 
-  // Quién está en cada consultorio ahora
   function quienEstaAhora(consultorio) {
     return reservas.find(r => {
       if (r.consultorio !== consultorio) return false;
@@ -187,17 +177,6 @@ async function marcarLeida(id) {
     });
   }
 
-  // Próxima reserva en consultorio
-  function proximaReservaConsultorio(consultorio) {
-    return reservas.filter(r => {
-      if (r.consultorio !== consultorio) return false;
-      const esHoy = r.fecha === hoyKey;
-      const esSemanalHoy = r.repeteSemanal && new Date(r.fecha + "T12:00:00").getDay() === diaSemana;
-      return (esHoy || esSemanalHoy) && r.horaInicio > horaActual;
-    }).sort((a, b) => a.horaInicio - b.horaInicio)[0];
-  }
-
-  // Bloques libres del día
   function bloquesLibres(consultorio) {
     const ocupadas = ocupacionHoy[consultorio] || new Set();
     const bloques = []; let inicio = null;
@@ -209,7 +188,6 @@ async function marcarLeida(id) {
     return bloques;
   }
 
-  // Mensaje ocupación general
   const mensajeOcupacion = useMemo(() => {
     const totales = CONSULTORIOS.map(c => {
       const ocupadas = ocupacionHoy[c] || new Set();
@@ -261,6 +239,7 @@ async function marcarLeida(id) {
   const inicial = nombreMostrado?.[0]?.toUpperCase() || "?";
   const logoProgress = Math.min(scrollY / 80, 1);
   const stickyVisible = scrollY > 100;
+  const notificacionesNoLeidas = notificaciones.filter(n => !n.leida);
 
   return (
     <div ref={scrollRef} style={{ height: "100vh", overflowY: "auto", background: "#000000" }} className="tab-content">
@@ -318,54 +297,38 @@ async function marcarLeida(id) {
                 <div style={{ fontSize: 11, color: "#a0a8c0" }}>{mensajeDinamico.extra}</div>
               </div>
             </div>
-            {mensajeDinamico.cta && (
-              <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-                <div style={{ flex: 1, background: "rgba(124,106,255,0.15)", borderRadius: 10, padding: "8px 12px", textAlign: "center", border: "1px solid rgba(124,106,255,0.2)" }}>
-                  <div style={{ fontSize: 10, color: "#7c6aff", fontWeight: 700 }}>Ver disponibilidad →</div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
 
       <div style={{ padding: "14px 14px 100px" }}>
 
-{/* ══ NOTIFICACIONES DE MATCH ══ */}
-{notificaciones.filter(n => !n.leida).length > 0 && (
-  <div style={{ marginBottom: 16 }}>
-    <div style={{ fontSize: 11, fontWeight: 700, color: "#a0a8c0", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>🔔 Notificaciones</div>
-    {notificaciones.filter(n => !n.leida).map(n => (
-      <div key={n.id} style={{ background: "rgba(124,106,255,0.1)", borderRadius: 14, padding: "12px 14px", marginBottom: 8, border: "1px solid rgba(124,106,255,0.25)", display: "flex", alignItems: "flex-start", gap: 10 }}>
-        <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
-          {n.tipo === "derivacion_asignada" ? "✅" : "🔗"}
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 2 }}>
-           {n.tipo === "derivacion_asignada"
-  ? `¡Te eligieron para una derivación!`
-  : `¡Derivación asignada con éxito!`}
+        {/* ══ NOTIFICACIONES DE MATCH ══ */}
+        {notificacionesNoLeidas.length > 0 && (
+          <div style={{ marginBottom: 16 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: "#a0a8c0", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>🔔 Notificaciones</div>
+            {notificacionesNoLeidas.map(n => (
+              <div key={n.id} style={{ background: "rgba(124,106,255,0.1)", borderRadius: 14, padding: "12px 14px", marginBottom: 8, border: "1px solid rgba(124,106,255,0.25)", display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                  {n.tipo === "derivacion_asignada" ? "✅" : "🤝"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 2 }}>
+                    {n.tipo === "derivacion_asignada" ? "¡Te eligieron para una derivación!" : "¡Derivación asignada con éxito!"}
+                  </div>
+                  <div style={{ fontSize: 12, color: "#a0a8c0", marginBottom: 4 }}>
+                    {n.tipo === "derivacion_asignada"
+                      ? `${n.deNombre} te designó para atender un caso de ${n.especialidad}`
+                      : `Designaste a ${n.deNombre} para tu derivación de ${n.especialidad}`}
+                  </div>
+                  <div style={{ fontSize: 11, color: "#4a5270" }}>Ir a Lazos → Conexiones para coordinar</div>
+                </div>
+                <button onClick={() => marcarLeida(n.id)} style={{ background: "none", border: "none", color: "#4a5270", cursor: "pointer", fontSize: 16, padding: 0, flexShrink: 0 }}>✕</button>
+              </div>
+            ))}
           </div>
-          <div style={{ fontSize: 12, color: "#a0a8c0", marginBottom: 4 }}>
-          {n.tipo === "derivacion_asignada"
-  ? `${n.deNombre} te designó para atender un caso de ${n.especialidad}`
-  : `Designaste a ${n.deNombre} para tu derivación de ${n.especialidad}`}
-          </div>
-          <div style={{ fontSize: 11, color: "#4a5270" }}>Ir a Lazos → Conexiones para coordinar</div>
-        </div>
-        <button onClick={() => marcarLeida(n.id)} style={{ background: "none", border: "none", color: "#4a5270", cursor: "pointer", fontSize: 16, padding: 0, flexShrink: 0 }}>✕</button>
-      </div>
-    ))}
-  </div>
-)}
+        )}
 
-
-
-
-
-
-
-        
         {/* ══ TILES ══ */}
         <div style={{ marginBottom: 18 }}>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 10, marginBottom: 10 }}>
@@ -404,7 +367,6 @@ async function marcarLeida(id) {
           <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             {CONSULTORIOS.map((consultorio, ci) => {
               const ahora = quienEstaAhora(consultorio);
-              const proxima = proximaReservaConsultorio(consultorio);
               const libres = bloquesLibres(consultorio);
               const ocupadas = ocupacionHoy[consultorio] || new Set();
               const totalOcupadas = HORAS.filter(h => ocupadas.has(h)).length;
@@ -412,17 +374,14 @@ async function marcarLeida(id) {
 
               return (
                 <div key={consultorio} style={{ background: "rgba(14,12,28,0.8)", borderRadius: 16, overflow: "hidden", border: "1px solid rgba(124,106,255,0.1)", backdropFilter: "blur(12px)" }}>
-                  {/* Header consultorio */}
                   <div style={{ padding: "12px 14px 8px", borderBottom: "1px solid rgba(124,106,255,0.08)" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
                       <span style={{ fontSize: 13, fontWeight: 800, color: "white" }}>C{ci + 1} — {consultorio}</span>
                       <span style={{ fontSize: 10, color: "#4a5270" }}>{pctOcupado}% ocupado</span>
                     </div>
-                    {/* Barra de ocupación */}
                     <div style={{ height: 3, background: "rgba(255,255,255,0.06)", borderRadius: 2, overflow: "hidden", marginBottom: 8 }}>
                       <div style={{ height: "100%", width: `${pctOcupado}%`, background: pctOcupado > 70 ? "#ef5350" : pctOcupado > 40 ? "#f59e0b" : "linear-gradient(90deg,#667eea,#764ba2)", borderRadius: 2, transition: "width 0.3s" }} />
                     </div>
-                    {/* Timeline mini */}
                     <div style={{ display: "flex", gap: 1.5 }}>
                       {HORAS.map(h => {
                         const ocup = ocupadas.has(h);
@@ -438,7 +397,6 @@ async function marcarLeida(id) {
                     </div>
                   </div>
 
-                  {/* Estado actual */}
                   <div style={{ padding: "10px 14px" }}>
                     {ahora ? (
                       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -455,7 +413,6 @@ async function marcarLeida(id) {
                       </div>
                     )}
 
-                    {/* Próximos bloques libres */}
                     {libres.length > 0 && (
                       <div>
                         <div style={{ fontSize: 10, color: "#4a5270", fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.8, marginBottom: 5 }}>Horarios disponibles</div>
@@ -488,14 +445,12 @@ async function marcarLeida(id) {
           )}
         </div>
 
-        {/* FORM ADMIN */}
         {esAdmin && mostrarForm && (
           <div style={{ background: "rgba(14,12,28,0.8)", borderRadius: 14, padding: 14, marginBottom: 12, border: "1px solid rgba(124,106,255,0.12)" }}>
             <textarea value={nuevoMsg} onChange={e => setNuevoMsg(e.target.value)}
               placeholder="Escribí un mensaje para todos los profesionales..."
               rows={3} style={{ width: "100%", padding: "10px 12px", borderRadius: 10, border: "1px solid rgba(124,106,255,0.15)", background: "rgba(0,0,0,0.5)", color: "white", fontSize: 13, outline: "none", resize: "none", boxSizing: "border-box", fontFamily: "inherit", marginBottom: 10 }} />
 
-            {/* ARCHIVOS */}
             <div style={{ marginBottom: 10 }}>
               <button onClick={() => fileRef.current?.click()} style={{ padding: "7px 14px", borderRadius: 10, border: "1px dashed rgba(124,106,255,0.3)", background: "transparent", color: "#7c6aff", fontSize: 12, cursor: "pointer", display: "flex", alignItems: "center", gap: 6 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c6aff" strokeWidth="2" strokeLinecap="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -545,7 +500,6 @@ async function marcarLeida(id) {
             </div>
             {m.texto && <p style={{ margin: "0 0 8px", fontSize: 13, color: "#a0a8c0", lineHeight: 1.6 }}>{m.texto}</p>}
 
-            {/* ARCHIVOS ADJUNTOS */}
             {m.archivos?.length > 0 && (
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 6 }}>
                 {m.archivos.map((a, i) => (

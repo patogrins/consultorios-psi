@@ -116,11 +116,13 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
               </div>
             )}
 
-            {/* BOTÓN CHAT — solo si no es el propio perfil */}
+            {/* BOTÓN CHAT — dispara evento global que TabLazos escucha */}
             {!esMio && (
               <button
                 onClick={() => {
-                  window.dispatchEvent(new CustomEvent("abrirChatConexion", { detail: { email: seleccionado.email } }));
+                  window.dispatchEvent(
+                    new CustomEvent("abrirChatConexion", { detail: { email: seleccionado.email } })
+                  );
                 }}
                 style={{ width: "100%", padding: "10px 16px", borderRadius: 12, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(124,106,255,0.1)", color: "#7c6aff", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

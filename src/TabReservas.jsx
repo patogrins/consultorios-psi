@@ -99,6 +99,18 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
   const [horaActualPct, setHoraActualPct] = useState(getHoraActualPct());
   const pinchRef = useRef(null);
   const lastDist = useRef(null);
+  const scrollPosRef = useRef(0);
+
+  // Preservar scroll al cambiar zoom
+  function cambiarZoom(nuevoZoom) {
+    if (pinchRef.current) scrollPosRef.current = pinchRef.current.scrollTop;
+    setZoom(nuevoZoom);
+  }
+  useEffect(() => {
+    if (pinchRef.current && scrollPosRef.current > 0) {
+      pinchRef.current.scrollTop = scrollPosRef.current;
+    }
+  }, [zoom]);
 
   useEffect(() => {
     const i = setInterval(() => setHoraActualPct(getHoraActualPct()), 60000);
@@ -122,7 +134,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
       e.preventDefault();
       const d = dist(e.touches), delta = d - lastDist.current;
       if (Math.abs(delta) > 25) {
-        setZoom(z => delta > 0 ? Math.min(z + 1, 4) : Math.max(z - 1, 1));
+        setZoom(z => { const n = delta > 0 ? Math.min(z+1,4) : Math.max(z-1,1); cambiarZoom(n); return n; });
         lastDist.current = null;
       }
     }
@@ -519,6 +531,58 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
       {/* ══ PAGOS ══ */}
       {verPagos && !esPublico && (
         <div style={{ padding:"16px 14px 200px" }}>
+
+          {/* CARD DATOS DE PAGO */}
+          <div style={{ background:"rgba(14,12,28,0.9)", borderRadius:18, marginBottom:18, overflow:"hidden", border:"1px solid rgba(124,106,255,0.2)" }}>
+            <div style={{ height:3, background:"linear-gradient(90deg,#667eea,#764ba2)" }}/>
+            <div style={{ padding:"14px 16px" }}>
+              <div style={{ fontSize:13, fontWeight:800, color:"white", marginBottom:2 }}>💳 Datos de pago</div>
+              <div style={{ fontSize:11, color:"#4a5270", marginBottom:14 }}>Patricio Grinschpun · DNI 32.669.760</div>
+
+              {/* Santander */}
+              <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:12, padding:"10px 14px", marginBottom:10, border:"1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                  <div style={{ width:28, height:28, borderRadius:8, background:"#ec0000", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <span style={{ fontSize:10, fontWeight:900, color:"white" }}>S</span>
+                  </div>
+                  <span style={{ fontSize:12, fontWeight:700, color:"white" }}>Banco Santander</span>
+                </div>
+                {[
+                  ["Alias CBU", "patogrins"],
+                  ["Cuenta Pesos", "740-352653/8"],
+                  ["CBU", "0720740488000035265386"],
+                ].map(([label, value]) => (
+                  <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"4px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+                    <span style={{ fontSize:10, color:"#4a5270" }}>{label}</span>
+                    <span style={{ fontSize:11, fontWeight:700, color:"#a0a8c0", fontFamily:"monospace" }}>{value}</span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Mercado Pago */}
+              <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:12, padding:"10px 14px", marginBottom:10, border:"1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                  <div style={{ width:28, height:28, borderRadius:8, background:"#009ee3", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <span style={{ fontSize:10, fontWeight:900, color:"white" }}>MP</span>
+                  </div>
+                  <span style={{ fontSize:12, fontWeight:700, color:"white" }}>Mercado Pago</span>
+                </div>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ fontSize:10, color:"#4a5270" }}>Alias</span>
+                  <span style={{ fontSize:11, fontWeight:700, color:"#a0a8c0", fontFamily:"monospace" }}>patogrins.mp</span>
+                </div>
+              </div>
+
+              {/* CVU */}
+              <div style={{ background:"rgba(255,255,255,0.04)", borderRadius:12, padding:"10px 14px", border:"1px solid rgba(255,255,255,0.06)" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                  <span style={{ fontSize:10, color:"#4a5270" }}>CVU</span>
+                  <span style={{ fontSize:10, fontWeight:700, color:"#a0a8c0", fontFamily:"monospace" }}>0000003100019986606962</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
             <button onClick={() => setMesOffset(m => m-1)} style={{ width:34, height:34, borderRadius:10, border:"1px solid rgba(124,106,255,0.2)", background:"rgba(14,12,28,0.8)", cursor:"pointer", color:"white", fontSize:16, display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>
             <span style={{ flex:1, textAlign:"center", fontWeight:700, fontSize:13, color:"white", textTransform:"capitalize" }}>{mesLabel}</span>
@@ -570,13 +634,13 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
       {!verPagos && (
         <div style={{ position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:"calc(100% - 32px)", maxWidth:340 }}>
 
-          {/* ── Fila superior: resumen | + | zoom ── */}
-          <div style={{ display:"flex", alignItems:"center", width:"100%", gap:8, background:"rgba(10,10,20,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(124,106,255,0.2)", borderRadius:22, padding:"8px 12px", boxShadow:"0 8px 32px rgba(0,0,0,0.4)" }}>
+          {/* ── Fila superior: resumen | + (centro) | zoom ── */}
+          <div style={{ display:"flex", alignItems:"center", width:"100%", background:"rgba(10,10,20,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(124,106,255,0.2)", borderRadius:22, padding:"8px 12px", boxShadow:"0 8px 32px rgba(0,0,0,0.4)", position:"relative" }}>
 
-            {/* RESUMEN DINÁMICO */}
-            <div style={{ flex:1, minWidth:0 }}>
+            {/* RESUMEN DINÁMICO — izquierda */}
+            <div style={{ flex:1, minWidth:0, paddingRight:8 }}>
               {!pasoActivo ? (
-                <p style={{ margin:0, fontSize:10, color:"#4a5270", textAlign:"center" }}>Tocá un día para reservar</p>
+                <p style={{ margin:0, fontSize:10, color:"#4a5270" }}>Tocá un día para reservar</p>
               ) : (
                 <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
                   <div style={{ display:"flex", alignItems:"center", gap:5 }}>
@@ -590,14 +654,13 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
                   <div style={{ display:"flex", alignItems:"center", gap:5 }}>
                     <div style={{ width:16, height:16, borderRadius:"50%", background: horasLabel ? "linear-gradient(135deg,#38a169,#2d8a5e)" : "rgba(124,106,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, fontWeight:800, color:"white", flexShrink:0 }}>3</div>
                     <span style={{ fontSize:11, color: horasLabel ? "#66bb6a" : "#4a5270", fontWeight: horasLabel ? 700 : 400 }}>{horasLabel || "Seleccioná horarios"}</span>
-                    {totalLabel && <span style={{ fontSize:11, color:"white", fontWeight:800, marginLeft:"auto" }}>{totalLabel}</span>}
                   </div>
                 </div>
               )}
             </div>
 
-            {/* BOTÓN + CENTRAL */}
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, flexShrink:0 }}>
+            {/* BOTÓN + — CENTRO ABSOLUTO */}
+            <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)", display:"flex", flexDirection:"column", alignItems:"center", gap:3 }}>
               <button
                 onClick={() => {
                   if (!pasoActivo || flujoHoras.length === 0) return;
@@ -608,21 +671,21 @@ export default function TabReservas({ usuario, esAdmin, esPublico, t, reservas, 
                 +
               </button>
               {pasoActivo && (
-                <button onClick={resetFlujo} style={{ background:"none", border:"none", color:"#4a5270", fontSize:8, cursor:"pointer", padding:0 }}>cancelar</button>
+                <button onClick={resetFlujo} style={{ background:"none", border:"none", color:"#4a5270", fontSize:8, cursor:"pointer", padding:0, position:"absolute", top:54, whiteSpace:"nowrap" }}>cancelar</button>
               )}
             </div>
 
-            {/* ZOOM — a la derecha del + */}
-            <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, flexShrink:0, minWidth:52 }}>
-              <div style={{ display:"flex", justifyContent:"space-between", width:"100%", paddingBottom:1 }}>
+            {/* ZOOM — derecha */}
+            <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"flex-end", gap:3, paddingLeft:8 }}>
+              <div style={{ display:"flex", justifyContent:"space-between", width:56 }}>
                 {[1,2,3,4].map(z => (
                   <span key={z} style={{ fontSize:8, color: zoom===z ? "#7c6aff" : "#3a3a5a", fontWeight: zoom===z ? 800 : 500, transition:"color 0.2s", flex:1, textAlign:"center" }}>{z}</span>
                 ))}
               </div>
               <input
                 type="range" min={1} max={4} step={1} value={zoom}
-                onChange={e => setZoom(Number(e.target.value))}
-                style={{ width:52, height:4, cursor:"pointer", accentColor:"#7c6aff", borderRadius:4, outline:"none", WebkitAppearance:"none", background:`linear-gradient(to right,#7c6aff ${(zoom-1)/3*100}%,rgba(124,106,255,0.2) ${(zoom-1)/3*100}%)` }}
+                onChange={e => cambiarZoom(Number(e.target.value))}
+                style={{ width:56, height:4, cursor:"pointer", accentColor:"#7c6aff", borderRadius:4, outline:"none", WebkitAppearance:"none", background:`linear-gradient(to right,#7c6aff ${(zoom-1)/3*100}%,rgba(124,106,255,0.2) ${(zoom-1)/3*100}%)` }}
               />
             </div>
           </div>

@@ -249,7 +249,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
     const clickeable = paso==="consultorio";
     return (
       <th onClick={()=>clickeable&&seleccionarConsultorio(ci)}
-        style={{background:esFlujoC?"rgba(124,106,255,0.18)":"rgba(0,0,0,0.6)",color:esFlujoC?"#a78bfa":"#4a5270",fontSize:8,fontWeight:700,padding:"3px 1px",textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.06)",borderBottom:"1px solid rgba(255,255,255,0.06)",width:ancho,cursor:clickeable?"pointer":"default",transition:"all 0.2s"}}>
+        style={{background:esFlujoC?"rgba(124,106,255,0.18)":"rgba(0,0,0,0.6)",color:esFlujoC?"#a78bfa":"#a0a8c0",fontSize:12,fontWeight:700,padding:"6px 2px",textAlign:"center",borderLeft:"1px solid rgba(255,255,255,0.06)",borderBottom:"1px solid rgba(255,255,255,0.06)",width:ancho,cursor:clickeable?"pointer":"default",transition:"all 0.2s"}}>
         C{ci+3}
         {esFlujoC&&<span style={{color:"#a78bfa"}}> ✓</span>}
       </th>
@@ -260,11 +260,45 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
   function Celda({ consultorio, fecha, hora, showName, cellHeight=26 }) {
     const bloques = getReservasBloque(consultorio,fecha,hora);
     const libre = bloques.length===0;
-    const esFlujoActivo = paso==="horas"&&flujoConsultorio===consultorio&&flujoDia&&dateKey(fecha)===dateKey(flujoDia);
+    // Selección activa si es la celda del flujo actual
+    const esFlujoActivo = flujoConsultorio===consultorio&&flujoDia&&dateKey(fecha)===dateKey(flujoDia);
     const seleccionada = esFlujoActivo&&flujoHoras.includes(hora);
+
+    function handleClick() {
+      if(!libre) return;
+      if(esPublico){onLogin();return;}
+      // Si ya hay flujo con distinto día/consultorio, lo reemplazamos
+      if(flujoDia&&(dateKey(flujoDia)!==dateKey(fecha)||flujoConsultorio!==consultorio)) {
+        setFlujoDia(fecha);
+        setFlujoConsultorio(consultorio);
+        setFlujoHoras([hora]);
+        setDiaSelIdx(weekDates.findIndex(d=>dateKey(d)===dateKey(fecha)));
+        setConsultorioSel(CONSULTORIOS.indexOf(consultorio));
+        setPaso("horas");
+        return;
+      }
+      // Sin flujo activo: arrancar flujo directo desde esta celda
+      if(!flujoDia) {
+        setFlujoDia(fecha);
+        setFlujoConsultorio(consultorio);
+        setFlujoHoras([hora]);
+        setDiaSelIdx(weekDates.findIndex(d=>dateKey(d)===dateKey(fecha)));
+        setConsultorioSel(CONSULTORIOS.indexOf(consultorio));
+        setPaso("horas");
+        // Zoom automático al nivel adecuado
+        if(zoom<3) cambiarZoom(4);
+        return;
+      }
+      // Mismo día y consultorio: toggle hora
+      if(esFlujoActivo) {
+        setFlujoHoras(prev=>prev.includes(hora)?prev.filter(h=>h!==hora):[...prev,hora].sort((a,b)=>a-b));
+        setPaso("horas");
+      }
+    }
+
     return (
       <div
-        onClick={()=>{ if(esFlujoActivo&&libre) toggleHora(hora); }}
+        onClick={handleClick}
         style={{height:cellHeight,padding:1,borderBottom:"1px solid rgba(255,255,255,0.04)",position:"relative",cursor:libre?"pointer":"default",background:seleccionada?"rgba(124,106,255,0.28)":"transparent",transition:"background 0.1s"}}>
         {seleccionada&&libre&&<div style={{position:"absolute",inset:1,borderRadius:3,border:"2px solid rgba(124,106,255,0.8)",pointerEvents:"none"}}/>}
         {bloques.map(r=>{
@@ -386,7 +420,20 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
                 <tr key={hora}>
                   <td style={{padding:"0 6px 0 0",textAlign:"right",fontSize:10,color:"rgba(255,255,255,0.5)",fontWeight:600,background:"rgba(0,0,0,0.7)",borderRight:"1px solid rgba(255,255,255,0.06)",verticalAlign:"middle",height:46,width:42}}>{hora}:00</td>
                   <td style={{padding:"3px 10px 3px 4px",position:"relative"}}
-                    onClick={()=>libre&&paso==="horas"&&toggleHora(hora)}>
+                    onClick={()=>{
+                      if(!libre) return;
+                      if(esPublico){onLogin();return;}
+                      // Arrancar o continuar flujo desde esta celda directamente
+                      if(!flujoDia||dateKey(flujoDia)!==dateKey(fecha)||flujoConsultorio!==consultorio){
+                        setFlujoDia(fecha);setFlujoConsultorio(consultorio);
+                        setFlujoHoras([hora]);setPaso("horas");
+                        setDiaSelIdx(weekDates.findIndex(d=>dateKey(d)===dateKey(fecha)));
+                        setConsultorioSel(CONSULTORIOS.indexOf(consultorio));
+                      } else {
+                        setFlujoHoras(prev=>prev.includes(hora)?prev.filter(h=>h!==hora):[...prev,hora].sort((a,b)=>a-b));
+                        setPaso("horas");
+                      }
+                    }}>
                     {sel&&libre&&<div style={{position:"absolute",inset:"3px 10px 3px 4px",borderRadius:10,border:"2px solid rgba(124,106,255,0.8)",background:"rgba(124,106,255,0.15)",display:"flex",alignItems:"center",justifyContent:"center",pointerEvents:"none"}}><span style={{fontSize:11,color:"#a78bfa",fontWeight:700}}>✓ Seleccionado</span></div>}
                     {bloques.length>0?bloques.map(r=>{
                       const esInicio=hora===r.horaInicio;
@@ -607,11 +654,13 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
               )}
             </div>
 
-            {/* BOTÓN X — arriba derecha del resumen, solo si flujo activo */}
+            {/* BOTÓN X — a la IZQUIERDA del +, centrado verticalmente */}
             {pasoActivo&&(
-              <button onClick={resetFlujo} style={{position:"absolute",top:6,right:6,width:22,height:22,borderRadius:"50%",background:"rgba(239,83,80,0.15)",border:"1.5px solid rgba(239,83,80,0.4)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",zIndex:2}}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef5350" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
+              <div style={{position:"absolute",left:"50%",transform:"translateX(calc(-50% - 38px))",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                <button onClick={resetFlujo} style={{width:28,height:28,borderRadius:"50%",background:"rgba(239,83,80,0.15)",border:"1.5px solid rgba(239,83,80,0.4)",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center"}}>
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ef5350" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              </div>
             )}
 
             {/* BOTÓN + CENTRO ABSOLUTO */}
@@ -627,9 +676,9 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
               </button>
             </div>
 
-            {/* ZOOM — desde borde del + hasta el borde derecho del contenedor */}
-            <div style={{position:"absolute",right:12,top:"50%",transform:"translateY(-50%)",display:"flex",flexDirection:"column",alignItems:"flex-end",gap:3,width:"calc(50% - 37px)"}}>
-              <div style={{display:"flex",justifyContent:"space-between",width:"100%"}}>
+            {/* ZOOM — derecha, barra = ancho exacto de los 4 números, sin tocar el + */}
+            <div style={{position:"absolute",right:14,top:"50%",transform:"translateY(-50%)",display:"flex",flexDirection:"column",alignItems:"center",gap:4,width:56}}>
+              <div style={{display:"flex",width:56}}>
                 {[1,2,3,4].map(z=>(
                   <span key={z} style={{fontSize:8,color:zoom===z?"#7c6aff":"#3a3a5a",fontWeight:zoom===z?800:500,flex:1,textAlign:"center",transition:"color 0.2s"}}>{z}</span>
                 ))}
@@ -637,7 +686,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
               <input
                 type="range" min={1} max={4} step={1} value={zoom}
                 onChange={e=>cambiarZoom(Number(e.target.value))}
-                style={{width:"100%",height:4,cursor:"pointer",accentColor:"#7c6aff",borderRadius:4,outline:"none",WebkitAppearance:"none",background:`linear-gradient(to right,#7c6aff ${(zoom-1)/3*100}%,rgba(124,106,255,0.2) ${(zoom-1)/3*100}%)`}}
+                style={{width:56,height:4,cursor:"pointer",accentColor:"#7c6aff",borderRadius:4,outline:"none",WebkitAppearance:"none",background:`linear-gradient(to right,#7c6aff ${(zoom-1)/3*100}%,rgba(124,106,255,0.2) ${(zoom-1)/3*100}%)`}}
               />
             </div>
           </div>
@@ -754,8 +803,3 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
     </div>
   );
 }
-
-
-
-
-

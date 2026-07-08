@@ -250,6 +250,12 @@ export default function Login({ onLogin }) {
       <p style={{ marginTop: 20, fontSize: 11, color: "#3a3a5a", textAlign: "center" }}>
         grins.com.ar · Consultorios para profesionales
       </p>
+
+      <button
+        onClick={() => onLogin(null)}
+        style={{ marginTop: 14, background: "none", border: "none", color: "#4a5270", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}>
+        Continuar sin iniciar sesión →
+      </button>
     </div>
   );
 }

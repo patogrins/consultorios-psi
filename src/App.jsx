@@ -30,6 +30,7 @@ export default function App() {
   const [usuario, setUsuario] = useState(null);
   const [authListo, setAuthListo] = useState(false);
   const [mostrarLogin, setMostrarLogin] = useState(false);
+  const [esPublico, setEsPublico] = useState(false); // modo visitante
   const [tab, setTab] = useState("inicio");
   const [toast, setToast] = useState(null);
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -42,7 +43,6 @@ export default function App() {
 
   const t = TEMA;
   const esAdmin = usuario?.rol === "admin";
-  const esPublico = !usuario;
 
   useEffect(() => {
     const handler = e => { e.preventDefault(); setInstallPrompt(e); };
@@ -63,6 +63,7 @@ export default function App() {
           especialidad: data?.especialidad || "",
           bio: data?.bio || "",
         });
+        setEsPublico(false);
         setMostrarLogin(false);
       } else {
         setUsuario(null);
@@ -84,15 +85,39 @@ export default function App() {
     setTimeout(() => setToast(null), 2800);
   }, []);
 
+  // El usuario quiere iniciar sesión desde dentro de la app
+  function pedirLogin() {
+    setMostrarLogin(true);
+  }
+
+  // Login exitoso con cuenta
+  function handleLoginExitoso(firebaseUser) {
+    // onAuthChanged se encarga de setUsuario; solo cerramos el login
+    setMostrarLogin(false);
+    setEsPublico(false);
+  }
+
+  // Continuar sin cuenta — modo visitante
+  function handleContinuarSinLogin() {
+    setEsPublico(true);
+    setMostrarLogin(false);
+  }
+
   if (!authListo || cargando) return (
     <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#000000", flexDirection: "column", gap: 16 }}>
-      <img src="/IMG_0050.jpeg" alt="GRINS" style={{ height: 72, objectFit: "contain", marginBottom: 8 }} />
+      <img src="/logohead.jpeg" alt="GRINS" style={{ height: 72, objectFit: "contain", marginBottom: 8 }} />
       <div style={{ width: 36, height: 36, border: "2px solid #1e2235", borderTop: `2px solid ${t.acento}`, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
 
-  if (mostrarLogin) return <Login onVolver={() => setMostrarLogin(false)} />;
+  // Mostrar login si: se pidió explícitamente, o si no hay usuario y no eligió modo público
+  if (mostrarLogin || (!usuario && !esPublico)) return (
+    <Login
+      onLogin={handleLoginExitoso}
+      onContinuarSinLogin={handleContinuarSinLogin}
+    />
+  );
 
   const tabs = [
     {
@@ -157,13 +182,13 @@ export default function App() {
 
       {/* CONTENIDO */}
       <div style={{ paddingBottom: 90 }}>
-       {tab === "inicio" && <TabInicio usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={() => setMostrarLogin(true)} reservas={reservas} />}
-        {tab === "reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={() => setMostrarLogin(true)} />}
-        {tab === "lazos" && <TabLazos usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={() => setMostrarLogin(true)} reservas={reservas} />}
-        {tab === "perfil" && <TabPerfil usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={() => setMostrarLogin(true)} onLogout={logoutUser} />}
+        {tab === "inicio" && <TabInicio usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} />}
+        {tab === "reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin} />}
+        {tab === "lazos" && <TabLazos usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} />}
+        {tab === "perfil" && <TabPerfil usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={pedirLogin} onLogout={async () => { await logoutUser(); setUsuario(null); setEsPublico(false); setMostrarLogin(true); }} />}
       </div>
 
-      {/* BOTTOM TAB BAR */}
+      {/* BOTTOM TAB BAR — siempre visible */}
       <div style={{
         position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
         width: "calc(100% - 32px)", maxWidth: 480,

@@ -386,7 +386,20 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
       if (e.touches.length!==2||!lastDist.current) return;
       e.preventDefault();
       const d=dist(e.touches),delta=d-lastDist.current;
-      if (Math.abs(delta)>25) { setZoom(prev=>delta>0?Math.min(prev+1,4):Math.max(prev-1,1)); lastDist.current=null; }
+      if (Math.abs(delta)>25) {
+          const el = pinchRef.current;
+          const scrollTop = el ? el.scrollTop : 0;
+          const clientH = el ? el.clientHeight : window.innerHeight;
+          const scrollH = el ? el.scrollHeight : 1;
+          const centerPct = scrollH > clientH ? (scrollTop + clientH/2) / scrollH : 0.5;
+          setZoom(prev => delta>0 ? Math.min(prev+1,4) : Math.max(prev-1,1));
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              if (el) el.scrollTop = Math.max(0, centerPct * el.scrollHeight - clientH/2);
+            });
+          });
+          lastDist.current=null;
+        }
     }
     function onEnd() { lastDist.current=null; }
     el.addEventListener("touchstart",onStart,{passive:false});
@@ -427,20 +440,19 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
   const onToggleHora = useCallback((consultorio, fecha, hora) => {
     const mismaUbicacion = flujoDia && dateKey(flujoDia)===dateKey(fecha) && flujoConsultorio===consultorio;
     if (mismaUbicacion) {
-      // Toggle hora en la misma ubicación
       setFlujoHoras(prev => prev.includes(hora) ? prev.filter(h=>h!==hora) : [...prev,hora].sort((a,b)=>a-b));
       setPaso("horas");
     } else {
-      // Nueva ubicación — arrancar flujo desde acá
+      // Nueva ubicación — arrancar flujo desde acá, SIN cambiar zoom
       setFlujoDia(fecha);
       setFlujoConsultorio(consultorio);
       setFlujoHoras([hora]);
       setDiaSelIdx(weekDates.findIndex(d=>dateKey(d)===dateKey(fecha)));
       setConsultorioSel(CONSULTORIOS.indexOf(consultorio));
       setPaso("horas");
-      if (zoom < 3) setZoom(4);
+      // No hacemos zoom automático — el usuario queda donde está
     }
-  }, [flujoDia, flujoConsultorio, weekDates, zoom]);
+  }, [flujoDia, flujoConsultorio, weekDates]);
 
   const onSeleccionarDia = useCallback((fecha) => {
     if (esPublico){onLogin();return;}
@@ -708,7 +720,25 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
                 ))}
               </div>
               <input type="range" min={1} max={4} step={1} value={zoom}
-                onChange={e=>setZoom(Number(e.target.value))}
+                onChange={e => {
+                  // Guardar scroll actual antes de cambiar zoom
+                  const el = pinchRef.current;
+                  const scrollTop = el ? el.scrollTop : 0;
+                  const clientH = el ? el.clientHeight : window.innerHeight;
+                  // Centro visible en porcentaje del contenido total
+                  const scrollH = el ? el.scrollHeight : 1;
+                  const centerPct = scrollH > clientH ? (scrollTop + clientH/2) / scrollH : 0.5;
+                  setZoom(Number(e.target.value));
+                  // Restaurar al mismo centro visual después del render
+                  requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                      if (el) {
+                        const newScrollH = el.scrollHeight;
+                        el.scrollTop = Math.max(0, centerPct * newScrollH - clientH/2);
+                      }
+                    });
+                  });
+                }}
                 style={{ width:56, height:4, cursor:"pointer", accentColor:"#7c6aff", borderRadius:4, outline:"none", WebkitAppearance:"none", background:`linear-gradient(to right,#7c6aff ${(zoom-1)/3*100}%,rgba(124,106,255,0.2) ${(zoom-1)/3*100}%)` }}
               />
             </div>

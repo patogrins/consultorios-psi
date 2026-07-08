@@ -49,7 +49,7 @@ Grins podrá modificar, actualizar o ampliar los presentes Términos y Condicion
 
 Cualquier controversia derivada de la interpretación o aplicación de estos términos se regirá por la legislación vigente de la República Argentina.`;
 
-export default function Login({ onLogin }) {
+export default function Login({ onLogin, onContinuarSinLogin }) {
   const [tab, setTab] = useState("login"); // "login" | "registro"
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -135,7 +135,7 @@ export default function Login({ onLogin }) {
   };
 
   return (
-    <div style={{ minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 20px" }}>
+    <div style={{ minHeight: "100vh", background: "#000", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "24px 20px 120px" }}>
 
       {/* Logo */}
       <div style={{ marginBottom: 32, textAlign: "center" }}>
@@ -252,7 +252,7 @@ export default function Login({ onLogin }) {
       </p>
 
       <button
-        onClick={() => onLogin(null)}
+        onClick={() => onContinuarSinLogin ? onContinuarSinLogin() : onLogin(null)}
         style={{ marginTop: 14, background: "none", border: "none", color: "#4a5270", fontSize: 12, cursor: "pointer", textDecoration: "underline", padding: 0 }}>
         Continuar sin iniciar sesión →
       </button>

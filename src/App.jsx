@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { onAuthChanged, getUserData, logoutUser, suscribirReservas, agregarReserva, actualizarReserva, eliminarReserva } from "./firebase";
+import { onAuthChanged, getUserData, logoutUser, suscribirReservas, suscribirUsuarios, agregarReserva, actualizarReserva, eliminarReserva } from "./firebase";
 import Login from "./Login";
 import TabInicio from "./TabInicio";
 import TabReservas from "./TabReservas";
@@ -26,11 +26,12 @@ const TEMA = {
 
 export default function App() {
   const [reservas, setReservas] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [usuario, setUsuario] = useState(null);
   const [authListo, setAuthListo] = useState(false);
   const [mostrarLogin, setMostrarLogin] = useState(false);
-  const [esPublico, setEsPublico] = useState(false); // modo visitante
+  const [esPublico, setEsPublico] = useState(false);
   const [tab, setTab] = useState("inicio");
   const [toast, setToast] = useState(null);
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -72,6 +73,7 @@ export default function App() {
     });
   }, []);
 
+  // Suscripción a reservas
   useEffect(() => {
     const unsub = suscribirReservas(data => {
       setReservas(data);
@@ -80,38 +82,37 @@ export default function App() {
     return () => unsub();
   }, []);
 
+  // Suscripción a usuarios registrados (para TabReservas y otras tabs)
+  useEffect(() => {
+    const unsub = suscribirUsuarios(data => setUsuarios(data));
+    return () => unsub();
+  }, []);
+
   const showToast = useCallback((msg, tipo = "ok") => {
     setToast({ msg, tipo });
     setTimeout(() => setToast(null), 2800);
   }, []);
 
-  // El usuario quiere iniciar sesión desde dentro de la app
-  function pedirLogin() {
-    setMostrarLogin(true);
-  }
+  function pedirLogin() { setMostrarLogin(true); }
 
-  // Login exitoso con cuenta
-  function handleLoginExitoso(firebaseUser) {
-    // onAuthChanged se encarga de setUsuario; solo cerramos el login
+  function handleLoginExitoso() {
     setMostrarLogin(false);
     setEsPublico(false);
   }
 
-  // Continuar sin cuenta — modo visitante
   function handleContinuarSinLogin() {
     setEsPublico(true);
     setMostrarLogin(false);
   }
 
   if (!authListo || cargando) return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#000000", flexDirection: "column", gap: 16 }}>
-      <img src="/logohead.jpeg" alt="GRINS" style={{ height: 72, objectFit: "contain", marginBottom: 8 }} />
-      <div style={{ width: 36, height: 36, border: "2px solid #1e2235", borderTop: `2px solid ${t.acento}`, borderRadius: "50%", animation: "spin 1s linear infinite" }} />
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#000000", flexDirection:"column", gap:16 }}>
+      <img src="/logohead.jpeg" alt="GRINS" style={{ height:72, objectFit:"contain", marginBottom:8 }}/>
+      <div style={{ width:36, height:36, border:"2px solid #1e2235", borderTop:`2px solid ${t.acento}`, borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
       <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
 
-  // Mostrar login si: se pidió explícitamente, o si no hay usuario y no eligió modo público
   if (mostrarLogin || (!usuario && !esPublico)) return (
     <Login
       onLogin={handleLoginExitoso}
@@ -134,87 +135,70 @@ export default function App() {
     },
     {
       id: "perfil", label: "Perfil",
-      icon: usuario && usuario.fotoUrl
-        ? <img src={usuario.fotoUrl} alt="perfil" style={{ width: 26, height: 26, borderRadius: "50%", objectFit: "cover", border: tab === "perfil" ? `2px solid ${t.acento}` : "2px solid transparent" }} />
+      icon: usuario?.fotoUrl
+        ? <img src={usuario.fotoUrl} alt="perfil" style={{ width:26, height:26, borderRadius:"50%", objectFit:"cover", border:tab==="perfil"?`2px solid ${t.acento}`:"2px solid transparent" }}/>
         : <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
     },
   ];
 
   return (
-    <div style={{ fontFamily: "'Segoe UI', system-ui, sans-serif", minHeight: "100vh", background: t.bg, color: t.texto, position: "relative" }}>
+    <div style={{ fontFamily:"'Segoe UI', system-ui, sans-serif", minHeight:"100vh", background:t.bg, color:t.texto, position:"relative" }}>
 
       {/* TOAST */}
       {toast && (
-        <div style={{ position: "fixed", top: 16, left: "50%", transform: "translateX(-50%)", zIndex: 9999, background: toast.tipo === "warn" ? "#7c2d12" : "#14532d", color: "white", padding: "10px 20px", borderRadius: 30, fontSize: 13, fontWeight: 600, boxShadow: "0 4px 24px rgba(0,0,0,0.4)", whiteSpace: "nowrap" }}>
+        <div style={{ position:"fixed", top:16, left:"50%", transform:"translateX(-50%)", zIndex:9999, background:toast.tipo==="warn"?"#7c2d12":"#14532d", color:"white", padding:"10px 20px", borderRadius:30, fontSize:13, fontWeight:600, boxShadow:"0 4px 24px rgba(0,0,0,0.4)", whiteSpace:"nowrap" }}>
           {toast.msg}
         </div>
       )}
 
       {/* BANNER ANDROID/PC */}
       {installPrompt && (
-        <div style={{ position: "fixed", bottom: 90, left: 16, right: 16, zIndex: 9998, background: t.acentoGrad, borderRadius: 16, padding: "14px 16px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+        <div style={{ position:"fixed", bottom:90, left:16, right:16, zIndex:9998, background:t.acentoGrad, borderRadius:16, padding:"14px 16px", display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, boxShadow:"0 8px 32px rgba(0,0,0,0.4)" }}>
           <div>
-            <div style={{ color: "white", fontWeight: 800, fontSize: 13 }}>Instalá GRINS como app</div>
-            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 11, marginTop: 2 }}>Accedé más rápido desde tu pantalla de inicio</div>
+            <div style={{ color:"white", fontWeight:800, fontSize:13 }}>Instalá GRINS como app</div>
+            <div style={{ color:"rgba(255,255,255,0.75)", fontSize:11, marginTop:2 }}>Accedé más rápido desde tu pantalla de inicio</div>
           </div>
-          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-            <button onClick={() => setInstallPrompt(null)} style={{ padding: "6px 10px", borderRadius: 8, border: "1px solid rgba(255,255,255,0.3)", background: "transparent", color: "white", fontSize: 11, cursor: "pointer", fontWeight: 600 }}>Ahora no</button>
-            <button onClick={async () => { installPrompt.prompt(); const { outcome } = await installPrompt.userChoice; if (outcome === "accepted") setInstallPrompt(null); }} style={{ padding: "6px 12px", borderRadius: 8, border: "none", background: "white", color: "#764ba2", fontSize: 11, cursor: "pointer", fontWeight: 800 }}>Instalar</button>
+          <div style={{ display:"flex", gap:8, flexShrink:0 }}>
+            <button onClick={()=>setInstallPrompt(null)} style={{ padding:"6px 10px", borderRadius:8, border:"1px solid rgba(255,255,255,0.3)", background:"transparent", color:"white", fontSize:11, cursor:"pointer", fontWeight:600 }}>Ahora no</button>
+            <button onClick={async()=>{ installPrompt.prompt(); const{outcome}=await installPrompt.userChoice; if(outcome==="accepted") setInstallPrompt(null); }} style={{ padding:"6px 12px", borderRadius:8, border:"none", background:"white", color:"#764ba2", fontSize:11, cursor:"pointer", fontWeight:800 }}>Instalar</button>
           </div>
         </div>
       )}
 
       {/* BANNER IOS */}
       {mostrarBannerIOS && (
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9998, background: "#111318", borderTop: `1px solid ${t.borde}`, padding: "16px 20px 36px", boxShadow: "0 -8px 32px rgba(0,0,0,0.5)" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <span style={{ color: "white", fontWeight: 800, fontSize: 14 }}>Instalá GRINS en tu iPhone</span>
-            <button onClick={() => { setMostrarBannerIOS(false); localStorage.setItem("grins_ios_banner", "1"); }} style={{ background: "none", border: "none", color: t.textoMuy, fontSize: 22, cursor: "pointer" }}>✕</button>
+        <div style={{ position:"fixed", bottom:0, left:0, right:0, zIndex:9998, background:"#111318", borderTop:`1px solid ${t.borde}`, padding:"16px 20px 36px", boxShadow:"0 -8px 32px rgba(0,0,0,0.5)" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:14 }}>
+            <span style={{ color:"white", fontWeight:800, fontSize:14 }}>Instalá GRINS en tu iPhone</span>
+            <button onClick={()=>{ setMostrarBannerIOS(false); localStorage.setItem("grins_ios_banner","1"); }} style={{ background:"none", border:"none", color:t.textoMuy, fontSize:22, cursor:"pointer" }}>✕</button>
           </div>
-          {[["1", 'Tocá el botón <strong style="color:white">Compartir ⎋</strong> en Safari'], ["2", 'Elegí <strong style="color:white">"Agregar a pantalla de inicio"</strong>'], ["3", 'Tocá <strong style="color:white">"Agregar"</strong> y listo 🎉']].map(([n, txt]) => (
-            <div key={n} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-              <div style={{ width: 28, height: 28, background: t.bgElevated, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", color: "white", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{n}</div>
-              <span style={{ color: "#e2e8f0", fontSize: 13 }} dangerouslySetInnerHTML={{ __html: txt }} />
+          {[["1",'Tocá el botón <strong style="color:white">Compartir ⎋</strong> en Safari'],["2",'Elegí <strong style="color:white">"Agregar a pantalla de inicio"</strong>'],["3",'Tocá <strong style="color:white">"Agregar"</strong> y listo 🎉']].map(([n,txt])=>(
+            <div key={n} style={{ display:"flex", alignItems:"center", gap:12, marginBottom:10 }}>
+              <div style={{ width:28, height:28, background:t.bgElevated, borderRadius:8, display:"flex", alignItems:"center", justifyContent:"center", color:"white", fontWeight:800, fontSize:13, flexShrink:0 }}>{n}</div>
+              <span style={{ color:"#e2e8f0", fontSize:13 }} dangerouslySetInnerHTML={{ __html:txt }}/>
             </div>
           ))}
         </div>
       )}
 
       {/* CONTENIDO */}
-      <div style={{ paddingBottom: 90 }}>
-        {tab === "inicio" && <TabInicio usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} />}
-        {tab === "reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin} />}
-        {tab === "lazos" && <TabLazos usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} />}
-        {tab === "perfil" && <TabPerfil usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={pedirLogin} onLogout={async () => { await logoutUser(); setUsuario(null); setEsPublico(false); setMostrarLogin(true); }} />}
+      <div style={{ paddingBottom:90 }}>
+        {tab==="inicio"   && <TabInicio   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas}/>}
+        {tab==="reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} usuarios={usuarios} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin}/>}
+        {tab==="lazos"    && <TabLazos    usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas}/>}
+        {tab==="perfil"   && <TabPerfil   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={pedirLogin} onLogout={async()=>{ await logoutUser(); setUsuario(null); setEsPublico(false); setMostrarLogin(true); }}/>}
       </div>
 
-      {/* BOTTOM TAB BAR — siempre visible */}
-      <div style={{
-        position: "fixed", bottom: 16, left: "50%", transform: "translateX(-50%)",
-        width: "calc(100% - 32px)", maxWidth: 480,
-        background: "rgba(10,10,20,0.88)",
-        backdropFilter: "blur(24px)", WebkitBackdropFilter: "blur(24px)",
-        borderRadius: 28, border: "1px solid rgba(255,255,255,0.07)",
-        boxShadow: "0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)",
-        display: "flex", alignItems: "center", justifyContent: "space-around",
-        padding: "8px 8px", zIndex: 1000
-      }}>
+      {/* BOTTOM TAB BAR */}
+      <div style={{ position:"fixed", bottom:16, left:"50%", transform:"translateX(-50%)", width:"calc(100% - 32px)", maxWidth:480, background:"rgba(10,10,20,0.88)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderRadius:28, border:"1px solid rgba(255,255,255,0.07)", boxShadow:"0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)", display:"flex", alignItems:"center", justifyContent:"space-around", padding:"8px 8px", zIndex:1000 }}>
         {tabs.map(({ id, label, icon }) => {
-          const active = tab === id;
+          const active = tab===id;
           return (
-            <button key={id} onClick={() => setTab(id)} style={{
-              display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
-              padding: active ? "8px 20px" : "8px 12px",
-              borderRadius: 20, border: "none", cursor: "pointer",
-              background: active ? t.pill : "transparent",
-              color: active ? t.acento : t.textoMuy,
-              transition: "all 0.25s cubic-bezier(0.34,1.56,0.64,1)",
-              minWidth: active ? 80 : 56,
-            }}>
-              <div style={{ transition: "transform 0.25s cubic-bezier(0.34,1.56,0.64,1)", transform: active ? "scale(1.1)" : "scale(1)" }}>
+            <button key={id} onClick={()=>setTab(id)} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:active?"8px 20px":"8px 12px", borderRadius:20, border:"none", cursor:"pointer", background:active?t.pill:"transparent", color:active?t.acento:t.textoMuy, transition:"all 0.25s cubic-bezier(0.34,1.56,0.64,1)", minWidth:active?80:56 }}>
+              <div style={{ transition:"transform 0.25s cubic-bezier(0.34,1.56,0.64,1)", transform:active?"scale(1.1)":"scale(1)" }}>
                 {icon}
               </div>
-              <span style={{ fontSize: 10, fontWeight: active ? 700 : 500, letterSpacing: 0.3 }}>{label}</span>
+              <span style={{ fontSize:10, fontWeight:active?700:500, letterSpacing:0.3 }}>{label}</span>
             </button>
           );
         })}
@@ -222,8 +206,8 @@ export default function App() {
 
       <style>{`
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }
-        @keyframes fadeUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
-        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+        @keyframes spin { to { transform:rotate(360deg); } }
         .tab-content { animation: fadeUp 0.3s ease; }
       `}</style>
     </div>

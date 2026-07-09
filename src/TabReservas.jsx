@@ -1,5 +1,4 @@
 import { useState, useMemo, useRef, useEffect, memo, useCallback } from "react";
-import { db } from "./firebase";
 
 const HORA_PRECIO = 3500;
 const HORAS = Array.from({ length: 14 }, (_, i) => i + 8);
@@ -17,6 +16,13 @@ const COLORES_PROF = [
   { bg: "linear-gradient(135deg,#96fbc4,#f9f586)" },
 ];
 
+// Altura base de cada celda en px (antes del zoom)
+const ROW_H = 28;
+// Ancho base de la columna de hora
+const HORA_COL = 36;
+// Ancho base de cada sub-columna de consultorio
+const CON_COL = 44;
+
 function getWeekDates(offset = 0) {
   const today = new Date();
   const day = today.getDay();
@@ -27,7 +33,7 @@ function getWeekDates(offset = 0) {
   });
 }
 
-function dateKey(date) { return date.toISOString().slice(0, 10); }
+function dateKey(d) { return d.toISOString().slice(0, 10); }
 function fmtCurrency(n) { return "$" + n.toLocaleString("es-AR"); }
 
 function calcPagos(reservas, profesional, mesStr) {
@@ -54,7 +60,6 @@ function exportarCSV(profs, reservas, mesStr) {
   profs.forEach(prof => {
     const { detalle } = calcPagos(reservas, prof, mesStr);
     detalle.forEach(d => rows.push([prof,d.consultorio,d.fecha,`${d.horaInicio}:00-${d.horaFin}:00`,d.tipo,d.horas,d.occ,d.montoMes].join(",")));
-    rows.push([prof,"","","","TOTAL","","",calcPagos(reservas,prof,mesStr).totalMes].join(""),"");
   });
   const blob = new Blob([rows.join("\n")],{type:"text/csv"});
   const a = document.createElement("a"); a.href=URL.createObjectURL(blob); a.download=`pagos_${mesStr}.csv`; a.click();
@@ -62,28 +67,27 @@ function exportarCSV(profs, reservas, mesStr) {
 
 function getLineaPct() {
   const n = new Date();
-  return Math.max(0,Math.min(((n.getHours()-8)*60+n.getMinutes())/(14*60),1));
+  return Math.max(0, Math.min(((n.getHours()-8)*60+n.getMinutes())/(14*60), 1));
 }
 
-// ── CELDA — fuera del componente principal para que React la reutilice ────────
+// ── CELDA ────────────────────────────────────────────────────────────────────
 const Celda = memo(function Celda({
-  consultorio, fecha, hora, showName, cellHeight,
+  consultorio, fecha, hora,
   reservas, colorMap, flujoHoras, flujoDia, flujoConsultorio,
-  esPublico, puedeEditarFn, onToggleHora, onOpenEditar, onConfirmDelete, onLogin
+  esPublico, puedeEditarFn, onToggleHora, onOpenEditar, onConfirmDelete, onLogin, zoom
 }) {
-  const bloques = useMemo(() => {
-    const key = dateKey(fecha), dow = fecha.getDay();
-    return reservas.filter(r => {
-      if (r.consultorio !== consultorio || hora < r.horaInicio || hora >= r.horaFin) return false;
-      if (r.fecha === key) return true;
-      if (r.repeteSemanal) { const o = new Date(r.fecha+"T12:00:00"); return o.getDay()===dow && o<=fecha; }
-      return false;
-    });
-  }, [reservas, consultorio, fecha, hora]);
+  const key = dateKey(fecha), dow = fecha.getDay();
+  const bloques = useMemo(() => reservas.filter(r => {
+    if (r.consultorio!==consultorio||hora<r.horaInicio||hora>=r.horaFin) return false;
+    if (r.fecha===key) return true;
+    if (r.repeteSemanal){const o=new Date(r.fecha+"T12:00:00");return o.getDay()===dow&&o<=fecha;}
+    return false;
+  }), [reservas, consultorio, hora, key, dow, fecha]);
 
-  const libre = bloques.length === 0;
+  const libre = bloques.length===0;
   const esFlujoActivo = flujoConsultorio===consultorio && flujoDia && dateKey(fecha)===dateKey(flujoDia);
   const seleccionada = esFlujoActivo && flujoHoras.includes(hora);
+  const showName = zoom >= 2;
 
   function handleClick() {
     if (!libre) return;
@@ -92,16 +96,15 @@ const Celda = memo(function Celda({
   }
 
   return (
-    <div
-      onClick={handleClick}
-      style={{ height: cellHeight, padding: 1, borderBottom: "1px solid rgba(255,255,255,0.04)", position: "relative", cursor: libre?"pointer":"default", background: seleccionada?"rgba(124,106,255,0.28)":"transparent", transition: "background 0.1s" }}>
-      {seleccionada && libre && <div style={{ position:"absolute", inset:1, borderRadius:3, border:"2px solid rgba(124,106,255,0.8)", pointerEvents:"none" }}/>}
+    <div onClick={handleClick}
+      style={{ height:ROW_H, padding:1, borderBottom:"1px solid rgba(255,255,255,0.05)", position:"relative", cursor:libre?"pointer":"default", background:seleccionada?"rgba(124,106,255,0.3)":"transparent", transition:"background 0.1s" }}>
+      {seleccionada && libre && <div style={{ position:"absolute", inset:1, borderRadius:3, border:"2px solid rgba(124,106,255,0.9)", pointerEvents:"none" }}/>}
       {bloques.map(r => {
-        const col = colorMap[r.profesional] || COLORES_PROF[0];
-        const esInicio = hora === r.horaInicio;
+        const col = colorMap[r.profesional]||COLORES_PROF[0];
+        const esInicio = hora===r.horaInicio;
         return (
-          <div key={r.id} style={{ height:"100%", background:col.bg, borderRadius:esInicio?"4px 4px 1px 1px":"1px", padding:"1px 3px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-            {esInicio && showName && <span style={{ fontSize:8, fontWeight:700, color:"white", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"65%" }}>{r.profesional}</span>}
+          <div key={r.id} style={{ height:"100%", background:col.bg, borderRadius:esInicio?"4px 4px 1px 1px":"1px", padding:"1px 3px", display:"flex", justifyContent:"space-between", alignItems:"center", overflow:"hidden" }}>
+            {esInicio && showName && <span style={{ fontSize:9, fontWeight:700, color:"white", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"65%" }}>{r.profesional}</span>}
             {esInicio && showName && puedeEditarFn(r) && !esPublico && (
               <span style={{ display:"flex", gap:1, flexShrink:0 }}>
                 <button onClick={e=>{e.stopPropagation();onOpenEditar(r);}} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"white", cursor:"pointer", borderRadius:2, padding:"0 2px", fontSize:7 }}>✎</button>
@@ -115,241 +118,86 @@ const Celda = memo(function Celda({
   );
 });
 
-// ── GRILLA SEMANA Z1/Z2 — fuera del componente ────────────────────────────────
-const GrillaSemana = memo(function GrillaSemana({
-  weekDates, showName, cellHeight, colWidth, lineaPct, todayKey, horaActual,
+// ── GRILLA ÚNICA — siempre montada, zoom via CSS transform ────────────────────
+const Grilla = memo(function Grilla({
+  weekDates, zoom, lineaPct, todayKey,
   reservas, colorMap, flujoHoras, flujoDia, flujoConsultorio, paso,
   esPublico, puedeEditarFn, onToggleHora, onOpenEditar, onConfirmDelete, onLogin, onSeleccionarDia
 }) {
-  const lineaTop = lineaPct * cellHeight * HORAS.length;
-  const hoyEnDias = weekDates.some(f => dateKey(f) === todayKey);
+  const hoyEnDias = weekDates.some(f => dateKey(f)===todayKey);
+  const totalW = HORA_COL + weekDates.length * 3 * CON_COL;
+  const totalH = HORAS.length * ROW_H;
+  const lineaTop = lineaPct * totalH;
 
   return (
-    <div style={{ overflowX:"auto", overflowY:"auto", maxHeight:"calc(100vh - 200px)", position:"relative" }}>
-      <table style={{ borderCollapse:"collapse", minWidth: 36 + weekDates.length * 3 * colWidth }}>
-        <thead>
-          <tr>
-            <th style={{ width:36, background:"rgba(0,0,0,0.8)", position:"sticky", left:0, zIndex:5, borderBottom:"1px solid rgba(255,255,255,0.08)" }}/>
-            {weekDates.map(fecha => {
-              const isToday = dateKey(fecha)===todayKey;
-              const esDiaFlujo = flujoDia && dateKey(fecha)===dateKey(flujoDia);
-              return (
-                <th key={dateKey(fecha)} colSpan={3}
-                  onClick={() => paso===null && onSeleccionarDia(fecha)}
-                  style={{ background:esDiaFlujo?"rgba(124,106,255,0.25)":isToday?"rgba(124,106,255,0.12)":"rgba(0,0,0,0.7)", color:esDiaFlujo?"#a78bfa":isToday?"#a78bfa":"white", fontSize:11, fontWeight:800, padding:"7px 0", textAlign:"center", borderLeft:"2px solid rgba(255,255,255,0.08)", borderBottom:"1px solid rgba(255,255,255,0.08)", minWidth:colWidth*3, cursor:paso===null?"pointer":"default", transition:"background 0.2s" }}>
-                  <div style={{ fontSize:9, color:esDiaFlujo?"#a78bfa":isToday?"#a78bfa":"#a0a8c0", fontWeight:600 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-                  <div style={{ fontSize:14 }}>{fecha.getDate()}</div>
-                  {paso===null && <div style={{ fontSize:7, color:"rgba(124,106,255,0.4)", marginTop:1 }}>reservar</div>}
-                </th>
-              );
-            })}
-          </tr>
-          <tr>
-            <th style={{ width:36, background:"rgba(0,0,0,0.8)", position:"sticky", left:0, zIndex:5, borderBottom:"1px solid rgba(255,255,255,0.06)" }}/>
-            {weekDates.map(fecha => CONSULTORIOS.map((c,ci) => (
-              <th key={`${dateKey(fecha)}-${c}`}
-                style={{ background:"rgba(0,0,0,0.6)", color:"#a0a8c0", fontSize:12, fontWeight:700, padding:"6px 2px", textAlign:"center", borderLeft:"1px solid rgba(255,255,255,0.06)", borderBottom:"1px solid rgba(255,255,255,0.06)", width:colWidth }}>
-                C{ci+3}
-              </th>
-            )))}
-          </tr>
-        </thead>
-        <tbody>
-          {HORAS.map(hora => (
-            <tr key={hora}>
-              <td style={{ padding:"0 6px 0 0", textAlign:"right", fontSize:9, color:"rgba(255,255,255,0.5)", fontWeight:600, background:"rgba(0,0,0,0.7)", position:"sticky", left:0, zIndex:2, borderRight:"1px solid rgba(255,255,255,0.06)", verticalAlign:"middle", height:cellHeight }}>{hora}h</td>
-              {weekDates.map(fecha => CONSULTORIOS.map((c,ci) => (
-                <td key={`${dateKey(fecha)}-${c}-${hora}`} style={{ padding:0, borderLeft:ci===0?"2px solid rgba(255,255,255,0.07)":"1px solid rgba(255,255,255,0.03)", width:colWidth }}>
-                  <Celda
-                    consultorio={c} fecha={fecha} hora={hora}
-                    showName={showName} cellHeight={cellHeight}
-                    reservas={reservas} colorMap={colorMap}
-                    flujoHoras={flujoHoras} flujoDia={flujoDia} flujoConsultorio={flujoConsultorio}
-                    esPublico={esPublico} puedeEditarFn={puedeEditarFn}
-                    onToggleHora={onToggleHora} onOpenEditar={onOpenEditar}
-                    onConfirmDelete={onConfirmDelete} onLogin={onLogin}
-                  />
-                </td>
-              )))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {hoyEnDias && (
-        <div style={{ position:"absolute", top:70+lineaTop, left:0, right:0, zIndex:10, pointerEvents:"none", display:"flex", alignItems:"center" }}>
-          <div style={{ width:36, flexShrink:0 }}/>
-          <div style={{ flex:1, height:1.5, background:"white", opacity:0.7, boxShadow:"0 0 6px rgba(255,255,255,0.5)" }}/>
-        </div>
-      )}
-    </div>
-  );
-});
-
-// ── GRILLA UN DÍA Z3 — fuera del componente ───────────────────────────────────
-const GrillaUnDia = memo(function GrillaUnDia({
-  fecha, lineaPct, todayKey,
-  reservas, colorMap, flujoHoras, flujoDia, flujoConsultorio, paso,
-  esPublico, puedeEditarFn, onToggleHora, onOpenEditar, onConfirmDelete, onLogin, onSeleccionarConsultorio
-}) {
-  const lineaTop = lineaPct * 36 * HORAS.length;
-  const isToday = dateKey(fecha) === todayKey;
-  const colWidth = Math.floor((window.innerWidth - 42) / 3);
-
-  return (
-    <div style={{ overflowY:"auto", maxHeight:"calc(100vh - 220px)", position:"relative" }}>
-      <table style={{ width:"100%", borderCollapse:"collapse" }}>
-        <thead>
-          <tr>
-            <th style={{ width:42, background:"rgba(0,0,0,0.8)", borderBottom:"1px solid rgba(255,255,255,0.08)", position:"sticky", top:0, zIndex:3 }}/>
-            <th colSpan={3} style={{ background:isToday?"rgba(124,106,255,0.12)":"rgba(0,0,0,0.7)", color:isToday?"#a78bfa":"white", fontSize:11, fontWeight:800, padding:"7px 0", textAlign:"center", borderLeft:"2px solid rgba(255,255,255,0.08)", borderBottom:"1px solid rgba(255,255,255,0.08)", position:"sticky", top:0, zIndex:3 }}>
-              <div style={{ fontSize:9, color:isToday?"#a78bfa":"#a0a8c0", fontWeight:600 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-              <div style={{ fontSize:14 }}>{fecha.getDate()}</div>
-            </th>
-          </tr>
-          <tr>
-            <th style={{ width:42, background:"rgba(0,0,0,0.8)", position:"sticky", top:0, zIndex:3, borderBottom:"1px solid rgba(255,255,255,0.06)" }}/>
-            {CONSULTORIOS.map((c,ci) => {
-              const esFlujoC = flujoConsultorio===c;
-              const clickeable = paso==="consultorio";
-              return (
-                <th key={c} onClick={() => clickeable && onSeleccionarConsultorio(ci)}
-                  style={{ background:esFlujoC?"rgba(124,106,255,0.18)":"rgba(0,0,0,0.6)", color:esFlujoC?"#a78bfa":"#a0a8c0", fontSize:12, fontWeight:700, padding:"6px 2px", textAlign:"center", borderLeft:"1px solid rgba(255,255,255,0.06)", borderBottom:"1px solid rgba(255,255,255,0.06)", width:colWidth, cursor:clickeable?"pointer":"default", transition:"all 0.2s" }}>
-                  C{ci+3}{esFlujoC&&" ✓"}
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {HORAS.map(hora => (
-            <tr key={hora}>
-              <td style={{ padding:"0 6px 0 0", textAlign:"right", fontSize:9, color:"rgba(255,255,255,0.5)", fontWeight:600, background:"rgba(0,0,0,0.7)", borderRight:"1px solid rgba(255,255,255,0.06)", verticalAlign:"middle", height:36 }}>{hora}h</td>
-              {CONSULTORIOS.map((c,ci) => (
-                <td key={c} style={{ padding:0, borderLeft:ci===0?"2px solid rgba(255,255,255,0.07)":"1px solid rgba(255,255,255,0.03)" }}>
-                  <Celda
-                    consultorio={c} fecha={fecha} hora={hora}
-                    showName={true} cellHeight={36}
-                    reservas={reservas} colorMap={colorMap}
-                    flujoHoras={flujoHoras} flujoDia={flujoDia} flujoConsultorio={flujoConsultorio}
-                    esPublico={esPublico} puedeEditarFn={puedeEditarFn}
-                    onToggleHora={onToggleHora} onOpenEditar={onOpenEditar}
-                    onConfirmDelete={onConfirmDelete} onLogin={onLogin}
-                  />
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {isToday && (
-        <div style={{ position:"absolute", top:74+lineaTop, left:0, right:0, zIndex:10, pointerEvents:"none", display:"flex", alignItems:"center" }}>
-          <div style={{ width:42, flexShrink:0 }}/>
-          <div style={{ flex:1, height:2, background:"white", opacity:0.8, boxShadow:"0 0 8px rgba(255,255,255,0.6)" }}/>
-        </div>
-      )}
-    </div>
-  );
-});
-
-// ── GRILLA UN CONSULTORIO Z4 — fuera del componente ──────────────────────────
-const GrillaUnConsultorio = memo(function GrillaUnConsultorio({
-  fecha, consultorio, lineaPct, todayKey, horaActual,
-  reservas, colorMap, flujoHoras, flujoDia, flujoConsultorio, paso,
-  esPublico, puedeEditarFn, onToggleHora, onOpenEditar, onConfirmDelete, onLogin
-}) {
-  const lineaTop = lineaPct * 46 * HORAS.length;
-  const isToday = dateKey(fecha) === todayKey;
-  const ci = CONSULTORIOS.indexOf(consultorio);
-
-  return (
-    <div style={{ overflowY:"auto", maxHeight:"calc(100vh - 250px)", position:"relative" }}>
-      <table style={{ width:"100%", borderCollapse:"collapse" }}>
-        <thead>
-          <tr>
-            <th style={{ width:42, background:"rgba(0,0,0,0.8)", borderBottom:"1px solid rgba(255,255,255,0.08)", position:"sticky", top:0, zIndex:3 }}/>
-            <th style={{ background:isToday?"rgba(124,106,255,0.12)":"rgba(0,0,0,0.7)", color:isToday?"#a78bfa":"white", fontSize:11, fontWeight:800, padding:"7px 0", textAlign:"center", borderLeft:"2px solid rgba(255,255,255,0.08)", borderBottom:"1px solid rgba(255,255,255,0.08)", position:"sticky", top:0, zIndex:3 }}>
-              <div style={{ fontSize:9, color:isToday?"#a78bfa":"#a0a8c0", fontWeight:600 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-              <div style={{ fontSize:14 }}>{fecha.getDate()}</div>
-            </th>
-          </tr>
-          <tr>
-            <th style={{ width:42, background:"rgba(0,0,0,0.8)", position:"sticky", top:0, zIndex:3, borderBottom:"1px solid rgba(255,255,255,0.06)" }}/>
-            <th style={{ background:"rgba(124,106,255,0.18)", color:"#a78bfa", fontSize:12, fontWeight:700, padding:"6px 2px", textAlign:"center", borderLeft:"1px solid rgba(255,255,255,0.06)", borderBottom:"1px solid rgba(255,255,255,0.06)", position:"sticky", top:0, zIndex:3 }}>
-              C{ci+3}
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {HORAS.map(hora => {
-            const key = dateKey(fecha), dow = fecha.getDay();
-            const bloques = reservas.filter(r => {
-              if (r.consultorio!==consultorio||hora<r.horaInicio||hora>=r.horaFin) return false;
-              if (r.fecha===key) return true;
-              if (r.repeteSemanal){const o=new Date(r.fecha+"T12:00:00");return o.getDay()===dow&&o<=fecha;}
-              return false;
-            });
-            const libre = bloques.length===0;
-            const sel = flujoConsultorio===consultorio && flujoDia && dateKey(fecha)===dateKey(flujoDia) && flujoHoras.includes(hora);
+    <div style={{ overflowX:"auto", overflowY:"visible", position:"relative" }}>
+      <div style={{ width: totalW }}>
+        {/* CABECERA DÍAS */}
+        <div style={{ display:"flex", position:"sticky", top:0, zIndex:10, background:"rgba(0,0,0,0.95)" }}>
+          <div style={{ width:HORA_COL, flexShrink:0 }}/>
+          {weekDates.map(fecha => {
+            const isToday = dateKey(fecha)===todayKey;
+            const esFlujo = flujoDia && dateKey(fecha)===dateKey(flujoDia);
             return (
-              <tr key={hora}>
-                <td style={{ padding:"0 6px 0 0", textAlign:"right", fontSize:10, color:"rgba(255,255,255,0.5)", fontWeight:600, background:"rgba(0,0,0,0.7)", borderRight:"1px solid rgba(255,255,255,0.06)", verticalAlign:"middle", height:46, width:42 }}>{hora}:00</td>
-                <td style={{ padding:"3px 10px 3px 4px", position:"relative", background:sel?"rgba(124,106,255,0.1)":"transparent", cursor:libre?"pointer":"default" }}
-                  onClick={() => { if(!libre) return; if(esPublico){onLogin();return;} onToggleHora(consultorio,fecha,hora); }}>
-                  {sel && libre && <div style={{ position:"absolute", inset:"3px 10px 3px 4px", borderRadius:10, border:"2px solid rgba(124,106,255,0.8)", background:"rgba(124,106,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", pointerEvents:"none" }}><span style={{ fontSize:11, color:"#a78bfa", fontWeight:700 }}>✓ Seleccionado</span></div>}
-                  {bloques.length>0 ? bloques.map(r => {
-                    const esInicio = hora===r.horaInicio;
-                    const col = colorMap[r.profesional]||COLORES_PROF[0];
-                    return (
-                      <div key={r.id} style={{ height:40, borderRadius:esInicio?"10px 10px 4px 4px":"4px", background:col.bg, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 12px", overflow:"hidden" }}>
-                        {esInicio && <>
-                          <div>
-                            <div style={{ fontSize:13, fontWeight:800, color:"white" }}>{r.profesional}</div>
-                            <div style={{ fontSize:10, color:"rgba(255,255,255,0.7)" }}>{r.horaInicio}:00 – {r.horaFin}:00</div>
-                          </div>
-                          {puedeEditarFn(r)&&!esPublico&&(
-                            <div style={{ display:"flex", gap:5 }}>
-                              <button onClick={e=>{e.stopPropagation();onOpenEditar(r);}} style={{ background:"rgba(255,255,255,0.2)", border:"none", color:"white", borderRadius:7, padding:"4px 9px", fontSize:11, cursor:"pointer" }}>✎</button>
-                              <button onClick={e=>{e.stopPropagation();onConfirmDelete(r.id);}} style={{ background:"rgba(255,255,255,0.15)", border:"none", color:"white", borderRadius:7, padding:"4px 9px", fontSize:11, cursor:"pointer" }}>✕</button>
-                            </div>
-                          )}
-                        </>}
-                      </div>
-                    );
-                  }) : (
-                    !sel && <div style={{ height:40, borderRadius:10, border:`1px dashed ${paso==="horas"?"rgba(124,106,255,0.25)":"rgba(255,255,255,0.05)"}`, display:"flex", alignItems:"center", paddingLeft:12 }}>
-                      {paso==="horas"&&<span style={{ fontSize:11, color:"rgba(124,106,255,0.35)" }}>Tocá para seleccionar</span>}
-                    </div>
-                  )}
-                </td>
-              </tr>
+              <div key={dateKey(fecha)} onClick={() => paso===null && onSeleccionarDia(fecha)}
+                style={{ width:CON_COL*3, textAlign:"center", padding:"6px 0 4px", borderLeft:"2px solid rgba(255,255,255,0.07)", background:esFlujo?"rgba(124,106,255,0.22)":isToday?"rgba(124,106,255,0.1)":"transparent", cursor:paso===null?"pointer":"default", transition:"background 0.2s" }}>
+                <div style={{ fontSize:9, fontWeight:600, color:esFlujo?"#a78bfa":isToday?"#a78bfa":"#a0a8c0" }}>{DIAS_SEMANA[fecha.getDay()]}</div>
+                <div style={{ fontSize:13, fontWeight:800, color:esFlujo?"#a78bfa":isToday?"#a78bfa":"white" }}>{fecha.getDate()}</div>
+                {paso===null && <div style={{ fontSize:7, color:"rgba(124,106,255,0.35)", marginTop:1 }}>reservar</div>}
+              </div>
             );
           })}
-        </tbody>
-      </table>
-      {isToday && (
-        <div style={{ position:"absolute", top:74+lineaTop, left:0, right:0, zIndex:10, pointerEvents:"none", display:"flex", alignItems:"center" }}>
-          <div style={{ width:42, flexShrink:0 }}/>
-          <div style={{ flex:1, height:2, background:"white", opacity:0.8 }}/>
         </div>
-      )}
+
+        {/* CABECERA CONSULTORIOS */}
+        <div style={{ display:"flex", position:"sticky", top:46, zIndex:10, background:"rgba(0,0,0,0.92)" }}>
+          <div style={{ width:HORA_COL, flexShrink:0 }}/>
+          {weekDates.map(fecha => CONSULTORIOS.map((c,ci) => {
+            const esFlujoC = flujoConsultorio===c && flujoDia && dateKey(fecha)===dateKey(flujoDia);
+            return (
+              <div key={`${dateKey(fecha)}-${c}`}
+                style={{ width:CON_COL, textAlign:"center", fontSize:11, fontWeight:700, padding:"5px 0", borderLeft:ci===0?"2px solid rgba(255,255,255,0.07)":"1px solid rgba(255,255,255,0.04)", color:esFlujoC?"#a78bfa":"#a0a8c0", background:esFlujoC?"rgba(124,106,255,0.15)":"rgba(0,0,0,0.6)", transition:"all 0.2s" }}>
+                C{ci+3}
+              </div>
+            );
+          }))}
+        </div>
+
+        {/* FILAS DE HORAS */}
+        <div style={{ position:"relative" }}>
+          {HORAS.map(hora => (
+            <div key={hora} style={{ display:"flex", height:ROW_H }}>
+              <div style={{ width:HORA_COL, flexShrink:0, display:"flex", alignItems:"center", justifyContent:"flex-end", paddingRight:6, fontSize:9, color:"rgba(255,255,255,0.4)", fontWeight:600, borderRight:"1px solid rgba(255,255,255,0.06)", background:"rgba(0,0,0,0.7)" }}>{hora}h</div>
+              {weekDates.map(fecha => CONSULTORIOS.map((c,ci) => (
+                <div key={`${dateKey(fecha)}-${c}`} style={{ width:CON_COL, flexShrink:0, borderLeft:ci===0?"2px solid rgba(255,255,255,0.06)":"1px solid rgba(255,255,255,0.03)" }}>
+                  <Celda
+                    consultorio={c} fecha={fecha} hora={hora} zoom={zoom}
+                    reservas={reservas} colorMap={colorMap}
+                    flujoHoras={flujoHoras} flujoDia={flujoDia} flujoConsultorio={flujoConsultorio}
+                    esPublico={esPublico} puedeEditarFn={puedeEditarFn}
+                    onToggleHora={onToggleHora} onOpenEditar={onOpenEditar}
+                    onConfirmDelete={onConfirmDelete} onLogin={onLogin}
+                  />
+                </div>
+              )))}
+            </div>
+          ))}
+          {/* LÍNEA DE HORA ACTUAL */}
+          {hoyEnDias && (
+            <div style={{ position:"absolute", top:lineaTop, left:HORA_COL, right:0, height:2, background:"white", opacity:0.7, pointerEvents:"none", boxShadow:"0 0 6px rgba(255,255,255,0.5)", zIndex:5 }}/>
+          )}
+        </div>
+      </div>
     </div>
   );
 });
 
 // ── COMPONENTE PRINCIPAL ───────────────────────────────────────────────────────
 export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], agregarReserva, actualizarReserva, eliminarReserva, showToast, onLogin }) {
-  const [zoom, setZoom] = useState(1);
+  // zoom es un float continuo, rango 1.0 – 4.0
+  const [zoom, setZoom] = useState(1.0);
   const [weekOffset, setWeekOffset] = useState(0);
   const [mesOffset, setMesOffset] = useState(0);
-  const [diaSelIdx, setDiaSelIdx] = useState(() => { const d=new Date().getDay(); return d===0?0:d-1; });
-  const [consultorioSel, setConsultorioSel] = useState(0);
-
-  // Flujo guiado
-  const [paso, setPaso] = useState(null);
-  const [flujoDia, setFlujoDia] = useState(null);
-  const [flujoConsultorio, setFlujoConsultorio] = useState(null);
-  const [flujoHoras, setFlujoHoras] = useState([]);
-
   const [verPagos, setVerPagos] = useState(false);
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ profesional:"", horaInicio:8, horaFin:9, repeteSemanal:false });
@@ -359,54 +207,93 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
   const [lineaPct, setLineaPct] = useState(getLineaPct());
   const [scrollY, setScrollY] = useState(0);
 
-  const pinchRef = useRef(null);
-  const lastDist = useRef(null);
+  // Flujo
+  const [paso, setPaso] = useState(null);
+  const [flujoDia, setFlujoDia] = useState(null);
+  const [flujoConsultorio, setFlujoConsultorio] = useState(null);
+  const [flujoHoras, setFlujoHoras] = useState([]);
+
+  const outerRef = useRef(null);   // scroll externo (página completa)
+  const scaleRef = useRef(null);   // div que recibe transform: scale()
+  const lastPinchDist = useRef(null);
+  const lastPinchZoom = useRef(1);
+  const pinchOrigin = useRef({ x:0.5, y:0.5 }); // fracción del viewport
 
   useEffect(() => { const i=setInterval(()=>setLineaPct(getLineaPct()),60000); return()=>clearInterval(i); },[]);
 
   useEffect(() => {
     const meta = document.querySelector("meta[name=viewport]");
-    if (meta) meta.content = "width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no";
+    if (meta) meta.content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no";
     return () => { if (meta) meta.content="width=device-width,initial-scale=1"; };
   },[]);
 
+  // Scroll listener para sticky bar
   useEffect(() => {
-    const el = pinchRef.current; if (!el) return;
-    const onScroll = () => setScrollY(el.scrollTop);
-    el.addEventListener("scroll", onScroll, { passive:true });
-    return () => el.removeEventListener("scroll", onScroll);
+    const el = outerRef.current; if (!el) return;
+    const fn = () => setScrollY(el.scrollTop);
+    el.addEventListener("scroll", fn, { passive:true });
+    return () => el.removeEventListener("scroll", fn);
   },[]);
 
-  // Pinch zoom — NO usa setZoom directo para evitar perder posición de scroll
+  // Pinch gesture — zoom continuo, centrado en el punto de contacto
   useEffect(() => {
-    const el = pinchRef.current; if (!el) return;
-    function dist(t) { const dx=t[0].clientX-t[1].clientX,dy=t[0].clientY-t[1].clientY; return Math.sqrt(dx*dx+dy*dy); }
-    function onStart(e) { if (e.touches.length===2){e.preventDefault();lastDist.current=dist(e.touches);} }
-    function onMove(e) {
-      if (e.touches.length!==2||!lastDist.current) return;
-      e.preventDefault();
-      const d=dist(e.touches),delta=d-lastDist.current;
-      if (Math.abs(delta)>25) {
-          const el = pinchRef.current;
-          const scrollTop = el ? el.scrollTop : 0;
-          const clientH = el ? el.clientHeight : window.innerHeight;
-          const scrollH = el ? el.scrollHeight : 1;
-          const centerPct = scrollH > clientH ? (scrollTop + clientH/2) / scrollH : 0.5;
-          setZoom(prev => delta>0 ? Math.min(prev+1,4) : Math.max(prev-1,1));
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              if (el) el.scrollTop = Math.max(0, centerPct * el.scrollHeight - clientH/2);
-            });
-          });
-          lastDist.current=null;
-        }
+    const outer = outerRef.current; if (!outer) return;
+
+    function dist(t) {
+      const dx=t[0].clientX-t[1].clientX, dy=t[0].clientY-t[1].clientY;
+      return Math.sqrt(dx*dx+dy*dy);
     }
-    function onEnd() { lastDist.current=null; }
-    el.addEventListener("touchstart",onStart,{passive:false});
-    el.addEventListener("touchmove",onMove,{passive:false});
-    el.addEventListener("touchend",onEnd);
-    return ()=>{ el.removeEventListener("touchstart",onStart); el.removeEventListener("touchmove",onMove); el.removeEventListener("touchend",onEnd); };
-  },[]);
+    function midpoint(t) {
+      return { x:(t[0].clientX+t[1].clientX)/2, y:(t[0].clientY+t[1].clientY)/2 };
+    }
+
+    function onStart(e) {
+      if (e.touches.length!==2) return;
+      e.preventDefault();
+      lastPinchDist.current = dist(e.touches);
+      lastPinchZoom.current = zoom;
+      // Guardar origen del pinch como fracción del viewport
+      const mid = midpoint(e.touches);
+      const rect = outer.getBoundingClientRect();
+      pinchOrigin.current = {
+        x: (mid.x - rect.left) / rect.width,
+        y: (mid.y - rect.top + outer.scrollTop) / (outer.scrollHeight || 1),
+      };
+    }
+
+    function onMove(e) {
+      if (e.touches.length!==2||!lastPinchDist.current) return;
+      e.preventDefault();
+      const d = dist(e.touches);
+      const ratio = d / lastPinchDist.current;
+      const newZoom = Math.min(4, Math.max(1, lastPinchZoom.current * ratio));
+      setZoom(newZoom);
+    }
+
+    function onEnd() { lastPinchDist.current=null; }
+
+    outer.addEventListener("touchstart", onStart, { passive:false });
+    outer.addEventListener("touchmove", onMove, { passive:false });
+    outer.addEventListener("touchend", onEnd);
+    return () => {
+      outer.removeEventListener("touchstart", onStart);
+      outer.removeEventListener("touchmove", onMove);
+      outer.removeEventListener("touchend", onEnd);
+    };
+  }, [zoom]);
+
+  // Aplicar transform: scale() centrado en lo que se ve
+  // El truco: scale desde transform-origin fijo (0 0), compensado con translate
+  useEffect(() => {
+    const el = scaleRef.current;
+    const outer = outerRef.current;
+    if (!el || !outer) return;
+    el.style.transform = `scale(${zoom})`;
+    el.style.transformOrigin = "0 0";
+    // Ajustar el alto del wrapper para que el scroll externo sea correcto
+    const naturalH = el.scrollHeight; // antes del scale ya que es el elemento sin scale
+    el.parentElement.style.height = `${naturalH * zoom}px`;
+  }, [zoom]);
 
   const weekDates = useMemo(()=>getWeekDates(weekOffset),[weekOffset]);
   const mesStr = useMemo(()=>{ const d=new Date(); d.setMonth(d.getMonth()+mesOffset); return d.toISOString().slice(0,7); },[mesOffset]);
@@ -420,7 +307,6 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
 
   const profesionales = useMemo(()=>esAdmin?Object.keys(colorMap):usuario?.nombre?[usuario.nombre]:[],[colorMap,esAdmin,usuario]);
   const todayKey = useMemo(()=>dateKey(new Date()),[]);
-  const horaActual = new Date().getHours();
   const horasRange = Array.from({length:14},(_,i)=>i+8);
 
   function hayConflicto(consultorio,fecha,hi,hf,excId=null) {
@@ -432,49 +318,35 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
     });
   }
 
-  const puedeEditarFn = useCallback((r) => esAdmin||r.profesional===usuario?.nombre,[esAdmin,usuario]);
+  const puedeEditarFn = useCallback((r)=>esAdmin||r.profesional===usuario?.nombre,[esAdmin,usuario]);
 
   function resetFlujo() { setPaso(null);setFlujoDia(null);setFlujoConsultorio(null);setFlujoHoras([]); }
 
-  // onToggleHora: detecta día y consultorio automáticamente — sin orden obligatorio
   const onToggleHora = useCallback((consultorio, fecha, hora) => {
-    const mismaUbicacion = flujoDia && dateKey(flujoDia)===dateKey(fecha) && flujoConsultorio===consultorio;
-    if (mismaUbicacion) {
-      setFlujoHoras(prev => prev.includes(hora) ? prev.filter(h=>h!==hora) : [...prev,hora].sort((a,b)=>a-b));
+    const misma = flujoDia && dateKey(flujoDia)===dateKey(fecha) && flujoConsultorio===consultorio;
+    if (misma) {
+      setFlujoHoras(prev=>prev.includes(hora)?prev.filter(h=>h!==hora):[...prev,hora].sort((a,b)=>a-b));
       setPaso("horas");
     } else {
-      // Nueva ubicación — arrancar flujo desde acá, SIN cambiar zoom
       setFlujoDia(fecha);
       setFlujoConsultorio(consultorio);
       setFlujoHoras([hora]);
-      setDiaSelIdx(weekDates.findIndex(d=>dateKey(d)===dateKey(fecha)));
-      setConsultorioSel(CONSULTORIOS.indexOf(consultorio));
       setPaso("horas");
-      // No hacemos zoom automático — el usuario queda donde está
     }
-  }, [flujoDia, flujoConsultorio, weekDates]);
+  },[flujoDia, flujoConsultorio]);
 
-  const onSeleccionarDia = useCallback((fecha) => {
-    if (esPublico){onLogin();return;}
-    setFlujoDia(fecha);setFlujoConsultorio(null);setFlujoHoras([]);
-    setDiaSelIdx(weekDates.findIndex(d=>dateKey(d)===dateKey(fecha)));
-    setPaso("consultorio");setZoom(3);
-  }, [esPublico, onLogin, weekDates]);
+  const onSeleccionarDia = useCallback((fecha)=>{
+    if(esPublico){onLogin();return;}
+    setFlujoDia(fecha);setFlujoConsultorio(null);setFlujoHoras([]);setPaso("consultorio");
+  },[esPublico,onLogin]);
 
-  const onSeleccionarConsultorio = useCallback((ci) => {
-    if (!flujoDia) return;
-    setFlujoConsultorio(CONSULTORIOS[ci]);setFlujoHoras([]);
-    setConsultorioSel(ci);setPaso("horas");setZoom(4);
-  }, [flujoDia]);
-
-  const onOpenEditar = useCallback((r) => {
-    if (!puedeEditarFn(r)) return;
+  const onOpenEditar = useCallback((r)=>{
     setEditandoReserva(r);
     setForm({profesional:r.profesional,horaInicio:r.horaInicio,horaFin:r.horaFin,repeteSemanal:r.repeteSemanal});
     setErrorSolapamiento("");
-  }, [puedeEditarFn]);
+  },[]);
 
-  const onConfirmDelete = useCallback((id) => setConfirmDelete(id), []);
+  const onConfirmDelete = useCallback((id)=>setConfirmDelete(id),[]);
 
   async function confirmarReserva() {
     if(!flujoDia||!flujoConsultorio||flujoHoras.length===0) return;
@@ -484,7 +356,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
     if(hayConflicto(flujoConsultorio,flujoDia,hi,hf)){setErrorSolapamiento("⚠️ Hay un conflicto en ese horario.");return;}
     await agregarReserva({profesional:prof.trim(),consultorio:flujoConsultorio,fecha:dateKey(flujoDia),horaInicio:hi,horaFin:hf,repeteSemanal:form.repeteSemanal,creadoPor:usuario?.email});
     showToast("Reserva guardada ✓");
-    setModal(null);setErrorSolapamiento("");resetFlujo();setZoom(1);
+    setModal(null);setErrorSolapamiento("");resetFlujo();
     setForm({profesional:"",horaInicio:8,horaFin:9,repeteSemanal:false});
   }
 
@@ -498,58 +370,54 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
 
   async function borrarReserva(id) { await eliminarReserva(id);setConfirmDelete(null);showToast("Reserva eliminada","warn"); }
 
-  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid rgba(124,106,255,0.2)",fontSize:13,marginBottom:12,boxSizing:"border-box",outline:"none",background:"rgba(14,12,28,0.8)",color:"white"};
-  const lbl = {display:"block",fontSize:11,fontWeight:700,color:"#a0a8c0",marginBottom:4,textTransform:"uppercase",letterSpacing:.5};
+  const inp={width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid rgba(124,106,255,0.2)",fontSize:13,marginBottom:12,boxSizing:"border-box",outline:"none",background:"rgba(14,12,28,0.8)",color:"white"};
+  const lbl={display:"block",fontSize:11,fontWeight:700,color:"#a0a8c0",marginBottom:4,textTransform:"uppercase",letterSpacing:.5};
 
-  const diaActual = weekDates[Math.min(diaSelIdx,weekDates.length-1)];
-  const consultorioActual = CONSULTORIOS[consultorioSel];
   const pasoActivo = paso!==null;
   const diaLabel = flujoDia?flujoDia.toLocaleDateString("es-AR",{weekday:"short",day:"numeric",month:"short"}):null;
   const consLabel = flujoConsultorio?`C${CONSULTORIOS.indexOf(flujoConsultorio)+3}`:null;
-  const horasLabel = flujoHoras.length>0?(()=>{const hi=Math.min(...flujoHoras),hf=Math.max(...flujoHoras)+1;return`${hi}:00 – ${hf}:00 (${flujoHoras.length}h)`;})():null;
+  const horasLabel = flujoHoras.length>0?(()=>{const hi=Math.min(...flujoHoras),hf=Math.max(...flujoHoras)+1;return`${hi}:00–${hf}:00 (${flujoHoras.length}h)`;})():null;
   const stickyVisible = scrollY > 80;
 
-  // Props compartidas para todas las grillas
   const grilaProps = {
+    weekDates, zoom, lineaPct, todayKey,
     reservas, colorMap, flujoHoras, flujoDia, flujoConsultorio, paso,
-    esPublico, puedeEditarFn, lineaPct, todayKey, horaActual,
-    onToggleHora, onOpenEditar, onConfirmDelete, onLogin,
+    esPublico, puedeEditarFn,
+    onToggleHora, onOpenEditar, onConfirmDelete, onLogin, onSeleccionarDia,
   };
 
   return (
-    <div ref={pinchRef} style={{ height:"100vh", overflowY:"auto", background:"#000" }} className="tab-content">
+    <div ref={outerRef} style={{ height:"100vh", overflowY:"auto", overflowX:"hidden", background:"#000" }} className="tab-content">
 
       {/* STICKY BAR */}
-      <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:50, background:stickyVisible?"rgba(0,0,0,0.92)":"transparent", backdropFilter:stickyVisible?"blur(24px)":"none", WebkitBackdropFilter:stickyVisible?"blur(24px)":"none", borderBottom:stickyVisible?"1px solid rgba(124,106,255,0.15)":"none", transition:"all 0.3s ease", padding:stickyVisible?"10px 20px":"0", height:stickyVisible?"auto":0, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:50, background:stickyVisible?"rgba(0,0,0,0.92)":"transparent", backdropFilter:stickyVisible?"blur(24px)":"none", WebkitBackdropFilter:stickyVisible?"blur(24px)":"none", borderBottom:stickyVisible?"1px solid rgba(124,106,255,0.15)":"none", transition:"all 0.3s", padding:stickyVisible?"10px 20px":"0", height:stickyVisible?44:0, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span style={{ fontSize:14, fontWeight:800, color:"white" }}>Reservas</span>
         <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
       </div>
 
       {/* HERO HEADER */}
-      <div style={{ background:"linear-gradient(180deg,#0a0a14 0%,#000000 100%)", padding:"54px 20px 20px" }}>
+      <div style={{ background:"linear-gradient(180deg,#0a0a14 0%,#000 100%)", padding:"54px 20px 20px" }}>
         <div style={{ textAlign:"center", marginBottom:16 }}>
           <img src="/logohead.jpeg" alt="GRINS" style={{ height:36, objectFit:"contain", opacity:0.9 }}/>
         </div>
-        <div style={{ background:"rgba(14,12,28,0.7)", borderRadius:16, padding:"14px 16px", border:"1px solid rgba(124,106,255,0.15)", backdropFilter:"blur(12px)" }}>
+        <div style={{ background:"rgba(14,12,28,0.7)", borderRadius:16, padding:"14px 16px", border:"1px solid rgba(124,106,255,0.15)" }}>
           <div style={{ fontSize:13, fontWeight:800, color:"white", marginBottom:10 }}>Cómo reservar</div>
-          <div style={{ display:"flex", flexDirection:"column", gap:8 }}>
-            {[{n:"1",c:"#667eea",t:"Tocá una celda libre en la agenda"},{n:"2",c:"#7c6aff",t:"Seleccioná todas las horas que necesitás"},{n:"3",c:"#38a169",t:"Tocá + para confirmar la reserva"}].map(s=>(
-              <div key={s.n} style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <div style={{ width:24, height:24, borderRadius:"50%", background:`linear-gradient(135deg,${s.c},${s.c}99)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"white", flexShrink:0 }}>{s.n}</div>
-                <span style={{ fontSize:12, color:"#a0a8c0" }}>{s.t}</span>
-              </div>
-            ))}
-          </div>
-          <div style={{ marginTop:10, padding:"8px 10px", background:"rgba(124,106,255,0.08)", borderRadius:10, border:"1px solid rgba(124,106,255,0.1)" }}>
-            <span style={{ fontSize:10, color:"#4a5270" }}>🤏 Pellizco para hacer zoom · 📅 Navegá por semanas con las flechas</span>
+          {[{n:"1",c:"#667eea",t:"Tocá una celda libre — detecta día y consultorio solo"},{n:"2",c:"#7c6aff",t:"Seleccioná todas las horas que necesitás"},{n:"3",c:"#38a169",t:"Tocá + para confirmar"}].map(s=>(
+            <div key={s.n} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+              <div style={{ width:22, height:22, borderRadius:"50%", background:`linear-gradient(135deg,${s.c},${s.c}99)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"white", flexShrink:0 }}>{s.n}</div>
+              <span style={{ fontSize:12, color:"#a0a8c0" }}>{s.t}</span>
+            </div>
+          ))}
+          <div style={{ marginTop:8, padding:"7px 10px", background:"rgba(124,106,255,0.08)", borderRadius:10, fontSize:10, color:"#4a5270" }}>
+            🤏 Pellizco para hacer zoom · el zoom es continuo y se centra en lo que estás viendo
           </div>
         </div>
       </div>
 
       {/* NAV SEMANA */}
       {!verPagos && (
-        <div style={{ padding:"10px 14px 6px", background:"#000" }}>
-          <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:zoom>=3?8:0 }}>
+        <div style={{ padding:"10px 14px 8px", background:"#000", position:"sticky", top:0, zIndex:20 }}>
+          <div style={{ display:"flex", alignItems:"center", gap:6 }}>
             <button onClick={()=>setWeekOffset(w=>w-1)} style={{ width:32, height:32, borderRadius:9, border:"1px solid rgba(124,106,255,0.2)", background:"rgba(14,12,28,0.8)", cursor:"pointer", color:"white", fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>‹</button>
             <span style={{ flex:1, textAlign:"center", fontWeight:700, fontSize:11, color:"#a0a8c0" }}>
               {weekDates[0].toLocaleDateString("es-AR",{day:"numeric",month:"short"})} – {weekDates[5].toLocaleDateString("es-AR",{day:"numeric",month:"short"})}
@@ -557,36 +425,18 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
             <button onClick={()=>setWeekOffset(w=>w+1)} style={{ width:32, height:32, borderRadius:9, border:"1px solid rgba(124,106,255,0.2)", background:"rgba(14,12,28,0.8)", cursor:"pointer", color:"white", fontSize:15, display:"flex", alignItems:"center", justifyContent:"center" }}>›</button>
             <button onClick={()=>setWeekOffset(0)} style={{ padding:"0 10px", height:32, borderRadius:9, border:"1px solid rgba(124,106,255,0.2)", background:"rgba(14,12,28,0.8)", cursor:"pointer", color:"#a0a8c0", fontSize:10, fontWeight:600 }}>Hoy</button>
           </div>
-          {zoom>=3 && (
-            <div style={{ display:"flex", gap:5, overflowX:"auto", paddingBottom:2 }}>
-              {weekDates.map((fecha,idx) => {
-                const isToday=dateKey(fecha)===todayKey, isSel=idx===diaSelIdx;
-                return (
-                  <button key={idx} onClick={()=>setDiaSelIdx(idx)} style={{ flexShrink:0, padding:"5px 10px", borderRadius:10, border:"none", background:isSel?"linear-gradient(135deg,#667eea,#764ba2)":isToday?"rgba(124,106,255,0.15)":"rgba(14,12,28,0.8)", color:isSel?"white":isToday?"#a78bfa":"#a0a8c0", fontWeight:isSel?700:500, fontSize:11, cursor:"pointer", textAlign:"center" }}>
-                    <div style={{ fontSize:8 }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-                    <div style={{ fontSize:13, fontWeight:800 }}>{fecha.getDate()}</div>
-                  </button>
-                );
-              })}
-            </div>
-          )}
-          {zoom===4 && (
-            <div style={{ display:"flex", gap:5, marginTop:6 }}>
-              {CONSULTORIOS.map((c,ci) => (
-                <button key={c} onClick={()=>setConsultorioSel(ci)} style={{ flex:1, padding:"6px", borderRadius:9, border:"none", background:consultorioSel===ci?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(14,12,28,0.8)", color:consultorioSel===ci?"white":"#a0a8c0", fontWeight:600, fontSize:11, cursor:"pointer" }}>C{ci+3}</button>
-              ))}
-            </div>
-          )}
         </div>
       )}
 
-      {/* AGENDA */}
+      {/* AGENDA — wrapper con altura dinámica para scroll correcto */}
       {!verPagos && (
-        <div style={{ padding:"0 4px 220px" }}>
-          {zoom===1 && <GrillaSemana {...grilaProps} weekDates={weekDates} showName={false} cellHeight={22} colWidth={36} onSeleccionarDia={onSeleccionarDia}/>}
-          {zoom===2 && <GrillaSemana {...grilaProps} weekDates={weekDates} showName={true} cellHeight={26} colWidth={50} onSeleccionarDia={onSeleccionarDia}/>}
-          {zoom===3 && <GrillaUnDia {...grilaProps} fecha={flujoDia||diaActual} onSeleccionarConsultorio={onSeleccionarConsultorio}/>}
-          {zoom===4 && <GrillaUnConsultorio {...grilaProps} fecha={flujoDia||diaActual} consultorio={flujoConsultorio||consultorioActual}/>}
+        <div style={{ padding:"0 4px 220px", position:"relative" }}>
+          {/* Este div tiene height seteado por JS según zoom */}
+          <div style={{ position:"relative" }}>
+            <div ref={scaleRef} style={{ transformOrigin:"0 0" }}>
+              <Grilla {...grilaProps}/>
+            </div>
+          </div>
         </div>
       )}
 
@@ -605,11 +455,11 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
               ].map(banco=>(
                 <div key={banco.nombre} style={{ background:"rgba(255,255,255,0.03)", borderRadius:12, padding:"10px 14px", marginBottom:8, border:"1px solid rgba(255,255,255,0.05)" }}>
                   <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:8 }}>
-                    <div style={{ width:28, height:28, borderRadius:8, background:banco.color, display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}><span style={{ fontSize:9, fontWeight:900, color:"white" }}>{banco.icon}</span></div>
+                    <div style={{ width:28, height:28, borderRadius:8, background:banco.color, display:"flex", alignItems:"center", justifyContent:"center" }}><span style={{ fontSize:9, fontWeight:900, color:"white" }}>{banco.icon}</span></div>
                     <span style={{ fontSize:12, fontWeight:700, color:"white" }}>{banco.nombre}</span>
                   </div>
                   {banco.rows.map(([label,value])=>(
-                    <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"5px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+                    <div key={label} style={{ display:"flex", justifyContent:"space-between", padding:"5px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
                       <span style={{ fontSize:10, color:"#4a5270" }}>{label}</span>
                       <span style={{ fontSize:11, fontWeight:700, color:"#a0a8c0", fontFamily:"monospace" }}>{value}</span>
                     </div>
@@ -653,10 +503,6 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
                         </tr>
                       ))}</tbody>
                     </table>
-                    <div style={{ borderTop:"1px solid rgba(124,106,255,0.1)", marginTop:8, paddingTop:8, display:"flex", justifyContent:"space-between" }}>
-                      <span style={{ fontSize:11, color:"#4a5270" }}>${HORA_PRECIO.toLocaleString("es-AR")}/hora</span>
-                      <span style={{ fontWeight:900, color:"white", fontSize:13 }}>Total: {fmtCurrency(totalMes)}</span>
-                    </div>
                   </div>
                 )}
               </div>
@@ -673,7 +519,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
             {/* RESUMEN */}
             <div style={{ flex:1, minWidth:0, paddingRight:60 }}>
               {!pasoActivo ? (
-                <p style={{ margin:0, fontSize:10, color:"#4a5270" }}>Tocá una celda para reservar</p>
+                <p style={{ margin:0, fontSize:10, color:"#4a5270" }}>Tocá una celda libre para reservar</p>
               ) : (
                 <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
                   {[
@@ -690,54 +536,41 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
               )}
             </div>
 
-            {/* X a la izquierda del + */}
+            {/* X */}
             {pasoActivo && (
-              <div style={{ position:"absolute", left:"50%", transform:"translateX(calc(-50% - 38px))", display:"flex", alignItems:"center", justifyContent:"center" }}>
+              <div style={{ position:"absolute", left:"50%", transform:"translateX(calc(-50% - 34px))" }}>
                 <button onClick={resetFlujo} style={{ width:28, height:28, borderRadius:"50%", background:"rgba(239,83,80,0.15)", border:"1.5px solid rgba(239,83,80,0.4)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#ef5350" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                 </button>
               </div>
             )}
 
-            {/* BOTÓN + */}
+            {/* + */}
             <div style={{ position:"absolute", left:"50%", transform:"translateX(-50%)" }}>
-              <button
-                onClick={()=>{
-                  if(!pasoActivo||flujoHoras.length===0) return;
-                  setForm({profesional:esAdmin?"":usuario?.nombre||"",horaInicio:Math.min(...flujoHoras),horaFin:Math.max(...flujoHoras)+1,repeteSemanal:false});
-                  setModal("confirmar");setErrorSolapamiento("");
-                }}
+              <button onClick={()=>{ if(!pasoActivo||flujoHoras.length===0) return; setForm({profesional:esAdmin?"":usuario?.nombre||"",horaInicio:Math.min(...flujoHoras),horaFin:Math.max(...flujoHoras)+1,repeteSemanal:false}); setModal("confirmar");setErrorSolapamiento(""); }}
                 style={{ width:50, height:50, borderRadius:"50%", border:"none", background:flujoHoras.length>0?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(124,106,255,0.15)", color:flujoHoras.length>0?"white":"#4a5270", fontSize:26, cursor:flujoHoras.length>0?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:flujoHoras.length>0?"0 4px 16px rgba(124,106,255,0.5)":"none", transition:"all 0.2s" }}>
                 +
               </button>
             </div>
 
-            {/* ZOOM */}
+            {/* ZOOM SLIDER */}
             <div style={{ position:"absolute", right:14, top:"50%", transform:"translateY(-50%)", display:"flex", flexDirection:"column", alignItems:"center", gap:4, width:56 }}>
               <div style={{ display:"flex", width:56 }}>
-                {[1,2,3,4].map(z=>(
-                  <span key={z} style={{ fontSize:8, color:zoom===z?"#7c6aff":"#3a3a5a", fontWeight:zoom===z?800:500, flex:1, textAlign:"center", transition:"color 0.2s" }}>{z}</span>
+                {["1×","2×","3×","4×"].map((z,i)=>(
+                  <span key={i} style={{ fontSize:7, color:Math.round(zoom-1)===i?"#7c6aff":"#3a3a5a", fontWeight:Math.round(zoom-1)===i?800:500, flex:1, textAlign:"center" }}>{z}</span>
                 ))}
               </div>
-              <input type="range" min={1} max={4} step={1} value={zoom}
+              <input type="range" min={1} max={4} step={0.05} value={zoom}
                 onChange={e => {
-                  // Guardar scroll actual antes de cambiar zoom
-                  const el = pinchRef.current;
-                  const scrollTop = el ? el.scrollTop : 0;
-                  const clientH = el ? el.clientHeight : window.innerHeight;
-                  // Centro visible en porcentaje del contenido total
-                  const scrollH = el ? el.scrollHeight : 1;
-                  const centerPct = scrollH > clientH ? (scrollTop + clientH/2) / scrollH : 0.5;
+                  const el = outerRef.current;
+                  const scrollTop = el?.scrollTop||0;
+                  const clientH = el?.clientHeight||window.innerHeight;
+                  const scrollH = el?.scrollHeight||1;
+                  const centerPct = scrollH>clientH ? (scrollTop+clientH/2)/scrollH : 0.5;
                   setZoom(Number(e.target.value));
-                  // Restaurar al mismo centro visual después del render
-                  requestAnimationFrame(() => {
-                    requestAnimationFrame(() => {
-                      if (el) {
-                        const newScrollH = el.scrollHeight;
-                        el.scrollTop = Math.max(0, centerPct * newScrollH - clientH/2);
-                      }
-                    });
-                  });
+                  requestAnimationFrame(()=>requestAnimationFrame(()=>{
+                    if(el){ el.scrollTop = Math.max(0, centerPct*el.scrollHeight - clientH/2); }
+                  }));
                 }}
                 style={{ width:56, height:4, cursor:"pointer", accentColor:"#7c6aff", borderRadius:4, outline:"none", WebkitAppearance:"none", background:`linear-gradient(to right,#7c6aff ${(zoom-1)/3*100}%,rgba(124,106,255,0.2) ${(zoom-1)/3*100}%)` }}
               />
@@ -746,7 +579,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
 
           {/* Mis reservas */}
           <button onClick={()=>setVerPagos(true)} style={{ width:"100%", background:"rgba(14,12,28,0.85)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", border:"1px solid rgba(124,106,255,0.18)", borderRadius:16, padding:"9px", color:"#a0a8c0", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="10" y1="14" x2="14" y2="14"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
             Mis reservas
           </button>
         </div>
@@ -770,13 +603,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
             <h3 style={{ margin:"0 0 3px", fontSize:17, fontWeight:800, color:"white" }}>Confirmar reserva</h3>
             <p style={{ margin:"0 0 14px", fontSize:12, color:"#a0a8c0" }}>Revisá los detalles antes de confirmar</p>
             <div style={{ background:"rgba(124,106,255,0.08)", borderRadius:14, padding:"12px 16px", marginBottom:14, border:"1px solid rgba(124,106,255,0.15)" }}>
-              {[
-                ["📅 Día", flujoDia?.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})],
-                ["🏢 Consultorio", flujoConsultorio],
-                ["⏰ Horario", `${Math.min(...flujoHoras)}:00 – ${Math.max(...flujoHoras)+1}:00`],
-                ["🕐 Duración", `${flujoHoras.length} hora${flujoHoras.length>1?"s":""}`],
-                ["💰 Total", fmtCurrency(flujoHoras.length*HORA_PRECIO)],
-              ].map(([l,v])=>(
+              {[["📅 Día",flujoDia?.toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})],["🏢 Consultorio",flujoConsultorio],["⏰ Horario",`${Math.min(...flujoHoras)}:00 – ${Math.max(...flujoHoras)+1}:00`],["🕐 Duración",`${flujoHoras.length} hora${flujoHoras.length>1?"s":""}`],["💰 Total",fmtCurrency(flujoHoras.length*HORA_PRECIO)]].map(([l,v])=>(
                 <div key={l} style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:"1px solid rgba(124,106,255,0.08)" }}>
                   <span style={{ fontSize:12, color:"#a0a8c0" }}>{l}</span>
                   <span style={{ fontSize:12, fontWeight:700, color:"white" }}>{v}</span>
@@ -784,15 +611,12 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
               ))}
             </div>
             <label style={lbl}>Profesional</label>
-            {esAdmin
-              ?<><input list="plist" value={form.profesional} onChange={e=>setForm(f=>({...f,profesional:e.target.value}))} placeholder="Nombre del/la profesional" style={inp}/><datalist id="plist">{Object.keys(colorMap).map(p=><option key={p} value={p}/>)}</datalist></>
-              :<div style={{...inp,color:"#a0a8c0",marginBottom:12}}>{form.profesional}</div>
-            }
+            {esAdmin?<><input list="plist" value={form.profesional} onChange={e=>setForm(f=>({...f,profesional:e.target.value}))} placeholder="Nombre del/la profesional" style={inp}/><datalist id="plist">{Object.keys(colorMap).map(p=><option key={p} value={p}/>)}</datalist></>:<div style={{...inp,color:"#a0a8c0",marginBottom:12}}>{form.profesional}</div>}
             <label style={{ display:"flex", alignItems:"center", gap:10, cursor:"pointer", marginBottom:16 }}>
               <input type="checkbox" checked={form.repeteSemanal} onChange={e=>setForm(f=>({...f,repeteSemanal:e.target.checked}))} style={{ width:16, height:16 }}/>
               <span style={{ fontSize:13, color:"white" }}>Repetir semanalmente</span>
             </label>
-            {errorSolapamiento && <div style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.3)", borderRadius:8, padding:"8px 12px", marginBottom:12, fontSize:12, color:"#ef5350", fontWeight:600 }}>{errorSolapamiento}</div>}
+            {errorSolapamiento&&<div style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.3)", borderRadius:8, padding:"8px 12px", marginBottom:12, fontSize:12, color:"#ef5350", fontWeight:600 }}>{errorSolapamiento}</div>}
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={()=>{setModal(null);setErrorSolapamiento("");}} style={{ flex:1, padding:12, borderRadius:12, border:"1px solid rgba(124,106,255,0.2)", background:"transparent", cursor:"pointer", fontSize:13, color:"#a0a8c0", fontWeight:600 }}>Cancelar</button>
               <button onClick={confirmarReserva} disabled={esAdmin&&!form.profesional.trim()} style={{ flex:2, padding:12, borderRadius:12, border:"none", fontWeight:800, fontSize:13, cursor:"pointer", color:"white", background:"linear-gradient(135deg,#667eea,#764ba2)" }}>✓ Confirmar</button>
@@ -810,12 +634,12 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
             <p style={{ margin:"0 0 16px", fontSize:12, color:"#a0a8c0" }}>{editandoReserva.consultorio} · {new Date(editandoReserva.fecha+"T12:00:00").toLocaleDateString("es-AR",{weekday:"long",day:"numeric",month:"long"})}</p>
             <label style={lbl}>Profesional</label>
             {esAdmin?<><input list="plist2" value={form.profesional} onChange={e=>setForm(f=>({...f,profesional:e.target.value}))} style={inp}/><datalist id="plist2">{Object.keys(colorMap).map(p=><option key={p} value={p}/>)}</datalist></>:<div style={{...inp,color:"#a0a8c0"}}>{form.profesional}</div>}
-            {esAdmin&&(<><label style={lbl}>Consultorio</label><select value={editandoReserva.consultorio} onChange={e=>setEditandoReserva(r=>({...r,consultorio:e.target.value}))} style={inp}>{CONSULTORIOS.map(c=><option key={c} value={c}>{c}</option>)}</select></>)}
+            {esAdmin&&<><label style={lbl}>Consultorio</label><select value={editandoReserva.consultorio} onChange={e=>setEditandoReserva(r=>({...r,consultorio:e.target.value}))} style={inp}>{CONSULTORIOS.map(c=><option key={c} value={c}>{c}</option>)}</select></>}
             <div style={{ display:"flex", gap:10 }}>
               <div style={{ flex:1 }}><label style={lbl}>Desde</label><select value={form.horaInicio} onChange={e=>setForm(f=>({...f,horaInicio:parseInt(e.target.value),horaFin:Math.max(parseInt(e.target.value)+1,f.horaFin)}))} style={inp}>{horasRange.slice(0,-1).map(h=><option key={h} value={h}>{h}:00</option>)}</select></div>
               <div style={{ flex:1 }}><label style={lbl}>Hasta</label><select value={form.horaFin} onChange={e=>setForm(f=>({...f,horaFin:parseInt(e.target.value)}))} style={inp}>{horasRange.filter(h=>h>form.horaInicio).map(h=><option key={h} value={h}>{h}:00</option>)}</select></div>
             </div>
-            <div style={{ background:"rgba(124,106,255,0.08)", borderRadius:10, padding:"10px 14px", marginBottom:12, display:"flex", justifyContent:"space-between", border:"1px solid rgba(124,106,255,0.12)" }}>
+            <div style={{ background:"rgba(124,106,255,0.08)", borderRadius:10, padding:"10px 14px", marginBottom:12, display:"flex", justifyContent:"space-between" }}>
               <span style={{ fontSize:13, color:"#a0a8c0" }}>{form.horaFin-form.horaInicio}h × ${HORA_PRECIO.toLocaleString("es-AR")}</span>
               <span style={{ fontWeight:800, color:"white" }}>{fmtCurrency((form.horaFin-form.horaInicio)*HORA_PRECIO)}</span>
             </div>
@@ -823,7 +647,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
               <input type="checkbox" checked={form.repeteSemanal} onChange={e=>setForm(f=>({...f,repeteSemanal:e.target.checked}))} style={{ width:16, height:16 }}/>
               <span style={{ fontSize:13, color:"white" }}>Repetir semanalmente</span>
             </label>
-            {errorSolapamiento && <div style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.3)", borderRadius:8, padding:"8px 12px", marginBottom:12, fontSize:12, color:"#ef5350", fontWeight:600 }}>{errorSolapamiento}</div>}
+            {errorSolapamiento&&<div style={{ background:"rgba(239,83,80,0.1)", border:"1px solid rgba(239,83,80,0.3)", borderRadius:8, padding:"8px 12px", marginBottom:12, fontSize:12, color:"#ef5350", fontWeight:600 }}>{errorSolapamiento}</div>}
             <div style={{ display:"flex", gap:10 }}>
               <button onClick={()=>{setEditandoReserva(null);setErrorSolapamiento("");}} style={{ flex:1, padding:12, borderRadius:12, border:"1px solid rgba(124,106,255,0.2)", background:"transparent", cursor:"pointer", fontSize:13, color:"#a0a8c0", fontWeight:600 }}>Cancelar</button>
               <button onClick={guardarEdicion} disabled={!form.profesional.trim()} style={{ flex:2, padding:12, borderRadius:12, border:"none", fontWeight:800, fontSize:13, cursor:"pointer", color:"white", background:"linear-gradient(135deg,#667eea,#764ba2)" }}>Actualizar</button>
@@ -849,7 +673,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
       )}
 
       <style>{`
-        @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: none; opacity: 1; } }
+        @keyframes slideUp { from { transform: translateY(100%); opacity:0; } to { transform:none; opacity:1; } }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#7c6aff; cursor:pointer; box-shadow:0 0 6px rgba(124,106,255,0.6); }
         input[type=range]::-webkit-slider-runnable-track { height:4px; border-radius:4px; }
       `}</style>

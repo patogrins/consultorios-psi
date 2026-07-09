@@ -23,17 +23,14 @@ export async function uploadProfilePhoto(email, file) {
   const formData = new FormData();
   formData.append("file", file);
   formData.append("upload_preset", CLOUDINARY_PRESET);
-
   const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
     method: "POST",
     body: formData,
   });
-
   if (!res.ok) {
     const errData = await res.json();
     throw new Error(errData.error?.message || "Error al subir foto");
   }
-
   const data = await res.json();
   const url = data.secure_url;
   await updateUserProfile(email, { fotoUrl: url });
@@ -88,5 +85,12 @@ export function suscribirReservas(callback) {
       if (a.fecha !== b.fecha) return a.fecha.localeCompare(b.fecha);
       return a.horaInicio - b.horaInicio;
     }));
+  });
+}
+
+// ── NUEVO: suscripción en tiempo real a todos los usuarios registrados ────────
+export function suscribirUsuarios(callback) {
+  return onSnapshot(collection(db, "usuarios"), snap => {
+    callback(snap.docs.map(d => ({ email: d.id, ...d.data() })));
   });
 }

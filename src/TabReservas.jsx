@@ -177,7 +177,7 @@ function ModalNotificar({ reserva, usuarios, onClose, onEnviar }) {
 
 // ── CELDA ─────────────────────────────────────────────────────────────────────
 const Celda = memo(function Celda({
-  consultorio, fecha, hora,
+  consultorio, fecha, hora, cellH,
   reservas, colorMap, flujoHoras, flujoDia, flujoConsultorio,
   esPublico, puedeEditarFn, onToggleHora, onLogin, onClickReserva, zoom
 }) {
@@ -193,10 +193,10 @@ const Celda = memo(function Celda({
   const esFlujoActivo = flujoConsultorio===consultorio && flujoDia && dateKey(fecha)===dateKey(flujoDia);
   const seleccionada = esFlujoActivo && flujoHoras.includes(hora);
   const showName = zoom >= 2;
+  const h = cellH || ROW_H;
 
   function handleClick() {
     if (!libre) {
-      // Tocar una reserva existente → mostrar popup
       const r = bloques[0];
       if (hora === r.horaInicio) onClickReserva(r);
       return;
@@ -207,14 +207,14 @@ const Celda = memo(function Celda({
 
   return (
     <div onClick={handleClick}
-      style={{ height:ROW_H, padding:1, borderBottom:"1px solid rgba(255,255,255,0.05)", position:"relative", cursor:"pointer", background:seleccionada?"rgba(124,106,255,0.3)":"transparent", transition:"background 0.1s" }}>
+      style={{ height:h, padding:1, position:"relative", cursor:"pointer", background:seleccionada?"rgba(124,106,255,0.3)":"transparent", transition:"background 0.1s", overflow:"hidden" }}>
       {seleccionada && libre && <div style={{ position:"absolute", inset:1, borderRadius:3, border:"2px solid rgba(124,106,255,0.9)", pointerEvents:"none" }}/>}
       {bloques.map(r => {
         const col = colorMap[r.profesional]||COLORES_PROF[0];
         const esInicio = hora===r.horaInicio;
         return (
-          <div key={r.id} style={{ height:"100%", background:col.bg, borderRadius:esInicio?"4px 4px 1px 1px":"1px", padding:"1px 3px", display:"flex", justifyContent:"space-between", alignItems:"center", overflow:"hidden" }}>
-            {esInicio && showName && <span style={{ fontSize:9, fontWeight:700, color:"white", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"100%" }}>{r.profesional}</span>}
+          <div key={r.id} style={{ height:"100%", background:col.bg, borderRadius:esInicio?"4px 4px 1px 1px":"1px", padding:"1px 3px", display:"flex", alignItems:"center", overflow:"hidden" }}>
+            {esInicio && showName && <span style={{ fontSize:9, fontWeight:700, color:"white", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{r.profesional}</span>}
           </div>
         );
       })}
@@ -222,91 +222,90 @@ const Celda = memo(function Celda({
   );
 });
 
-// ── GRILLA — zoom via CSS transform, horas siempre visibles ──────────────────
+// ── GRILLA — sticky real, zoom via tamaño de celda ───────────────────────────
 const Grilla = memo(function Grilla({
   weekDates, zoom, lineaPct, todayKey,
   reservas, colorMap, flujoHoras, flujoDia, flujoConsultorio, paso,
   esPublico, puedeEditarFn, onToggleHora, onLogin, onClickReserva, onSeleccionarDia
 }) {
   const hoyEnDias = weekDates.some(f => dateKey(f)===todayKey);
-  const totalH = HORAS.length * ROW_H;
-  const lineaTop = lineaPct * totalH;
-  // Ancho total del contenido sin la columna de horas
-  const contentW = weekDates.length * 3 * CON_COL;
+  // Tamaño de celda escalado — todo crece junto, horas y celdas siempre alineadas
+  const cellH = Math.round(ROW_H * zoom);
+  const cellW = Math.round(CON_COL * zoom);
+  // Cabeceras NO escalan — tamaño fijo siempre
+  const HEAD_H1 = 46; // fila días
+  const HEAD_H2 = 24; // fila consultorios
+  const lineaTop = HEAD_H1 + HEAD_H2 + lineaPct * HORAS.length * cellH;
 
   return (
-    <div style={{ position:"relative", display:"flex" }}>
+    <div style={{ position:"relative", overflowX:"auto" }}>
+      <table style={{ borderCollapse:"collapse", tableLayout:"fixed", width: HORA_COL + weekDates.length * 3 * cellW }}>
 
-      {/* COLUMNA HORAS — sticky izquierda, FUERA del transform */}
-      <div style={{ width:HORA_COL, flexShrink:0, zIndex:15, position:"relative" }}>
-        {/* Espacio para cabecera días + cabecera consultorios */}
-        <div style={{ height:46+28, background:"rgba(0,0,0,0.95)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}/>
-        {/* Horas */}
-        {HORAS.map(hora => (
-          <div key={hora} style={{ height:ROW_H, display:"flex", alignItems:"center", justifyContent:"flex-end", paddingRight:6, fontSize:9, color:"rgba(255,255,255,0.55)", fontWeight:700, background:"rgba(0,0,0,0.85)", borderRight:"1px solid rgba(255,255,255,0.08)", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
-            {hora}h
-          </div>
-        ))}
-      </div>
+        {/* CABECERA DÍAS — sticky top:0, NO escala */}
+        <thead>
+          <tr style={{ height:HEAD_H1 }}>
+            {/* Esquina fija */}
+            <th style={{ width:HORA_COL, minWidth:HORA_COL, position:"sticky", left:0, top:0, zIndex:30, background:"rgba(0,0,0,0.97)", borderBottom:"1px solid rgba(255,255,255,0.06)" }}/>
+            {weekDates.map(fecha => {
+              const isToday = dateKey(fecha)===todayKey;
+              const esFlujo = flujoDia && dateKey(fecha)===dateKey(flujoDia);
+              return (
+                <th key={dateKey(fecha)} colSpan={3}
+                  onClick={() => paso===null && onSeleccionarDia(fecha)}
+                  style={{ height:HEAD_H1, width:cellW*3, position:"sticky", top:0, zIndex:20, textAlign:"center", borderLeft:"2px solid rgba(255,255,255,0.07)", borderBottom:"1px solid rgba(255,255,255,0.08)", background:esFlujo?"rgba(124,106,255,0.22)":isToday?"rgba(124,106,255,0.1)":"rgba(0,0,0,0.97)", cursor:paso===null?"pointer":"default", transition:"background 0.2s", padding:0 }}>
+                  <div style={{ fontSize:9, fontWeight:600, color:esFlujo?"#a78bfa":isToday?"#a78bfa":"#a0a8c0" }}>{DIAS_SEMANA[fecha.getDay()]}</div>
+                  <div style={{ fontSize:14, fontWeight:800, color:esFlujo?"#a78bfa":isToday?"#a78bfa":"white" }}>{fecha.getDate()}</div>
+                  {paso===null && <div style={{ fontSize:7, color:"rgba(124,106,255,0.35)" }}>reservar</div>}
+                </th>
+              );
+            })}
+          </tr>
 
-      {/* CONTENIDO — este div recibe el scale */}
-      <div style={{ flex:1, overflowX:"auto", overflowY:"visible" }}>
-        <div style={{ width: contentW * zoom, height:(46+28+totalH)*zoom, position:"relative" }}>
-          <div style={{ transformOrigin:"0 0", transform:`scale(${zoom})`, width: contentW, position:"absolute", top:0, left:0 }}>
+          {/* CABECERA CONSULTORIOS — sticky top:HEAD_H1, NO escala */}
+          <tr style={{ height:HEAD_H2 }}>
+            <th style={{ position:"sticky", left:0, top:HEAD_H1, zIndex:30, background:"rgba(0,0,0,0.97)", borderBottom:"1px solid rgba(255,255,255,0.06)", borderRight:"1px solid rgba(255,255,255,0.08)" }}/>
+            {weekDates.map(fecha => CONSULTORIOS.map((c,ci) => {
+              const esFlujoC = flujoConsultorio===c && flujoDia && dateKey(fecha)===dateKey(flujoDia);
+              return (
+                <th key={`h-${dateKey(fecha)}-${c}`}
+                  style={{ height:HEAD_H2, width:cellW, position:"sticky", top:HEAD_H1, zIndex:20, textAlign:"center", fontSize:10, fontWeight:700, borderLeft:ci===0?"2px solid rgba(255,255,255,0.07)":"1px solid rgba(255,255,255,0.04)", borderBottom:"1px solid rgba(255,255,255,0.06)", color:esFlujoC?"#a78bfa":"#a0a8c0", background:esFlujoC?"rgba(124,106,255,0.15)":"rgba(0,0,0,0.95)", transition:"all 0.2s", padding:0 }}>
+                  C{ci+3}
+                </th>
+              );
+            }))}
+          </tr>
+        </thead>
 
-            {/* CABECERA DÍAS */}
-            <div style={{ display:"flex", background:"rgba(0,0,0,0.95)", position:"sticky", top:0, zIndex:10 }}>
-              {weekDates.map(fecha => {
-                const isToday = dateKey(fecha)===todayKey;
-                const esFlujo = flujoDia && dateKey(fecha)===dateKey(flujoDia);
-                return (
-                  <div key={dateKey(fecha)} onClick={() => paso===null && onSeleccionarDia(fecha)}
-                    style={{ width:CON_COL*3, textAlign:"center", padding:"6px 0 4px", borderLeft:"2px solid rgba(255,255,255,0.07)", background:esFlujo?"rgba(124,106,255,0.22)":isToday?"rgba(124,106,255,0.1)":"transparent", cursor:paso===null?"pointer":"default", transition:"background 0.2s" }}>
-                    <div style={{ fontSize:9, fontWeight:600, color:esFlujo?"#a78bfa":isToday?"#a78bfa":"#a0a8c0" }}>{DIAS_SEMANA[fecha.getDay()]}</div>
-                    <div style={{ fontSize:13, fontWeight:800, color:esFlujo?"#a78bfa":isToday?"#a78bfa":"white" }}>{fecha.getDate()}</div>
-                    {paso===null && <div style={{ fontSize:7, color:"rgba(124,106,255,0.35)", marginTop:1 }}>reservar</div>}
-                  </div>
-                );
-              })}
-            </div>
+        {/* FILAS DE HORAS — altura escala con zoom */}
+        <tbody>
+          {HORAS.map(hora => (
+            <tr key={hora} style={{ height:cellH }}>
+              {/* HORA — sticky izquierda, NO escala en font pero sí en alto */}
+              <td style={{ position:"sticky", left:0, zIndex:10, width:HORA_COL, minWidth:HORA_COL, textAlign:"right", paddingRight:6, fontSize:9, color:"rgba(255,255,255,0.55)", fontWeight:700, background:"rgba(0,0,0,0.9)", borderRight:"1px solid rgba(255,255,255,0.08)", borderBottom:"1px solid rgba(255,255,255,0.04)", verticalAlign:"middle", whiteSpace:"nowrap" }}>
+                {hora}h
+              </td>
+              {weekDates.map(fecha => CONSULTORIOS.map((c,ci) => (
+                <td key={`${dateKey(fecha)}-${c}-${hora}`}
+                  style={{ padding:0, width:cellW, borderLeft:ci===0?"2px solid rgba(255,255,255,0.06)":"1px solid rgba(255,255,255,0.03)", borderBottom:"1px solid rgba(255,255,255,0.04)", verticalAlign:"top" }}>
+                  <Celda
+                    consultorio={c} fecha={fecha} hora={hora} zoom={zoom}
+                    cellH={cellH}
+                    reservas={reservas} colorMap={colorMap}
+                    flujoHoras={flujoHoras} flujoDia={flujoDia} flujoConsultorio={flujoConsultorio}
+                    esPublico={esPublico} puedeEditarFn={puedeEditarFn}
+                    onToggleHora={onToggleHora} onLogin={onLogin} onClickReserva={onClickReserva}
+                  />
+                </td>
+              )))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
-            {/* CABECERA CONSULTORIOS */}
-            <div style={{ display:"flex", background:"rgba(0,0,0,0.92)", position:"sticky", top:46, zIndex:10 }}>
-              {weekDates.map(fecha => CONSULTORIOS.map((c,ci) => {
-                const esFlujoC = flujoConsultorio===c && flujoDia && dateKey(fecha)===dateKey(flujoDia);
-                return (
-                  <div key={`${dateKey(fecha)}-${c}`}
-                    style={{ width:CON_COL, textAlign:"center", fontSize:11, fontWeight:700, padding:"5px 0", borderLeft:ci===0?"2px solid rgba(255,255,255,0.07)":"1px solid rgba(255,255,255,0.04)", color:esFlujoC?"#a78bfa":"#a0a8c0", background:esFlujoC?"rgba(124,106,255,0.15)":"rgba(0,0,0,0.6)", transition:"all 0.2s" }}>
-                    C{ci+3}
-                  </div>
-                );
-              }))}
-            </div>
-
-            {/* FILAS */}
-            <div style={{ position:"relative" }}>
-              {HORAS.map(hora => (
-                <div key={hora} style={{ display:"flex", height:ROW_H }}>
-                  {weekDates.map(fecha => CONSULTORIOS.map((c,ci) => (
-                    <div key={`${dateKey(fecha)}-${c}`} style={{ width:CON_COL, flexShrink:0, borderLeft:ci===0?"2px solid rgba(255,255,255,0.06)":"1px solid rgba(255,255,255,0.03)" }}>
-                      <Celda
-                        consultorio={c} fecha={fecha} hora={hora} zoom={zoom}
-                        reservas={reservas} colorMap={colorMap}
-                        flujoHoras={flujoHoras} flujoDia={flujoDia} flujoConsultorio={flujoConsultorio}
-                        esPublico={esPublico} puedeEditarFn={puedeEditarFn}
-                        onToggleHora={onToggleHora} onLogin={onLogin} onClickReserva={onClickReserva}
-                      />
-                    </div>
-                  )))}
-                </div>
-              ))}
-              {hoyEnDias && (
-                <div style={{ position:"absolute", top:lineaTop, left:0, right:0, height:2, background:"white", opacity:0.7, pointerEvents:"none", boxShadow:"0 0 6px rgba(255,255,255,0.5)", zIndex:5 }}/>
-              )}
-            </div>
-          </div>
-        </div>
-      </div>
+      {/* LÍNEA HORA ACTUAL */}
+      {hoyEnDias && (
+        <div style={{ position:"absolute", top:lineaTop, left:HORA_COL, right:0, height:2, background:"white", opacity:0.7, pointerEvents:"none", boxShadow:"0 0 6px rgba(255,255,255,0.5)", zIndex:5 }}/>
+      )}
     </div>
   );
 });

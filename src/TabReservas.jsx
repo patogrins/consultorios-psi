@@ -32,7 +32,13 @@ function getWeekDates(offset = 0) {
   });
 }
 
-function dateKey(d) { return d.toISOString().slice(0, 10); }
+function dateKey(d) {
+  // Usar fecha local (no UTC) para evitar corrimiento de día en zonas UTC-
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const day = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${day}`;
+}
 function fmtCurrency(n) { return "$" + n.toLocaleString("es-AR"); }
 
 function calcPagos(reservas, profesional, mesStr) {
@@ -418,7 +424,11 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
   },[zoom]);
 
   const weekDates = useMemo(()=>getWeekDates(weekOffset),[weekOffset]);
-  const mesStr = useMemo(()=>{ const d=new Date(); d.setMonth(d.getMonth()+mesOffset); return d.toISOString().slice(0,7); },[mesOffset]);
+  const mesStr = useMemo(()=>{
+    const d=new Date(); d.setMonth(d.getMonth()+mesOffset);
+    const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0");
+    return `${y}-${m}`;
+  },[mesOffset]);
   const mesLabel = useMemo(()=>{ const[y,m]=mesStr.split("-"); return new Date(parseInt(y),parseInt(m)-1,1).toLocaleDateString("es-AR",{month:"long",year:"numeric"}); },[mesStr]);
 
   const colorMap = useMemo(()=>{

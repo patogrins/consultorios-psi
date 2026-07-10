@@ -307,25 +307,52 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
         {notificacionesNoLeidas.length > 0 && (
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: "#a0a8c0", textTransform: "uppercase", letterSpacing: 1.5, marginBottom: 8 }}>🔔 Notificaciones</div>
-            {notificacionesNoLeidas.map(n => (
-              <div key={n.id} style={{ background: "rgba(124,106,255,0.1)", borderRadius: 14, padding: "12px 14px", marginBottom: 8, border: "1px solid rgba(124,106,255,0.25)", display: "flex", alignItems: "flex-start", gap: 10 }}>
-                <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
-                  {n.tipo === "derivacion_asignada" ? "✅" : "🤝"}
-                </div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 2 }}>
-                    {n.tipo === "derivacion_asignada" ? "¡Te eligieron para una derivación!" : "¡Derivación asignada con éxito!"}
+            {notificacionesNoLeidas.map(n => {
+              // Determinar icono, título y cuerpo según el tipo
+              let icono = "🔔";
+              let titulo = "Notificación";
+              let cuerpo = n.mensaje || "";
+              let colorBorde = "rgba(124,106,255,0.25)";
+              let colorFondo = "rgba(124,106,255,0.1)";
+
+              if (n.tipo === "derivacion_asignada") {
+                icono = "✅";
+                titulo = "¡Te eligieron para una derivación!";
+                cuerpo = n.mensaje || `${n.deNombre} te designó para atender un caso de ${n.especialidad}`;
+              } else if (n.tipo === "match_derivacion") {
+                icono = "🤝";
+                titulo = "¡Derivación asignada con éxito!";
+                cuerpo = n.mensaje || `Designaste a ${n.deNombre} para tu derivación de ${n.especialidad}`;
+              } else if (n.tipo === "admin_reserva") {
+                icono = "📋";
+                titulo = `Mensaje de ${n.deNombre || "Admin"}`;
+                cuerpo = n.mensaje || "";
+                colorBorde = "rgba(99,179,237,0.3)";
+                colorFondo = "rgba(99,179,237,0.08)";
+              } else if (n.tipo === "reserva_asignada") {
+                icono = "📅";
+                titulo = "Reserva asignada";
+                cuerpo = n.mensaje || `Reserva en ${n.consultorio} el ${n.fecha} de ${n.horaInicio}:00 a ${n.horaFin}:00`;
+                colorBorde = "rgba(56,161,105,0.3)";
+                colorFondo = "rgba(56,161,105,0.08)";
+              }
+
+              return (
+                <div key={n.id} style={{ background: colorFondo, borderRadius: 14, padding: "12px 14px", marginBottom: 8, border: `1px solid ${colorBorde}`, display: "flex", alignItems: "flex-start", gap: 10 }}>
+                  <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
+                    {icono}
                   </div>
-                  <div style={{ fontSize: 12, color: "#a0a8c0", marginBottom: 4 }}>
-                    {n.tipo === "derivacion_asignada"
-                      ? `${n.deNombre} te designó para atender un caso de ${n.especialidad}`
-                      : `Designaste a ${n.deNombre} para tu derivación de ${n.especialidad}`}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: "white", marginBottom: 2 }}>{titulo}</div>
+                    <div style={{ fontSize: 12, color: "#a0a8c0", marginBottom: 4 }}>{cuerpo}</div>
+                    {(n.tipo === "derivacion_asignada" || n.tipo === "match_derivacion") && (
+                      <div style={{ fontSize: 11, color: "#4a5270" }}>Ir a Lazos → Conexiones para coordinar</div>
+                    )}
                   </div>
-                  <div style={{ fontSize: 11, color: "#4a5270" }}>Ir a Lazos → Conexiones para coordinar</div>
+                  <button onClick={() => marcarLeida(n.id)} style={{ background: "none", border: "none", color: "#4a5270", cursor: "pointer", fontSize: 16, padding: 0, flexShrink: 0 }}>✕</button>
                 </div>
-                <button onClick={() => marcarLeida(n.id)} style={{ background: "none", border: "none", color: "#4a5270", cursor: "pointer", fontSize: 16, padding: 0, flexShrink: 0 }}>✕</button>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

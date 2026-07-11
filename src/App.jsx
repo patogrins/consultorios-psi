@@ -106,10 +106,44 @@ export default function App() {
   }
 
   if (!authListo || cargando) return (
-    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#000000", flexDirection:"column", gap:16 }}>
-      <img src="/logohead.jpeg" alt="GRINS" style={{ height:72, objectFit:"contain", marginBottom:8 }}/>
-      <div style={{ width:36, height:36, border:"2px solid #1e2235", borderTop:`2px solid ${t.acento}`, borderRadius:"50%", animation:"spin 1s linear infinite" }}/>
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#000000", flexDirection:"column", gap:0 }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulso { 0%,100% { opacity:1; transform:scale(1); } 50% { opacity:0.6; transform:scale(0.93); } }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+        @keyframes orb1 { 0%,100% { transform:translate(0,0) scale(1); opacity:0.5; } 50% { transform:translate(-18px,-12px) scale(1.15); opacity:0.8; } }
+        @keyframes orb2 { 0%,100% { transform:translate(0,0) scale(1); opacity:0.4; } 50% { transform:translate(16px,10px) scale(1.1); opacity:0.7; } }
+        @keyframes ringPulse { 0%,100% { transform:scale(1); opacity:0.15; } 50% { transform:scale(1.08); opacity:0.3; } }
+      `}</style>
+
+      {/* Orbes de fondo */}
+      <div style={{ position:"fixed", inset:0, overflow:"hidden", pointerEvents:"none" }}>
+        <div style={{ position:"absolute", width:260, height:260, borderRadius:"50%", background:"radial-gradient(circle,rgba(102,126,234,0.18) 0%,transparent 70%)", top:"28%", left:"50%", transform:"translateX(-50%)", animation:"orb1 4s ease-in-out infinite" }}/>
+        <div style={{ position:"absolute", width:200, height:200, borderRadius:"50%", background:"radial-gradient(circle,rgba(118,75,162,0.14) 0%,transparent 70%)", top:"35%", left:"50%", transform:"translateX(-50%)", animation:"orb2 5s ease-in-out infinite" }}/>
+      </div>
+
+      {/* Contenedor central */}
+      <div style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:28, animation:"fadeIn 0.6s ease" }}>
+
+        {/* Logo con anillo pulsante */}
+        <div style={{ position:"relative", width:100, height:100 }}>
+          {/* Anillo exterior */}
+          <div style={{ position:"absolute", inset:-10, borderRadius:"50%", border:"1.5px solid rgba(124,106,255,0.25)", animation:"ringPulse 2s ease-in-out infinite" }}/>
+          {/* Anillo interior */}
+          <div style={{ position:"absolute", inset:-4, borderRadius:"50%", border:"1px solid rgba(124,106,255,0.12)", animation:"ringPulse 2s ease-in-out infinite 0.4s" }}/>
+          {/* Logo */}
+          <div style={{ width:100, height:100, borderRadius:"50%", overflow:"hidden", border:"2px solid rgba(124,106,255,0.2)", boxShadow:"0 0 32px rgba(124,106,255,0.2)", animation:"pulso 2.4s ease-in-out infinite", background:"#0a0a14" }}>
+            <img src="/IMG_0050.jpeg" alt="GRINS" style={{ width:"100%", height:"100%", objectFit:"cover" }}/>
+          </div>
+        </div>
+
+        {/* Spinner de puntos */}
+        <div style={{ display:"flex", gap:7 }}>
+          {[0,1,2].map(i => (
+            <div key={i} style={{ width:6, height:6, borderRadius:"50%", background:"rgba(124,106,255,0.7)", animation:`pulso 1.2s ease-in-out infinite`, animationDelay:`${i*0.18}s` }}/>
+          ))}
+        </div>
+      </div>
     </div>
   );
 

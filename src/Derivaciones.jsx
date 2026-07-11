@@ -28,11 +28,9 @@ function Tag({ label }) {
   return <span style={{background:"rgba(14,12,28,0.9)",color:"#a0a8c0",border:"1px solid rgba(124,106,255,0.15)",borderRadius:8,padding:"2px 8px",fontSize:10,fontWeight:600}}>{label}</span>;
 }
 
-// Footer reutilizable para sub-vistas
-function FooterSubVista({ onVolver, vistaActual }) {
+function FooterSubVista({ onVolver }) {
   return (
-    <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",zIndex:60,display:"flex",flexDirection:"column",alignItems:"center",gap:6,width:"calc(100% - 32px)",maxWidth:340}}>
-      {/* Botón volver arriba */}
+    <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",zIndex:60,width:"calc(100% - 32px)",maxWidth:340}}>
       <button onClick={onVolver} style={{width:"100%",padding:"8px",borderRadius:12,border:"1px solid rgba(124,106,255,0.25)",background:"rgba(14,12,28,0.9)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",color:"#7c6aff",fontWeight:700,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c6aff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
         Volver a Cartelera
@@ -103,8 +101,7 @@ function ChatFullscreen({ derivacionId, usuario, otroNombre, otroPerfil, onCerra
 }
 
 // ── PILA DE CARTAS ─────────────────────────────────────────────────────────────
-function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar }) {
-  const [respondidas, setRespondidas] = useState({});
+function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar, onQuitarInteres }) {
   const [idx, setIdx] = useState(0);
   const [animando, setAnimando] = useState(null);
   const startX = useRef(null);
@@ -115,12 +112,22 @@ function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar }) {
   const THRESHOLD_H = 80;
   const THRESHOLD_V = 60;
 
-  // archivadas salen, interesadas quedan marcadas
-  const fichasLoop = useMemo(()=>fichas.filter(f=>respondidas[f.id]!=="archivada"),[fichas,respondidas]);
+  // Bloquear scroll de la página
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    document.body.style.position = "fixed";
+    document.body.style.width = "100%";
+    return () => {
+      document.body.style.overflow = prev;
+      document.body.style.position = "";
+      document.body.style.width = "";
+    };
+  }, []);
 
-  useEffect(()=>{ if(fichasLoop.length>0&&idx>=fichasLoop.length) setIdx(0); },[fichasLoop.length]);
+  useEffect(() => { if (fichas.length > 0 && idx >= fichas.length) setIdx(0); }, [fichas.length]);
 
-  if (fichasLoop.length===0) return (
+  if (fichas.length === 0) return (
     <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",textAlign:"center",minHeight:"45vh"}}>
       <div style={{fontSize:56,marginBottom:16}}>📌</div>
       <h3 style={{margin:"0 0 8px",color:"white",fontSize:18,fontWeight:800}}>Cartelera al día</h3>
@@ -128,77 +135,74 @@ function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar }) {
     </div>
   );
 
-  const total = fichasLoop.length;
-  const fichaActual = fichasLoop[idx%total];
-  const fichaDetras1 = fichasLoop[(idx+1)%total];
-  const fichaDetras2 = fichasLoop[(idx+2)%total];
-  const respActual = respondidas[fichaActual.id];
-  const yaInteresado = fichaActual.interesadosEmails?.includes(usuario.email)||respActual==="interesa";
+  const total = fichas.length;
+  const fichaActual = fichas[idx % total];
+  const fichaDetras1 = fichas[(idx + 1) % total];
+  const yaInteresado = fichaActual.interesadosEmails?.includes(usuario.email);
 
   function onTouchStart(e) {
-    if (e.touches.length!==1) return;
-    startX.current=e.touches[0].clientX;
-    startY.current=e.touches[0].clientY;
+    if (e.touches.length !== 1) return;
+    startX.current = e.touches[0].clientX;
+    startY.current = e.touches[0].clientY;
   }
   function onTouchMove(e) {
-    if (startX.current===null) return;
-    const dx=e.touches[0].clientX-startX.current;
-    const dy=e.touches[0].clientY-startY.current;
-    if (Math.abs(dx)>Math.abs(dy)) {
+    if (startX.current === null) return;
+    e.preventDefault();
+    const dx = e.touches[0].clientX - startX.current;
+    const dy = e.touches[0].clientY - startY.current;
+    if (Math.abs(dx) > Math.abs(dy)) {
       setOffsetX(dx); setOffsetY(0);
-      setSwipeDir(dx>20?"right":dx<-20?"left":null);
+      setSwipeDir(dx > 20 ? "right" : dx < -20 ? "left" : null);
     } else {
       setOffsetY(dy); setOffsetX(0); setSwipeDir(null);
     }
   }
   function onTouchEnd() {
-    if (Math.abs(offsetX)>THRESHOLD_H) triggerH(offsetX>0?"right":"left");
-    else if (offsetY>THRESHOLD_V) triggerV("down");
-    else if (offsetY<-THRESHOLD_V) triggerV("up");
+    if (Math.abs(offsetX) > THRESHOLD_H) triggerH(offsetX > 0 ? "right" : "left");
+    else if (offsetY > THRESHOLD_V) triggerV("down");
+    else if (offsetY < -THRESHOLD_V) triggerV("up");
     else { setOffsetX(0); setOffsetY(0); setSwipeDir(null); }
-    startX.current=null; startY.current=null;
+    startX.current = null; startY.current = null;
   }
 
   function triggerH(dir) {
-    setAnimando({dir});
-    setTimeout(()=>{
-      if (dir==="right") {
+    setAnimando({ dir });
+    setTimeout(() => {
+      if (dir === "right") {
         onInteresa(fichaActual);
-        setRespondidas(p=>({...p,[fichaActual.id]:"interesa"}));
-        setIdx(i=>(i+1)%total);
+        setIdx(i => (i + 1) % total);
       } else {
         onArchivar(fichaActual);
-        setRespondidas(p=>({...p,[fichaActual.id]:"archivada"}));
       }
       setOffsetX(0); setOffsetY(0); setSwipeDir(null); setAnimando(null);
-    },320);
+    }, 320);
   }
 
   function triggerV(dir) {
-    setAnimando({dir});
-    setTimeout(()=>{
-      if (dir==="up") setIdx(i=>(i+1)%total);
-      else setIdx(i=>(i-1+total)%total);
+    setAnimando({ dir });
+    setTimeout(() => {
+      if (dir === "up") setIdx(i => (i + 1) % total);
+      else setIdx(i => (i - 1 + total) % total);
       setOffsetX(0); setOffsetY(0); setSwipeDir(null); setAnimando(null);
-    },220);
+    }, 220);
   }
 
-  const flyX = animando?.dir==="right"?480:animando?.dir==="left"?-480:offsetX;
-  const flyY = animando?.dir==="up"?-160:animando?.dir==="down"?160:offsetY;
-  const rot = offsetX*0.04;
-  const opacidad = (animando?.dir==="left"||animando?.dir==="right") ? 0 : Math.max(0.3,1-Math.abs(offsetX)/260-Math.abs(offsetY)/260);
+  const flyX = animando?.dir === "right" ? 480 : animando?.dir === "left" ? -480 : offsetX;
+  const flyY = animando?.dir === "up" ? -160 : animando?.dir === "down" ? 160 : offsetY;
+  const rot = offsetX * 0.04;
+  const opacidad = (animando?.dir === "left" || animando?.dir === "right") ? 0 : Math.max(0.3, 1 - Math.abs(offsetX) / 260 - Math.abs(offsetY) / 260);
   const isTransitioning = !!animando;
-  const borderColor = swipeDir==="right"?"rgba(102,187,106,0.6)":swipeDir==="left"?"rgba(239,83,80,0.6)":"rgba(124,106,255,0.3)";
+  const borderColor = swipeDir === "right" ? "rgba(102,187,106,0.6)" : swipeDir === "left" ? "rgba(239,83,80,0.6)" : "rgba(124,106,255,0.3)";
 
   return (
     <div style={{padding:"12px 16px 10px"}}>
-      {/* Hints swipe */}
+      {/* Hints */}
       <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:10,padding:"0 4px"}}>
         <div style={{display:"flex",alignItems:"center",gap:6,opacity:swipeDir==="left"?1:0.3,transition:"opacity 0.2s"}}>
           <div style={{width:26,height:26,borderRadius:"50%",background:"rgba(239,83,80,0.15)",border:"1.5px solid #ef5350",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:11,color:"#ef5350"}}>✕</span></div>
           <span style={{fontSize:9,color:"#ef5350",fontWeight:600}}>Archivar</span>
         </div>
-        <span style={{fontSize:10,color:"#4a5270"}}>{idx%total+1} / {total}</span>
+        <span style={{fontSize:10,color:"#4a5270"}}>{idx % total + 1} / {total}</span>
         <div style={{display:"flex",alignItems:"center",gap:6,opacity:swipeDir==="right"?1:0.3,transition:"opacity 0.2s"}}>
           <span style={{fontSize:9,color:"#66bb6a",fontWeight:600}}>Me interesa</span>
           <div style={{width:26,height:26,borderRadius:"50%",background:"rgba(102,187,106,0.15)",border:"1.5px solid #66bb6a",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:11,color:"#66bb6a"}}>♥</span></div>
@@ -207,10 +211,8 @@ function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar }) {
 
       {/* PILA */}
       <div style={{position:"relative",height:420,perspective:"1000px"}}>
-        {/* Carta fondo 2 */}
-        {total>2&&<div style={{position:"absolute",inset:"0 8px",borderRadius:22,background:"rgba(14,12,28,0.4)",border:"1px solid rgba(124,106,255,0.06)",transform:"translateY(20px) scale(0.88)",zIndex:1,transition:"transform 0.3s ease"}}/>}
-        {/* Carta fondo 1 */}
-        {total>1&&(
+        {total > 2 && <div style={{position:"absolute",inset:"0 8px",borderRadius:22,background:"rgba(14,12,28,0.4)",border:"1px solid rgba(124,106,255,0.06)",transform:"translateY(20px) scale(0.88)",zIndex:1,transition:"transform 0.3s ease"}}/>}
+        {total > 1 && (
           <div style={{position:"absolute",inset:"0 4px",borderRadius:22,background:"rgba(14,12,28,0.65)",border:"1px solid rgba(124,106,255,0.1)",transform:`translateY(${isTransitioning?"0px":"10px"}) scale(${isTransitioning?"1":"0.94"})`,zIndex:2,transition:"transform 0.3s ease",overflow:"hidden"}}>
             <div style={{height:3,background:"rgba(124,106,255,0.2)"}}/>
             <div style={{padding:"14px 16px",opacity:0.4}}>
@@ -224,21 +226,19 @@ function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar }) {
           onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
           style={{position:"absolute",inset:0,zIndex:3,background:"rgba(14,12,28,0.97)",borderRadius:22,overflow:"hidden",border:`1px solid ${borderColor}`,transform:`translate(${flyX}px,${flyY}px) rotate(${rot}deg)`,opacity:opacidad,transition:isTransitioning?"transform 0.32s cubic-bezier(0.4,0,0.2,1),opacity 0.32s ease":"border 0.15s",cursor:"grab",userSelect:"none",touchAction:"none",boxShadow:"0 16px 48px rgba(0,0,0,0.5)"}}>
 
-          <div style={{height:3,background:respActual==="interesa"?"linear-gradient(90deg,#38a169,#2d8a5e)":"linear-gradient(90deg,#667eea,#764ba2)"}}/>
+          <div style={{height:3,background:yaInteresado?"linear-gradient(90deg,#38a169,#2d8a5e)":"linear-gradient(90deg,#667eea,#764ba2)"}}/>
 
-          {/* Sello permanente si ya le di interesa */}
-          {respActual==="interesa"&&(
+          {yaInteresado && (
             <div style={{position:"absolute",top:14,right:14,zIndex:5,background:"rgba(56,161,105,0.85)",borderRadius:8,padding:"3px 10px",border:"2px solid #38a169",transform:"rotate(12deg)"}}>
               <span style={{fontSize:11,fontWeight:800,color:"white"}}>♥ ME INTERESA</span>
             </div>
           )}
-          {/* Sellos de swipe en vivo */}
-          {swipeDir==="right"&&!respActual&&(
+          {swipeDir === "right" && !yaInteresado && (
             <div style={{position:"absolute",top:16,left:16,zIndex:5,background:"rgba(102,187,106,0.9)",borderRadius:8,padding:"4px 12px",border:"2px solid #66bb6a",transform:"rotate(-12deg)"}}>
               <span style={{fontSize:13,fontWeight:800,color:"white"}}>♥ ME INTERESA</span>
             </div>
           )}
-          {swipeDir==="left"&&(
+          {swipeDir === "left" && (
             <div style={{position:"absolute",top:16,right:16,zIndex:5,background:"rgba(239,83,80,0.9)",borderRadius:8,padding:"4px 12px",border:"2px solid #ef5350",transform:"rotate(12deg)"}}>
               <span style={{fontSize:13,fontWeight:800,color:"white"}}>ARCHIVAR ✕</span>
             </div>
@@ -255,20 +255,20 @@ function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar }) {
               </div>
               <div style={{textAlign:"right"}}>
                 <span style={{fontSize:9,color:"#4a5270"}}>{tiempoRelativo(fichaActual.creadoEn?.seconds)}</span>
-                {yaInteresado&&<div style={{marginTop:3,fontSize:9,background:"rgba(102,187,106,0.15)",color:"#66bb6a",borderRadius:6,padding:"1px 6px",fontWeight:700}}>Ya te postulaste</div>}
+                {yaInteresado && <div style={{marginTop:3,fontSize:9,background:"rgba(102,187,106,0.15)",color:"#66bb6a",borderRadius:6,padding:"1px 6px",fontWeight:700}}>Ya te postulaste</div>}
               </div>
             </div>
-            {fichaActual.nota&&<p style={{margin:"0 0 12px",fontSize:13,color:"#e2e8f0",lineHeight:1.6,padding:"10px 12px",background:"rgba(124,106,255,0.06)",borderRadius:10,borderLeft:"2px solid rgba(124,106,255,0.4)"}}>"{fichaActual.nota}"</p>}
+            {fichaActual.nota && <p style={{margin:"0 0 12px",fontSize:13,color:"#e2e8f0",lineHeight:1.6,padding:"10px 12px",background:"rgba(124,106,255,0.06)",borderRadius:10,borderLeft:"2px solid rgba(124,106,255,0.4)"}}>&ldquo;{fichaActual.nota}&rdquo;</p>}
             <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:14}}>
               <Tag label={`📍 ${fichaActual.modalidad}`}/>
-              {fichaActual.genero!=="Indistinto"&&<Tag label={`${fichaActual.genero==="Femenino"?"👩":"👨"} ${fichaActual.genero}`}/>}
-              {fichaActual.edad!=="Indistinto"&&<Tag label={`🎂 ${fichaActual.edad}`}/>}
-              {fichaActual.dias?.length>0&&<Tag label={`📅 ${fichaActual.dias.join(" · ")}`}/>}
-              {fichaActual.franjas?.length>0&&<Tag label={`⏰ ${fichaActual.franjas.join(" · ")}`}/>}
+              {fichaActual.genero !== "Indistinto" && <Tag label={`${fichaActual.genero==="Femenino"?"👩":"👨"} ${fichaActual.genero}`}/>}
+              {fichaActual.edad !== "Indistinto" && <Tag label={`🎂 ${fichaActual.edad}`}/>}
+              {fichaActual.dias?.length > 0 && <Tag label={`📅 ${fichaActual.dias.join(" · ")}`}/>}
+              {fichaActual.franjas?.length > 0 && <Tag label={`⏰ ${fichaActual.franjas.join(" · ")}`}/>}
             </div>
             <div style={{display:"flex",gap:10,marginTop:"auto"}}>
-              <button onClick={()=>triggerH("left")} style={{flex:1,padding:"11px",borderRadius:14,border:"1px solid rgba(239,83,80,0.3)",background:"rgba(239,83,80,0.08)",color:"#ef5350",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>✕ Archivar</button>
-              <button onClick={()=>triggerH("right")} style={{flex:2,padding:"11px",borderRadius:14,border:"none",background:yaInteresado?"rgba(56,161,105,0.15)":"linear-gradient(135deg,#38a169,#2d8a5e)",color:yaInteresado?"#66bb6a":"white",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>♥ {yaInteresado?"Ya te postulaste":"Me interesa"}</button>
+              <button onClick={() => triggerH("left")} style={{flex:1,padding:"11px",borderRadius:14,border:"1px solid rgba(239,83,80,0.3)",background:"rgba(239,83,80,0.08)",color:"#ef5350",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>✕ Archivar</button>
+              <button onClick={() => triggerH("right")} style={{flex:2,padding:"11px",borderRadius:14,border:"none",background:yaInteresado?"rgba(56,161,105,0.15)":"linear-gradient(135deg,#38a169,#2d8a5e)",color:yaInteresado?"#66bb6a":"white",fontWeight:700,fontSize:13,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6}}>♥ {yaInteresado?"Ya te postulaste":"Me interesa"}</button>
             </div>
           </div>
         </div>
@@ -281,25 +281,55 @@ function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar }) {
 }
 
 // ── VISTA ARCHIVO ──────────────────────────────────────────────────────────────
-function VistaArchivo({ archivadas, derivaciones, onVolver }) {
-  const fichasArchivadas = derivaciones.filter(d=>archivadas.includes(d.id));
+// Funciona como papelera: el usuario ve sus archivadas, puede restaurar o eliminar definitivamente (solo admin borra de Firestore)
+function VistaArchivo({ archivadas, setArchivadas, derivaciones, usuario, esAdmin, onVolver, onEliminarDefinitivo }) {
+  const fichasArchivadas = derivaciones.filter(d => archivadas.includes(d.id));
+
+  function restaurar(id) {
+    const nueva = archivadas.filter(a => a !== id);
+    setArchivadas(nueva);
+    try { localStorage.setItem(`grins_arch_${usuario?.email}`, JSON.stringify(nueva)); } catch {}
+  }
+
+  function eliminarLocal(id) {
+    // Solo desaparece para este usuario (queda archivada pero oculta también de archivo)
+    const nueva = archivadas.filter(a => a !== id);
+    const eliminadasKey = `grins_elim_${usuario?.email}`;
+    try {
+      const elim = JSON.parse(localStorage.getItem(eliminadasKey)||"[]");
+      localStorage.setItem(eliminadasKey, JSON.stringify([...elim, id]));
+      localStorage.setItem(`grins_arch_${usuario?.email}`, JSON.stringify(nueva));
+    } catch {}
+    setArchivadas(nueva);
+  }
+
   return (
     <div style={{padding:"16px 14px 180px"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
         <span style={{fontSize:15,fontWeight:800,color:"white"}}>📁 Archivo</span>
         <span style={{background:"rgba(124,106,255,0.12)",color:"#7c6aff",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:700}}>{fichasArchivadas.length}</span>
       </div>
-      {fichasArchivadas.length===0&&<div style={{textAlign:"center",padding:"32px 0"}}><div style={{fontSize:40,marginBottom:10}}>📁</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>El archivo está vacío.</p></div>}
-      {fichasArchivadas.map(d=>(
-        <div key={d.id} style={{background:"rgba(14,12,28,0.7)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1px solid rgba(255,255,255,0.06)",opacity:0.7}}>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+      {fichasArchivadas.length === 0 && <div style={{textAlign:"center",padding:"32px 0"}}><div style={{fontSize:40,marginBottom:10}}>📁</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>El archivo está vacío.</p></div>}
+      {fichasArchivadas.map(d => (
+        <div key={d.id} style={{background:"rgba(14,12,28,0.7)",borderRadius:14,padding:"12px 14px",marginBottom:10,border:"1px solid rgba(255,255,255,0.06)",opacity:0.8}}>
+          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
             <div>
               <div style={{fontSize:13,fontWeight:700,color:"#4a5270"}}>📌 {d.especialidad}</div>
               <div style={{fontSize:10,color:"#3a3a5a",marginTop:2}}>por {d.derivadoPor} · {tiempoRelativo(d.creadoEn?.seconds)}</div>
             </div>
             <span style={{fontSize:9,background:"rgba(255,255,255,0.05)",color:"#4a5270",borderRadius:6,padding:"2px 8px",fontWeight:600}}>Archivada</span>
           </div>
-          {d.nota&&<p style={{margin:"8px 0 0",fontSize:12,color:"#3a3a5a",fontStyle:"italic"}}>"{d.nota.slice(0,80)}{d.nota.length>80?"…":""}"</p>}
+          {d.nota && <p style={{margin:"0 0 10px",fontSize:12,color:"#3a3a5a",fontStyle:"italic"}}>"{d.nota.slice(0,80)}{d.nota.length>80?"…":""}"</p>}
+          <div style={{display:"flex",gap:8}}>
+            {/* Restaurar — vuelve a la cartelera */}
+            <button onClick={() => restaurar(d.id)} style={{flex:1,padding:"7px",borderRadius:10,border:"1px solid rgba(124,106,255,0.2)",background:"rgba(124,106,255,0.08)",color:"#7c6aff",fontWeight:600,fontSize:11,cursor:"pointer"}}>↩ Restaurar</button>
+            {/* Eliminar solo para mí */}
+            <button onClick={() => eliminarLocal(d.id)} style={{flex:1,padding:"7px",borderRadius:10,border:"1px solid rgba(255,255,255,0.06)",background:"transparent",color:"#4a5270",fontWeight:600,fontSize:11,cursor:"pointer"}}>🗑 Quitar</button>
+            {/* Admin: borrar para todos */}
+            {esAdmin && (
+              <button onClick={() => onEliminarDefinitivo(d.id)} style={{flex:1,padding:"7px",borderRadius:10,border:"1px solid rgba(239,83,80,0.25)",background:"rgba(239,83,80,0.08)",color:"#ef5350",fontWeight:600,fontSize:11,cursor:"pointer"}}>✕ Todos</button>
+            )}
+          </div>
         </div>
       ))}
       <FooterSubVista onVolver={onVolver}/>
@@ -307,39 +337,77 @@ function VistaArchivo({ archivadas, derivaciones, onVolver }) {
   );
 }
 
-// ── VISTA ME INTERESA ──────────────────────────────────────────────────────────
-function VistaMeInteresa({ archivadas, derivaciones, usuario, onVolver }) {
-  // Fichas a las que le dio me interesa (está en interesadosEmails)
-  const fichasInteresa = derivaciones.filter(d=>
+// ── VISTA ME INTERESA — con swipe izquierda para quitar interés ────────────────
+function VistaMeInteresa({ archivadas, derivaciones, usuario, onVolver, onQuitarInteres }) {
+  const fichasInteresa = derivaciones.filter(d =>
     d.interesadosEmails?.includes(usuario.email) && !archivadas.includes(d.id)
   );
+
+  // Swipe para quitar interés
+  const startX = useRef(null);
+  const [swipingId, setSwipingId] = useState(null);
+  const [swipeOffset, setSwipeOffset] = useState(0);
+
+  function onTouchStartCard(e, id) {
+    startX.current = e.touches[0].clientX;
+    setSwipingId(id);
+  }
+  function onTouchMoveCard(e) {
+    if (!startX.current) return;
+    const dx = e.touches[0].clientX - startX.current;
+    if (dx < 0) setSwipeOffset(dx); // solo izquierda
+  }
+  function onTouchEndCard(id) {
+    if (swipeOffset < -80) onQuitarInteres(id);
+    startX.current = null;
+    setSwipingId(null);
+    setSwipeOffset(0);
+  }
+
   return (
     <div style={{padding:"16px 14px 180px"}}>
       <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
         <span style={{fontSize:15,fontWeight:800,color:"white"}}>♥ Me interesa</span>
         <span style={{background:"rgba(102,187,106,0.15)",color:"#66bb6a",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:700}}>{fichasInteresa.length}</span>
       </div>
-      {fichasInteresa.length===0&&<div style={{textAlign:"center",padding:"32px 0"}}><div style={{fontSize:40,marginBottom:10}}>♥</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>Todavía no marcaste ninguna ficha como interesante.</p></div>}
-      {fichasInteresa.map(d=>(
-        <div key={d.id} style={{background:"rgba(14,12,28,0.9)",borderRadius:14,padding:"14px",marginBottom:10,border:"1px solid rgba(102,187,106,0.2)"}}>
-          <div style={{height:3,background:"linear-gradient(90deg,#38a169,transparent)",borderRadius:2,marginBottom:10}}/>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
-            <div>
-              <div style={{fontSize:14,fontWeight:800,color:"white"}}>📌 {d.especialidad}</div>
-              <div style={{fontSize:11,color:"#4a5270",marginTop:2}}>por {d.derivadoPor} · {tiempoRelativo(d.creadoEn?.seconds)}</div>
+      {fichasInteresa.length === 0 && <div style={{textAlign:"center",padding:"32px 0"}}><div style={{fontSize:40,marginBottom:10}}>♥</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>Todavía no marcaste ninguna ficha como interesante.</p></div>}
+      {fichasInteresa.map(d => {
+        const isSwiping = swipingId === d.id;
+        const offset = isSwiping ? swipeOffset : 0;
+        const showHint = offset < -30;
+        return (
+          <div key={d.id} style={{position:"relative",marginBottom:10,overflow:"hidden",borderRadius:14}}>
+            {/* Fondo de acción */}
+            <div style={{position:"absolute",inset:0,background:"rgba(239,83,80,0.15)",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:20,borderRadius:14}}>
+              <span style={{fontSize:12,color:"#ef5350",fontWeight:700,opacity:showHint?1:0,transition:"opacity 0.15s"}}>← Quitar interés</span>
             </div>
-            <span style={{fontSize:9,background:"rgba(102,187,106,0.12)",color:"#66bb6a",borderRadius:6,padding:"2px 8px",fontWeight:700,border:"1px solid rgba(102,187,106,0.25)"}}>
-              {d.estado==="asignada"&&d.asignadoEmail===usuario.email?"✓ Asignada a vos":d.estado==="asignada"?"Asignada a otro":"♥ Te interesa"}
-            </span>
+            <div
+              onTouchStart={e => onTouchStartCard(e, d.id)}
+              onTouchMove={onTouchMoveCard}
+              onTouchEnd={() => onTouchEndCard(d.id)}
+              style={{background:"rgba(14,12,28,0.9)",borderRadius:14,padding:"14px",border:"1px solid rgba(102,187,106,0.2)",transform:`translateX(${offset}px)`,transition:isSwiping?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
+              <div style={{height:3,background:"linear-gradient(90deg,#38a169,transparent)",borderRadius:2,marginBottom:10}}/>
+              <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                <div>
+                  <div style={{fontSize:14,fontWeight:800,color:"white"}}>📌 {d.especialidad}</div>
+                  <div style={{fontSize:11,color:"#4a5270",marginTop:2}}>por {d.derivadoPor} · {tiempoRelativo(d.creadoEn?.seconds)}</div>
+                </div>
+                <span style={{fontSize:9,background:"rgba(102,187,106,0.12)",color:"#66bb6a",borderRadius:6,padding:"2px 8px",fontWeight:700,border:"1px solid rgba(102,187,106,0.25)"}}>
+                  {d.estado==="asignada"&&d.asignadoEmail===usuario.email?"✓ Asignada a vos":d.estado==="asignada"?"Asignada a otro":"♥ Te interesa"}
+                </span>
+              </div>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:10}}>
+                <Tag label={`📍 ${d.modalidad}`}/>
+                {d.dias?.length>0&&<Tag label={`📅 ${d.dias.slice(0,2).join(" · ")}`}/>}
+                {d.franjas?.length>0&&<Tag label={`⏰ ${d.franjas.join(" · ")}`}/>}
+              </div>
+              {d.nota&&<p style={{margin:"0 0 10px",fontSize:12,color:"#a0a8c0",fontStyle:"italic",lineHeight:1.5}}>"{d.nota.slice(0,100)}{d.nota.length>100?"…":""}"</p>}
+              {/* Botón para quitar interés */}
+              <button onClick={() => onQuitarInteres(d.id)} style={{width:"100%",padding:"8px",borderRadius:10,border:"1px solid rgba(239,83,80,0.2)",background:"rgba(239,83,80,0.06)",color:"#ef5350",fontWeight:600,fontSize:11,cursor:"pointer"}}>✕ Quitar interés</button>
+            </div>
           </div>
-          <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
-            <Tag label={`📍 ${d.modalidad}`}/>
-            {d.dias?.length>0&&<Tag label={`📅 ${d.dias.slice(0,2).join(" · ")}`}/>}
-            {d.franjas?.length>0&&<Tag label={`⏰ ${d.franjas.join(" · ")}`}/>}
-          </div>
-          {d.nota&&<p style={{margin:"10px 0 0",fontSize:12,color:"#a0a8c0",fontStyle:"italic",lineHeight:1.5}}>"{d.nota.slice(0,100)}{d.nota.length>100?"…":""}"</p>}
-        </div>
-      ))}
+        );
+      })}
       <FooterSubVista onVolver={onVolver}/>
     </div>
   );
@@ -349,12 +417,12 @@ function VistaMeInteresa({ archivadas, derivaciones, usuario, onVolver }) {
 function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar, onCerrar, onEliminar, onAbrirChat, onVolver }) {
   const [expandida, setExpandida] = useState(null);
   const [matchModal, setMatchModal] = useState(null);
-  const mias = derivaciones.filter(d=>d.derivadoPorEmail===usuario.email);
+  const mias = derivaciones.filter(d => d.derivadoPorEmail === usuario.email);
 
-  async function handleAsignar(d,nombre,email) {
-    await onAsignar(d,nombre,email);
-    const p = perfiles.find(x=>x.email===email);
-    setMatchModal({derivacion:d,asignado:{nombre,email,fotoUrl:p?.fotoUrl,especialidad:p?.especialidad}});
+  async function handleAsignar(d, nombre, email) {
+    await onAsignar(d, nombre, email);
+    const p = perfiles.find(x => x.email === email);
+    setMatchModal({ derivacion:d, asignado:{nombre,email,fotoUrl:p?.fotoUrl,especialidad:p?.especialidad} });
     setExpandida(null);
   }
 
@@ -365,7 +433,7 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
         <span style={{background:"rgba(124,106,255,0.12)",color:"#7c6aff",borderRadius:20,padding:"2px 10px",fontSize:11,fontWeight:700}}>{mias.length}</span>
       </div>
 
-      {matchModal&&(
+      {matchModal && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.92)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:24}}>
           <div style={{background:"rgba(14,12,28,0.98)",borderRadius:24,padding:"32px 24px",width:"100%",maxWidth:360,textAlign:"center",border:"1px solid rgba(124,106,255,0.3)"}}>
             <div style={{fontSize:32,marginBottom:20}}>🎉</div>
@@ -384,23 +452,19 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
             </div>
             <h2 style={{margin:"0 0 8px",fontSize:20,fontWeight:800,color:"white"}}>¡Ficha asignada!</h2>
             <p style={{margin:"0 0 20px",fontSize:14,color:"#a0a8c0",lineHeight:1.5}}>Vos y <strong style={{color:"white"}}>{matchModal.asignado.nombre}</strong> están conectados.</p>
-            <div style={{background:"rgba(124,106,255,0.08)",borderRadius:14,padding:"12px 16px",marginBottom:20,border:"1px solid rgba(124,106,255,0.15)",display:"flex",alignItems:"center",gap:10}}>
-              <span style={{fontSize:18}}>🔔</span>
-              <span style={{fontSize:12,color:"#a0a8c0",lineHeight:1.5,textAlign:"left"}}>Ambos recibirán una notificación en Inicio.</span>
-            </div>
             <button onClick={()=>setMatchModal(null)} style={{width:"100%",padding:13,borderRadius:14,border:"none",background:"linear-gradient(135deg,#667eea,#764ba2)",color:"white",fontWeight:800,fontSize:14,cursor:"pointer"}}>¡Genial!</button>
           </div>
         </div>
       )}
 
-      {mias.length===0&&<div style={{textAlign:"center",padding:"32px 20px"}}><div style={{fontSize:40,marginBottom:10}}>📋</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>No publicaste fichas aún.</p></div>}
+      {mias.length === 0 && <div style={{textAlign:"center",padding:"32px 20px"}}><div style={{fontSize:40,marginBottom:10}}>📋</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>No publicaste fichas aún.</p></div>}
 
-      {mias.map(d=>{
-        const sinInt=!d.interesados?.length;
-        const conInt=d.interesados?.length>0&&d.estado!=="asignada";
-        const asignada=d.estado==="asignada";
-        const cerrada=d.estado==="cerrada";
-        const isExp=expandida===d.id;
+      {mias.map(d => {
+        const sinInt = !d.interesados?.length;
+        const conInt = d.interesados?.length > 0 && d.estado !== "asignada";
+        const asignada = d.estado === "asignada";
+        const cerrada = d.estado === "cerrada";
+        const isExp = expandida === d.id;
         return (
           <div key={d.id} style={{background:"rgba(14,12,28,0.9)",borderRadius:18,marginBottom:12,overflow:"hidden",border:`1px solid ${asignada?"rgba(102,187,106,0.3)":conInt?"rgba(124,106,255,0.35)":"rgba(124,106,255,0.12)"}`}}>
             <div style={{height:3,background:asignada?"linear-gradient(90deg,#38a169,#2d8a5e)":conInt?"linear-gradient(90deg,#667eea,#764ba2)":cerrada?"rgba(255,255,255,0.08)":"rgba(124,106,255,0.2)"}}/>
@@ -415,24 +479,23 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
                 </span>
               </div>
               {sinInt&&!cerrada&&<div style={{padding:"10px 12px",background:"rgba(255,255,255,0.03)",borderRadius:10,marginBottom:10,border:"1px dashed rgba(255,255,255,0.06)"}}><p style={{margin:0,fontSize:12,color:"#4a5270",fontStyle:"italic"}}>Aún sin postulantes.</p></div>}
-              {conInt&&(
+              {conInt && (
                 <button onClick={()=>setExpandida(isExp?null:d.id)} style={{width:"100%",background:"transparent",border:"none",cursor:"pointer",padding:0,marginBottom:10}}>
                   <div style={{display:"flex",alignItems:"center",gap:10,padding:"10px 12px",background:"rgba(124,106,255,0.06)",borderRadius:12,border:"1px solid rgba(124,106,255,0.15)"}}>
                     <div style={{display:"flex"}}>
-                      {(d.interesadosEmails||[]).slice(0,3).map((email,i)=>{
+                      {(d.interesadosEmails||[]).slice(0,3).map((email,i) => {
                         const p=perfiles.find(x=>x.email===email); const nombre=d.interesados[i]||email;
                         return <div key={email} style={{width:32,height:32,borderRadius:"50%",background:avatarColor(nombre),overflow:"hidden",border:"2px solid rgba(0,0,0,0.5)",marginLeft:i>0?-8:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:12,fontWeight:800,color:"white"}}>{p?.fotoUrl?<img src={p.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:nombre[0]?.toUpperCase()}</div>;
                       })}
-                      {d.interesados.length>3&&<div style={{width:32,height:32,borderRadius:"50%",background:"rgba(124,106,255,0.2)",border:"2px solid rgba(0,0,0,0.5)",marginLeft:-8,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,color:"#7c6aff",fontWeight:700}}>+{d.interesados.length-3}</div>}
                     </div>
                     <span style={{fontSize:12,color:"#a0a8c0",flex:1,textAlign:"left"}}>Ver postulantes</span>
                     <span style={{fontSize:14,color:"#7c6aff"}}>{isExp?"▲":"▼"}</span>
                   </div>
                 </button>
               )}
-              {isExp&&conInt&&(
+              {isExp && conInt && (
                 <div style={{marginBottom:10}}>
-                  {(d.interesadosEmails||[]).map((email,idx)=>{
+                  {(d.interesadosEmails||[]).map((email,idx) => {
                     const p=perfiles.find(x=>x.email===email); const nombre=d.interesados[idx]||email;
                     return (
                       <div key={email} style={{display:"flex",alignItems:"center",gap:12,padding:"12px 14px",background:"rgba(14,12,28,0.8)",borderRadius:14,marginBottom:8,border:"1px solid rgba(124,106,255,0.12)"}}>
@@ -443,10 +506,6 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
                           <div style={{fontWeight:700,fontSize:13,color:"white"}}>{nombre}</div>
                           {p?.especialidad&&<div style={{fontSize:11,color:"#7c6aff",marginTop:1}}>{p.especialidad}</div>}
                           {p?.bio&&<div style={{fontSize:11,color:"#4a5270",marginTop:2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.bio}</div>}
-                          <div style={{display:"flex",gap:8,marginTop:4}}>
-                            {p?.telefono&&<a href={`tel:${p.telefono}`} style={{fontSize:10,color:"#4fc3f7",textDecoration:"none"}}>📞 {p.telefono}</a>}
-                            <a href={`mailto:${email}`} style={{fontSize:10,color:"#4fc3f7",textDecoration:"none"}}>✉ email</a>
-                          </div>
                         </div>
                         <button onClick={()=>handleAsignar(d,nombre,email)} style={{padding:"8px 14px",borderRadius:12,border:"none",background:"linear-gradient(135deg,#38a169,#2d8a5e)",color:"white",fontWeight:700,fontSize:11,cursor:"pointer",flexShrink:0}}>Designar</button>
                       </div>
@@ -454,7 +513,7 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
                   })}
                 </div>
               )}
-              {asignada&&(
+              {asignada && (
                 <div style={{display:"flex",gap:8,marginBottom:10}}>
                   <div style={{flex:1,padding:"10px 12px",background:"rgba(102,187,106,0.08)",borderRadius:10,border:"1px solid rgba(102,187,106,0.2)",display:"flex",alignItems:"center",gap:8}}>
                     <span>🔗</span><span style={{fontSize:12,color:"#66bb6a",fontWeight:600}}>Asignada a {d.asignadoA}</span>
@@ -462,13 +521,10 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
                   <button onClick={()=>onAbrirChat(d.id,d.asignadoA,d.asignadoEmail)} style={{padding:"0 14px",borderRadius:10,border:"1px solid rgba(124,106,255,0.25)",background:"rgba(124,106,255,0.1)",color:"#a78bfa",fontWeight:700,fontSize:11,cursor:"pointer",display:"flex",alignItems:"center",gap:5}}>💬 Chat</button>
                 </div>
               )}
-              {!cerrada&&!asignada&&(
-                <div style={{display:"flex",gap:8}}>
-                  <button onClick={()=>onCerrar(d)} style={{flex:1,padding:"8px",borderRadius:10,border:"1px solid rgba(255,255,255,0.08)",background:"transparent",color:"#4a5270",fontWeight:600,fontSize:11,cursor:"pointer"}}>Cerrar</button>
-                  {esAdmin&&<button onClick={()=>onEliminar(d.id)} style={{flex:1,padding:"8px",borderRadius:10,border:"1px solid rgba(239,83,80,0.25)",background:"rgba(239,83,80,0.06)",color:"#ef5350",fontWeight:600,fontSize:11,cursor:"pointer"}}>Eliminar</button>}
-                </div>
-              )}
-              {(cerrada||asignada)&&esAdmin&&<button onClick={()=>onEliminar(d.id)} style={{width:"100%",padding:"8px",borderRadius:10,border:"1px solid rgba(239,83,80,0.25)",background:"rgba(239,83,80,0.06)",color:"#ef5350",fontWeight:600,fontSize:11,cursor:"pointer"}}>🗑 Eliminar</button>}
+              <div style={{display:"flex",gap:8}}>
+                {!cerrada&&!asignada&&<button onClick={()=>onCerrar(d)} style={{flex:1,padding:"8px",borderRadius:10,border:"1px solid rgba(255,255,255,0.08)",background:"transparent",color:"#4a5270",fontWeight:600,fontSize:11,cursor:"pointer"}}>Cerrar</button>}
+                {esAdmin&&<button onClick={()=>onEliminar(d.id)} style={{flex:1,padding:"8px",borderRadius:10,border:"1px solid rgba(239,83,80,0.25)",background:"rgba(239,83,80,0.06)",color:"#ef5350",fontWeight:600,fontSize:11,cursor:"pointer"}}>🗑 Eliminar</button>}
+              </div>
             </div>
           </div>
         );
@@ -482,27 +538,27 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
 function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicialUsado, onAbrirChat }) {
   const [filtro, setFiltro] = useState("todas");
   const [perfilVista, setPerfilVista] = useState(null);
-  const conexiones = derivaciones.filter(d=>d.estado==="asignada"&&(d.derivadoPorEmail===usuario.email||d.asignadoEmail===usuario.email));
+  const conexiones = derivaciones.filter(d => d.estado==="asignada"&&(d.derivadoPorEmail===usuario.email||d.asignadoEmail===usuario.email));
 
-  useEffect(()=>{
+  useEffect(() => {
     if (!chatInicial) return;
-    const c=conexiones.find(d=>d.derivadoPorEmail===chatInicial||d.asignadoEmail===chatInicial);
+    const c = conexiones.find(d => d.derivadoPorEmail===chatInicial||d.asignadoEmail===chatInicial);
     if (c) {
-      const otroEmail=c.derivadoPorEmail===usuario.email?c.asignadoEmail:c.derivadoPorEmail;
-      const otroNombre=c.derivadoPorEmail===usuario.email?c.asignadoA:c.derivadoPor;
-      onAbrirChat(c.id,otroNombre,otroEmail);
+      const otroEmail = c.derivadoPorEmail===usuario.email?c.asignadoEmail:c.derivadoPorEmail;
+      const otroNombre = c.derivadoPorEmail===usuario.email?c.asignadoA:c.derivadoPor;
+      onAbrirChat(c.id, otroNombre, otroEmail);
     }
     onChatInicialUsado?.();
-  },[chatInicial,conexiones]);
+  }, [chatInicial, conexiones]);
 
-  const filtradas=conexiones.filter(d=>{
+  const filtradas = conexiones.filter(d => {
     if (filtro==="derive") return d.derivadoPorEmail===usuario.email;
     if (filtro==="recibi") return d.asignadoEmail===usuario.email;
     return true;
   });
 
   if (perfilVista) {
-    const ini=perfilVista.nombre?.[0]?.toUpperCase()||"?";
+    const ini = perfilVista.nombre?.[0]?.toUpperCase()||"?";
     return (
       <div style={{padding:"16px 14px 100px"}}>
         <button onClick={()=>setPerfilVista(null)} style={{background:"none",border:"none",color:"#7c6aff",cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:14,display:"flex",alignItems:"center",gap:6,padding:0}}>← Volver</button>
@@ -517,7 +573,7 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
           </div>
           <div style={{padding:"16px 20px"}}>
             {perfilVista.bio&&<div style={{marginBottom:14}}><div style={{fontSize:10,color:"#4a5270",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Bio</div><p style={{margin:0,fontSize:13,color:"#a0a8c0",lineHeight:1.6}}>{perfilVista.bio}</p></div>}
-            {perfilVista.telefono&&<div style={{marginBottom:14}}><div style={{fontSize:10,color:"#4a5270",fontWeight:700,textTransform:"uppercase",letterSpacing:1,marginBottom:6}}>Contacto</div><a href={`tel:${perfilVista.telefono}`} style={{fontSize:13,color:"#4fc3f7",textDecoration:"none",fontWeight:600}}>📞 {perfilVista.telefono}</a></div>}
+            {perfilVista.telefono&&<div style={{marginBottom:14}}><a href={`tel:${perfilVista.telefono}`} style={{fontSize:13,color:"#4fc3f7",textDecoration:"none",fontWeight:600}}>📞 {perfilVista.telefono}</a></div>}
             <a href={`mailto:${perfilVista.email}`} style={{display:"block",textAlign:"center",background:"rgba(124,106,255,0.1)",borderRadius:12,padding:"10px 16px",border:"1px solid rgba(124,106,255,0.2)",textDecoration:"none",color:"#7c6aff",fontSize:13,fontWeight:600}}>✉ Enviar email</a>
           </div>
         </div>
@@ -534,7 +590,7 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
           <button key={v} onClick={()=>setFiltro(v)} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${filtro===v?"#7c6aff":"rgba(124,106,255,0.2)"}`,background:filtro===v?"linear-gradient(135deg,#667eea,#764ba2)":"transparent",color:filtro===v?"white":"#a0a8c0",fontSize:11,fontWeight:600,cursor:"pointer"}}>{l}</button>
         ))}
       </div>
-      {filtradas.map(d=>{
+      {filtradas.map(d => {
         const dp=perfiles.find(p=>p.email===d.derivadoPorEmail);
         const ap=perfiles.find(p=>p.email===d.asignadoEmail);
         const otroEmail=d.derivadoPorEmail===usuario.email?d.asignadoEmail:d.derivadoPorEmail;
@@ -592,38 +648,57 @@ export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatI
   const [vista, setVista] = useState(vistaInicial||"cartelera");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [chatAbierto, setChatAbierto] = useState(null);
-  const [archivadas, setArchivadas] = useState(()=>{
+  const [archivadas, setArchivadas] = useState(() => {
     try { return JSON.parse(localStorage.getItem(`grins_arch_${usuario?.email}`)||"[]"); } catch { return []; }
   });
   const [form, setForm] = useState({especialidad:"",otraEspecialidad:"",modalidad:"Ambas",dias:[],franjas:[],genero:"Indistinto",edad:"Indistinto",nota:""});
 
-  useEffect(()=>{
-    const u1=onSnapshot(collection(db,"derivaciones"),snap=>{
-      const data=snap.docs.map(d=>({...d.data(),id:d.id}));
+  useEffect(() => {
+    const u1 = onSnapshot(collection(db,"derivaciones"), snap => {
+      const data = snap.docs.map(d=>({...d.data(),id:d.id}));
       data.sort((a,b)=>(b.creadoEn?.seconds||0)-(a.creadoEn?.seconds||0));
       setDerivaciones(data);
     });
-    const u2=onSnapshot(collection(db,"usuarios"),snap=>{ setPerfiles(snap.docs.map(d=>({...d.data(),email:d.id}))); });
-    return ()=>{u1();u2();};
-  },[]);
+    const u2 = onSnapshot(collection(db,"usuarios"), snap => { setPerfiles(snap.docs.map(d=>({...d.data(),email:d.id}))); });
+    return () => { u1(); u2(); };
+  }, []);
 
-  useEffect(()=>{ if(vistaInicial) setVista(vistaInicial); },[vistaInicial]);
+  useEffect(() => { if (vistaInicial) setVista(vistaInicial); }, [vistaInicial]);
 
-  function abrirChat(derivacionId,otroNombre,otroEmail) { setChatAbierto({derivacionId,otroNombre,otroEmail}); }
-  function toggleArr(arr,val) { return arr.includes(val)?arr.filter(x=>x!==val):[...arr,val]; }
+  function abrirChat(derivacionId, otroNombre, otroEmail) { setChatAbierto({derivacionId,otroNombre,otroEmail}); }
+  function toggleArr(arr, val) { return arr.includes(val)?arr.filter(x=>x!==val):[...arr,val]; }
 
   function archivarLocal(d) {
-    const nueva=[...archivadas,d.id];
+    const nueva = [...archivadas, d.id];
     setArchivadas(nueva);
-    try { localStorage.setItem(`grins_arch_${usuario?.email}`,JSON.stringify(nueva)); } catch {}
+    try { localStorage.setItem(`grins_arch_${usuario?.email}`, JSON.stringify(nueva)); } catch {}
   }
+
+  // Actualizar archivadas también en localStorage cuando cambian
+  useEffect(() => {
+    try { localStorage.setItem(`grins_arch_${usuario?.email}`, JSON.stringify(archivadas)); } catch {}
+  }, [archivadas]);
 
   async function meInteresa(d) {
     if (d.derivadoPorEmail===usuario.email||d.interesadosEmails?.includes(usuario.email)) return;
-    await updateDoc(doc(db,"derivaciones",d.id),{interesados:[...(d.interesados||[]),usuario.nombre],interesadosEmails:[...(d.interesadosEmails||[]),usuario.email],estado:"con_interesados"});
+    await updateDoc(doc(db,"derivaciones",d.id),{
+      interesados:[...(d.interesados||[]),usuario.nombre],
+      interesadosEmails:[...(d.interesadosEmails||[]),usuario.email],
+      estado:"con_interesados"
+    });
   }
 
-  async function asignar(d,nombre,email) {
+  async function quitarInteres(id) {
+    const d = derivaciones.find(x=>x.id===id);
+    if (!d) return;
+    await updateDoc(doc(db,"derivaciones",id),{
+      interesados:(d.interesados||[]).filter(n=>n!==usuario.nombre),
+      interesadosEmails:(d.interesadosEmails||[]).filter(e=>e!==usuario.email),
+      estado:(d.interesados||[]).length<=1?"disponible":"con_interesados"
+    });
+  }
+
+  async function asignar(d, nombre, email) {
     await updateDoc(doc(db,"derivaciones",d.id),{asignadoA:nombre,asignadoEmail:email,estado:"asignada"});
     await addDoc(collection(db,"notificaciones"),{para:email,de:usuario.email,deNombre:usuario.nombre,tipo:"derivacion_asignada",derivacionId:d.id,especialidad:d.especialidad,leida:false,creadoEn:serverTimestamp()});
     await addDoc(collection(db,"notificaciones"),{para:d.derivadoPorEmail,de:email,deNombre:nombre,tipo:"derivacion_match",derivacionId:d.id,especialidad:d.especialidad,leida:false,creadoEn:serverTimestamp()});
@@ -634,27 +709,31 @@ export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatI
 
   async function publicar() {
     if (!form.especialidad) return;
-    const esp=form.especialidad==="Otro"?form.otraEspecialidad||"Otro":form.especialidad;
+    const esp = form.especialidad==="Otro"?form.otraEspecialidad||"Otro":form.especialidad;
     await addDoc(collection(db,"derivaciones"),{especialidad:esp,modalidad:form.modalidad,dias:form.dias,franjas:form.franjas,genero:form.genero,edad:form.edad,nota:form.nota.trim(),estado:"disponible",derivadoPor:usuario.nombre,derivadoPorEmail:usuario.email,interesados:[],interesadosEmails:[],asignadoA:null,asignadoEmail:null,creadoEn:serverTimestamp()});
     setForm({especialidad:"",otraEspecialidad:"",modalidad:"Ambas",dias:[],franjas:[],genero:"Indistinto",edad:"Indistinto",nota:""});
     setMostrarForm(false);
   }
 
-  const chip=(label,active,onClick)=>(<button key={label} onClick={onClick} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${active?"#7c6aff":"rgba(124,106,255,0.2)"}`,background:active?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(14,12,28,0.8)",color:active?"white":"#a0a8c0",fontSize:11,fontWeight:600,cursor:"pointer"}}>{label}</button>);
-  const inp={width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid rgba(124,106,255,0.2)",fontSize:13,marginBottom:12,boxSizing:"border-box",outline:"none",background:"rgba(14,12,28,0.8)",color:"white"};
-  const lbl={display:"block",fontSize:11,fontWeight:700,color:"#a0a8c0",marginBottom:6,textTransform:"uppercase",letterSpacing:.5};
+  const chip = (label,active,onClick) => (<button key={label} onClick={onClick} style={{padding:"5px 12px",borderRadius:20,border:`1px solid ${active?"#7c6aff":"rgba(124,106,255,0.2)"}`,background:active?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(14,12,28,0.8)",color:active?"white":"#a0a8c0",fontSize:11,fontWeight:600,cursor:"pointer"}}>{label}</button>);
+  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid rgba(124,106,255,0.2)",fontSize:13,marginBottom:12,boxSizing:"border-box",outline:"none",background:"rgba(14,12,28,0.8)",color:"white"};
+  const lbl = {display:"block",fontSize:11,fontWeight:700,color:"#a0a8c0",marginBottom:6,textTransform:"uppercase",letterSpacing:.5};
 
-  const fichasCartelera=derivaciones.filter(d=>d.derivadoPorEmail!==usuario.email&&d.estado==="disponible"&&!archivadas.includes(d.id));
+  // Cartelera: fichas de otros + las propias del usuario también aparecen (como vista)
+  // Las propias no se pueden postular pero sí se ven
+  const fichasCartelera = derivaciones.filter(d =>
+    d.estado === "disponible" && !archivadas.includes(d.id)
+  );
 
   if (chatAbierto) {
-    const op=perfiles.find(p=>p.email===chatAbierto.otroEmail);
+    const op = perfiles.find(p=>p.email===chatAbierto.otroEmail);
     return <ChatFullscreen derivacionId={chatAbierto.derivacionId} usuario={usuario} otroNombre={chatAbierto.otroNombre} otroPerfil={op} onCerrar={()=>setChatAbierto(null)}/>;
   }
 
   return (
     <div>
       {/* FORM MODAL */}
-      {mostrarForm&&(
+      {mostrarForm && (
         <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:3000}}>
           <div style={{background:"#0a0a14",borderRadius:"24px 24px 0 0",padding:"20px 20px 40px",width:"100%",maxWidth:520,border:"1px solid rgba(124,106,255,0.2)",maxHeight:"85vh",overflowY:"auto"}}>
             <div style={{width:36,height:4,borderRadius:2,background:"rgba(255,255,255,0.1)",margin:"0 auto 16px"}}/>
@@ -683,40 +762,28 @@ export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatI
       )}
 
       {/* VISTAS */}
-      {vista==="cartelera"&&<CarteleraLoop fichas={fichasCartelera} usuario={usuario} onInteresa={meInteresa} onArchivar={archivarLocal}/>}
-      {vista==="archivo"&&<VistaArchivo archivadas={archivadas} derivaciones={derivaciones} onVolver={()=>setVista("cartelera")}/>}
-      {vista==="meInteresa"&&<VistaMeInteresa archivadas={archivadas} derivaciones={derivaciones} usuario={usuario} onVolver={()=>setVista("cartelera")}/>}
-      {vista==="misPublicaciones"&&<MisPublicaciones derivaciones={derivaciones} usuario={usuario} perfiles={perfiles} esAdmin={esAdmin} onAsignar={asignar} onCerrar={cerrar} onEliminar={eliminar} onAbrirChat={abrirChat} onVolver={()=>setVista("cartelera")}/>}
-      {vista==="conexiones"&&<Conexiones derivaciones={derivaciones} usuario={usuario} perfiles={perfiles} chatInicial={chatInicial} onChatInicialUsado={onChatInicialUsado} onAbrirChat={abrirChat}/>}
+      {vista==="cartelera" && <CarteleraLoop fichas={fichasCartelera} usuario={usuario} onInteresa={meInteresa} onArchivar={archivarLocal} onQuitarInteres={quitarInteres}/>}
+      {vista==="archivo" && <VistaArchivo archivadas={archivadas} setArchivadas={setArchivadas} derivaciones={derivaciones} usuario={usuario} esAdmin={esAdmin} onVolver={()=>setVista("cartelera")} onEliminarDefinitivo={eliminar}/>}
+      {vista==="meInteresa" && <VistaMeInteresa archivadas={archivadas} derivaciones={derivaciones} usuario={usuario} onVolver={()=>setVista("cartelera")} onQuitarInteres={quitarInteres}/>}
+      {vista==="misPublicaciones" && <MisPublicaciones derivaciones={derivaciones} usuario={usuario} perfiles={perfiles} esAdmin={esAdmin} onAsignar={asignar} onCerrar={cerrar} onEliminar={eliminar} onAbrirChat={abrirChat} onVolver={()=>setVista("cartelera")}/>}
+      {vista==="conexiones" && <Conexiones derivaciones={derivaciones} usuario={usuario} perfiles={perfiles} chatInicial={chatInicial} onChatInicialUsado={onChatInicialUsado} onAbrirChat={abrirChat}/>}
 
       {/* FOOTER CARTELERA */}
-      {vista==="cartelera"&&(
+      {vista==="cartelera" && (
         <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",zIndex:60,display:"flex",flexDirection:"column",alignItems:"center",gap:6,width:"calc(100% - 32px)",maxWidth:340}}>
-
-          {/* Fila superior: 3 botones iguales */}
           <div style={{display:"flex",alignItems:"center",width:"100%",gap:8,background:"rgba(10,10,20,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:"1px solid rgba(124,106,255,0.2)",borderRadius:22,padding:"8px 10px",boxShadow:"0 8px 32px rgba(0,0,0,0.4)"}}>
-
-            {/* ARCHIVO */}
             <button onClick={()=>setVista("archivo")} style={{flex:1,background:"transparent",border:"none",color:"#a0a8c0",fontSize:10,fontWeight:600,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"4px 0"}}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
               Archivo
             </button>
-
-            {/* BOTÓN + */}
-            <button onClick={()=>setMostrarForm(true)} style={{width:50,height:50,borderRadius:"50%",border:"none",background:"linear-gradient(135deg,#667eea,#764ba2)",color:"white",fontSize:28,fontWeight:300,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 4px 16px rgba(124,106,255,0.5)"}}>
-              +
-            </button>
-
-            {/* ME INTERESA */}
+            <button onClick={()=>setMostrarForm(true)} style={{width:50,height:50,borderRadius:"50%",border:"none",background:"linear-gradient(135deg,#667eea,#764ba2)",color:"white",fontSize:28,fontWeight:300,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,boxShadow:"0 4px 16px rgba(124,106,255,0.5)"}}>+</button>
             <button onClick={()=>setVista("meInteresa")} style={{flex:1,background:"transparent",border:"none",color:"#a0a8c0",fontSize:10,fontWeight:600,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"4px 0"}}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z"/></svg>
               Me interesa
             </button>
           </div>
-
-          {/* Fila inferior: Mis fichas — mismo ancho */}
           <button onClick={()=>setVista("misPublicaciones")} style={{width:"100%",background:"rgba(14,12,28,0.85)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:"1px solid rgba(124,106,255,0.18)",borderRadius:16,padding:"9px",color:"#a0a8c0",fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
             Mis fichas
           </button>
         </div>

@@ -113,7 +113,7 @@ function ChatFullscreen({ derivacionId, usuario, otroNombre, otroPerfil, onCerra
 }
 
 // ── PILA DE CARTAS ────────────────────────────────────────────────────────────
-function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchivar }) {
+function CarteleraLoop({ fichas, usuario, onInteresa, onArchivar, onQuitarInteres }) {
   const [idx, setIdx] = useState(0);
   const [animando, setAnimando] = useState(null);
   const [offsetX, setOffsetX] = useState(0);
@@ -123,6 +123,7 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
   const startY = useRef(null);
   const THRESHOLD_H = 80, THRESHOLD_V = 55;
 
+  // Bloquear scroll de la página
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
@@ -133,8 +134,21 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
 
   useEffect(() => { if (fichas.length > 0 && idx >= fichas.length) setIdx(0); }, [fichas.length]);
 
+  if (fichas.length === 0) return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"80px 20px",textAlign:"center"}}>
+      <div style={{fontSize:56,marginBottom:16}}>📌</div>
+      <h3 style={{margin:"0 0 8px",color:"white",fontSize:18,fontWeight:800}}>Cartelera al día</h3>
+      <p style={{margin:0,color:"#4a5270",fontSize:13}}>No hay fichas disponibles con este filtro.</p>
+    </div>
+  );
+
   const total = fichas.length;
   const getIdx = (offset) => ((idx + offset) % total + total) % total;
+  const fichaActual = fichas[getIdx(0)];
+  const fichaSig = fichas[getIdx(1)];
+  const fichaAnt = fichas[getIdx(-1)];
+  const yaInteresado = fichaActual.interesadosEmails?.includes(usuario.email);
+  const esPropia = fichaActual.derivadoPorEmail === usuario.email;
 
   function onTouchStart(e) {
     if (e.touches.length !== 1) return;
@@ -163,12 +177,9 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
   function triggerH(dir) {
     setAnimando({ dir });
     setTimeout(() => {
-      if (total > 0) {
-        const f = fichas[getIdx(0)];
-        if (dir === "right" && f.derivadoPorEmail !== usuario.email) onInteresa(f);
-        else if (dir === "left") onArchivar(f);
-      }
-      setIdx(i => total > 0 ? (i + 1) % total : 0);
+      if (dir === "right" && !esPropia) onInteresa(fichaActual);
+      else if (dir === "left") onArchivar(fichaActual);
+      setIdx(i => (i + 1) % total);
       setOffsetX(0); setOffsetY(0); setSwipeDir(null); setAnimando(null);
     }, 320);
   }
@@ -180,210 +191,320 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
     }, 260);
   }
 
-  if (total === 0) return (
-    <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"60px 20px",textAlign:"center",minHeight:"50vh"}}>
-      <div style={{fontSize:52,marginBottom:14}}>📌</div>
-      <h3 style={{margin:"0 0 8px",color:"white",fontSize:17,fontWeight:800}}>Cartelera al día</h3>
-      <p style={{margin:0,color:"#4a5270",fontSize:13}}>No hay fichas con este filtro.</p>
-    </div>
-  );
-
-  const fichaActual = fichas[getIdx(0)];
-  const fichaSig = fichas[getIdx(1)];
-  const fichaAnt = fichas[getIdx(-1)];
-  const yaInteresado = fichaActual.interesadosEmails?.includes(usuario.email);
-  const esPropia = fichaActual.derivadoPorEmail === usuario.email;
-  const familia = familiaDeSubtipo(fichaActual.subtipo || "Derivación");
-
   const flyX = animando?.dir === "right" ? 500 : animando?.dir === "left" ? -500 : offsetX;
-  const flyY = animando?.dir === "up" ? -220 : animando?.dir === "down" ? 220 : offsetY;
+  const flyY = animando?.dir === "up" ? -200 : animando?.dir === "down" ? 200 : offsetY;
   const rot = offsetX * 0.035;
   const isH = animando?.dir === "left" || animando?.dir === "right";
-  const opActual = isH ? 0 : Math.max(0.15, 1 - Math.abs(offsetX)/260 - Math.abs(offsetY)/200);
-  const peekPct = Math.min(1, Math.abs(offsetY) / 140);
-  const isMovingUp = offsetY < -10;
-  const isMovingDown = offsetY > 10;
+  const opActual = isH ? 0 : Math.max(0.2, 1 - Math.abs(offsetX) / 280 - Math.abs(offsetY) / 220);
+  const familia = familiaDeSubtipo(fichaActual.subtipo || "Derivación");
+
+  // Progreso vertical para mostrar peek de cartas adyacentes
+  const peekAmount = Math.abs(offsetY) / 160; // 0 a 1
+  const isMovingUp = offsetY < 0;
+  const isMovingDown = offsetY > 0;
 
   return (
-    <div style={{display:"flex",flexDirection:"column",height:"calc(100vh - 54px)",overflow:"hidden"}}>
-
-      {/* FILTROS — arriba de las fichas */}
-      <div style={{padding:"10px 14px 6px",flexShrink:0}}>
-        <div style={{display:"flex",gap:6,background:"rgba(10,10,20,0.7)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:"1px solid rgba(124,106,255,0.15)",borderRadius:20,padding:"6px 8px"}}>
-          <button onClick={()=>setFiltro("todas")} style={{flex:1,padding:"7px 4px",borderRadius:14,border:"none",background:filtro==="todas"?"rgba(124,106,255,0.25)":"transparent",color:filtro==="todas"?"#a78bfa":"#4a5270",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>Todas</button>
-          {FAMILIAS.map(f=>(
-            <button key={f.id} onClick={()=>setFiltro(f.id)}
-              style={{flex:1,padding:"7px 4px",borderRadius:14,border:"none",background:filtro===f.id?`${f.color}33`:"transparent",color:filtro===f.id?f.color:"#4a5270",fontSize:filtro===f.id?12:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s",display:"flex",flexDirection:"column",alignItems:"center",gap:1}}>
-              <span style={{fontSize:filtro===f.id?18:14,transition:"font-size 0.15s"}}>{f.emoji}</span>
-              <span>{f.label}</span>
-            </button>
-          ))}
+    <div style={{padding:"8px 14px 10px",position:"relative"}}>
+      {/* Indicadores de swipe */}
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8,padding:"0 4px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:6,opacity:swipeDir==="left"?1:0.25,transition:"opacity 0.15s"}}>
+          <div style={{width:24,height:24,borderRadius:"50%",background:"rgba(239,83,80,0.15)",border:"1.5px solid #ef5350",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:10,color:"#ef5350"}}>✕</span></div>
+          <span style={{fontSize:9,color:"#ef5350",fontWeight:600}}>Archivar</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:5}}>
+          <span style={{fontSize:10,color:"#4a5270"}}>{getIdx(0)+1}/{total}</span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:6,opacity:swipeDir==="right"?1:0.25,transition:"opacity 0.15s"}}>
+          <span style={{fontSize:9,color:"#66bb6a",fontWeight:600}}>Me interesa</span>
+          <div style={{width:24,height:24,borderRadius:"50%",background:"rgba(102,187,106,0.15)",border:"1.5px solid #66bb6a",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:10,color:"#66bb6a"}}>♥</span></div>
         </div>
       </div>
 
-      {/* AREA DE CARTAS */}
-      <div style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"0 14px",position:"relative",minHeight:0}}>
+      {/* PILA */}
+      <div style={{position:"relative",height:460}}>
 
-        {/* FLECHA ARRIBA — botón + hint */}
-        <button onClick={()=>triggerV("down")}
-          style={{position:"absolute",top:2,left:"50%",transform:"translateX(-50%)",zIndex:10,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1,opacity:isMovingDown?0.9:0.3,transition:"opacity 0.2s",padding:"4px 20px"}}>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
-          <span style={{fontSize:8,color:"#7c6aff",fontWeight:600,letterSpacing:1}}>ANTERIOR</span>
-        </button>
+        {/* CARTA ANTERIOR — peek arriba */}
+        {total > 1 && (
+          <div style={{
+            position:"absolute", inset:"0 6px",
+            borderRadius:22,
+            background:"rgba(14,12,28,0.7)",
+            border:"1px solid rgba(124,106,255,0.08)",
+            overflow:"hidden",
+            transform:`translateY(${-30 + (isMovingDown ? Math.min(30, peekAmount*80) : 0)}px) scale(${0.88 + (isMovingDown ? peekAmount*0.06 : 0)})`,
+            opacity: isMovingDown ? 0.3 + peekAmount*0.5 : 0.25,
+            filter:`blur(${isMovingDown ? Math.max(0, 6 - peekAmount*6) : 6}px)`,
+            transition: animando ? "transform 0.26s ease,opacity 0.26s,filter 0.26s" : "none",
+            zIndex:1,
+          }}>
+            <div style={{height:3,background:familiaDeSubtipo(fichaAnt.subtipo||"Derivación").grad}}/>
+            <div style={{padding:"12px 14px",opacity:0.5}}>
+              <FamiliaChip subtipo={fichaAnt.subtipo||"Derivación"} small/>
+              <div style={{fontSize:13,fontWeight:800,color:"white",marginTop:6}}>{fichaAnt.titulo||fichaAnt.especialidad||fichaAnt.subtipo}</div>
+              <div style={{fontSize:10,color:"#4a5270",marginTop:2}}>por {fichaAnt.derivadoPor}</div>
+            </div>
+          </div>
+        )}
 
-        {/* PILA */}
-        <div style={{position:"relative",width:"100%",height:320}}>
+        {/* CARTA SIGUIENTE — peek abajo */}
+        {total > 1 && (
+          <div style={{
+            position:"absolute", inset:"0 6px",
+            borderRadius:22,
+            background:"rgba(14,12,28,0.7)",
+            border:"1px solid rgba(124,106,255,0.08)",
+            overflow:"hidden",
+            transform:`translateY(${22 + (isMovingUp ? Math.min(22, peekAmount*60) : 0)}px) scale(${0.91 + (isMovingUp ? peekAmount*0.06 : 0)})`,
+            opacity: isMovingUp ? 0.3 + peekAmount*0.5 : 0.3,
+            filter:`blur(${isMovingUp ? Math.max(0, 5 - peekAmount*5) : 5}px)`,
+            transition: animando ? "transform 0.26s ease,opacity 0.26s,filter 0.26s" : "none",
+            zIndex:2,
+          }}>
+            <div style={{height:3,background:familiaDeSubtipo(fichaSig.subtipo||"Derivación").grad}}/>
+            <div style={{padding:"12px 14px",opacity:0.5}}>
+              <FamiliaChip subtipo={fichaSig.subtipo||"Derivación"} small/>
+              <div style={{fontSize:13,fontWeight:800,color:"white",marginTop:6}}>{fichaSig.titulo||fichaSig.especialidad||fichaSig.subtipo}</div>
+              <div style={{fontSize:10,color:"#4a5270",marginTop:2}}>por {fichaSig.derivadoPor}</div>
+            </div>
+          </div>
+        )}
 
-          {/* CARTA ANTERIOR — peek arriba */}
-          {total > 1 && (
-            <div style={{
-              position:"absolute",inset:"0 8px",borderRadius:20,
-              background:"rgba(14,12,28,0.75)",
-              border:"1px solid rgba(124,106,255,0.07)",
-              overflow:"hidden",
-              transform:`translateY(${-44 + (isMovingDown ? Math.min(44,peekPct*80) : 0)}px) scale(${0.86+(isMovingDown?peekPct*0.09:0)})`,
-              opacity:isMovingDown?0.2+peekPct*0.6:0.2,
-              filter:`blur(${isMovingDown?Math.max(0,7-peekPct*7):7}px)`,
-              transition:animando?"transform 0.26s ease,opacity 0.26s,filter 0.26s":"none",
-              zIndex:1,
-            }}>
-              <div style={{height:3,background:familiaDeSubtipo(fichaAnt.subtipo||"Derivación").grad}}/>
-              <div style={{padding:"10px 14px"}}>
-                <FamiliaChip subtipo={fichaAnt.subtipo||"Derivación"} small/>
-                <div style={{fontSize:13,fontWeight:800,color:"white",marginTop:5,opacity:0.6}}>{fichaAnt.titulo||fichaAnt.especialidad||fichaAnt.subtipo}</div>
-              </div>
+        {/* CARTA ACTIVA */}
+        <div
+          onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+          style={{
+            position:"absolute", inset:0, zIndex:3,
+            background:"rgba(14,12,28,0.97)",
+            borderRadius:22,
+            border:`1px solid ${swipeDir==="right"?"rgba(102,187,106,0.6)":swipeDir==="left"?"rgba(239,83,80,0.6)":"rgba(124,106,255,0.3)"}`,
+            transform:`translate(${flyX}px,${flyY}px) rotate(${rot}deg)`,
+            opacity: opActual,
+            transition: animando ? "transform 0.32s cubic-bezier(0.4,0,0.2,1),opacity 0.32s" : "border 0.15s",
+            cursor:"grab", userSelect:"none", touchAction:"none",
+            boxShadow:"0 20px 60px rgba(0,0,0,0.6)",
+            overflow:"hidden",
+          }}>
+          <div style={{height:4,background:familia.grad}}/>
+
+          {/* Badges de swipe */}
+          {swipeDir==="right" && !esPropia && (
+            <div style={{position:"absolute",top:14,left:14,zIndex:5,background:"rgba(102,187,106,0.9)",borderRadius:8,padding:"4px 12px",border:"2px solid #66bb6a",transform:"rotate(-10deg)"}}>
+              <span style={{fontSize:12,fontWeight:800,color:"white"}}>♥ ME INTERESA</span>
+            </div>
+          )}
+          {swipeDir==="left" && (
+            <div style={{position:"absolute",top:14,right:14,zIndex:5,background:"rgba(239,83,80,0.9)",borderRadius:8,padding:"4px 12px",border:"2px solid #ef5350",transform:"rotate(10deg)"}}>
+              <span style={{fontSize:12,fontWeight:800,color:"white"}}>ARCHIVAR ✕</span>
+            </div>
+          )}
+          {swipeDir==="up" && (
+            <div style={{position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",zIndex:5,background:"rgba(124,106,255,0.9)",borderRadius:12,padding:"8px 18px",border:"2px solid #7c6aff"}}>
+              <span style={{fontSize:12,fontWeight:800,color:"white"}}>↑ Siguiente</span>
+            </div>
+          )}
+          {swipeDir==="down" && (
+            <div style={{position:"absolute",top:"40%",left:"50%",transform:"translate(-50%,-50%)",zIndex:5,background:"rgba(124,106,255,0.9)",borderRadius:12,padding:"8px 18px",border:"2px solid #7c6aff"}}>
+              <span style={{fontSize:12,fontWeight:800,color:"white"}}>↓ Anterior</span>
+            </div>
+          )}
+          {yaInteresado && (
+            <div style={{position:"absolute",top:14,right:14,zIndex:5,background:"rgba(56,161,105,0.85)",borderRadius:8,padding:"2px 10px",border:"2px solid #38a169",transform:"rotate(8deg)"}}>
+              <span style={{fontSize:10,fontWeight:800,color:"white"}}>♥ ME INTERESA</span>
+            </div>
+          )}
+          {esPropia && (
+            <div style={{position:"absolute",top:14,right:14,zIndex:5,background:"rgba(124,106,255,0.8)",borderRadius:8,padding:"2px 10px",border:"2px solid #7c6aff"}}>
+              <span style={{fontSize:10,fontWeight:800,color:"white"}}>Tu ficha</span>
             </div>
           )}
 
-          {/* CARTA SIGUIENTE — peek abajo */}
-          {total > 1 && (
-            <div style={{
-              position:"absolute",inset:"0 8px",borderRadius:20,
-              background:"rgba(14,12,28,0.75)",
-              border:"1px solid rgba(124,106,255,0.07)",
-              overflow:"hidden",
-              transform:`translateY(${28+(isMovingUp?Math.min(28,peekPct*60):0)}px) scale(${0.90+(isMovingUp?peekPct*0.07:0)})`,
-              opacity:isMovingUp?0.2+peekPct*0.6:0.25,
-              filter:`blur(${isMovingUp?Math.max(0,6-peekPct*6):6}px)`,
-              transition:animando?"transform 0.26s ease,opacity 0.26s,filter 0.26s":"none",
-              zIndex:2,
-            }}>
-              <div style={{height:3,background:familiaDeSubtipo(fichaSig.subtipo||"Derivación").grad}}/>
-              <div style={{padding:"10px 14px"}}>
-                <FamiliaChip subtipo={fichaSig.subtipo||"Derivación"} small/>
-                <div style={{fontSize:13,fontWeight:800,color:"white",marginTop:5,opacity:0.6}}>{fichaSig.titulo||fichaSig.especialidad||fichaSig.subtipo}</div>
+          <div style={{padding:"14px 16px",height:"calc(100% - 4px)",display:"flex",flexDirection:"column",overflowY:"auto"}}>
+            {/* Header */}
+            <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:12}}>
+              <div>
+                <FamiliaChip subtipo={fichaActual.subtipo||"Derivación"}/>
+                <div style={{fontSize:16,fontWeight:800,color:"white",marginTop:8,lineHeight:1.2}}>{fichaActual.titulo||fichaActual.especialidad||fichaActual.subtipo}</div>
+                <div style={{fontSize:11,color:"#4a5270",marginTop:3}}>por {fichaActual.derivadoPor} · {tiempoRelativo(fichaActual.creadoEn?.seconds)}</div>
               </div>
             </div>
-          )}
 
-          {/* CARTA ACTIVA */}
-          <div
-            onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-            style={{
-              position:"absolute",inset:0,zIndex:3,
-              background:"rgba(14,12,28,0.97)",
-              borderRadius:20,
-              border:`1px solid ${swipeDir==="right"?"rgba(102,187,106,0.7)":swipeDir==="left"?"rgba(239,83,80,0.7)":"rgba(124,106,255,0.3)"}`,
-              transform:`translate(${flyX}px,${flyY}px) rotate(${rot}deg)`,
-              opacity:opActual,
-              transition:animando?"transform 0.32s cubic-bezier(0.4,0,0.2,1),opacity 0.32s":"border 0.15s",
-              cursor:"grab", userSelect:"none", touchAction:"none",
-              boxShadow:"0 16px 48px rgba(0,0,0,0.6)",
-              overflow:"hidden",
-            }}>
-            <div style={{height:4,background:familia.grad}}/>
-
-            {/* Badge swipe derecha */}
-            {swipeDir==="right"&&!esPropia&&(
-              <div style={{position:"absolute",top:12,left:12,zIndex:5,background:"rgba(102,187,106,0.9)",borderRadius:8,padding:"3px 10px",border:"2px solid #66bb6a",transform:"rotate(-10deg)"}}>
-                <span style={{fontSize:11,fontWeight:800,color:"white"}}>♥ ME INTERESA</span>
-              </div>
-            )}
-            {swipeDir==="left"&&(
-              <div style={{position:"absolute",top:12,right:12,zIndex:5,background:"rgba(239,83,80,0.9)",borderRadius:8,padding:"3px 10px",border:"2px solid #ef5350",transform:"rotate(10deg)"}}>
-                <span style={{fontSize:11,fontWeight:800,color:"white"}}>ARCHIVAR ✕</span>
-              </div>
-            )}
-            {yaInteresado&&(
-              <div style={{position:"absolute",top:12,right:12,zIndex:5,background:"rgba(56,161,105,0.85)",borderRadius:8,padding:"2px 8px",border:"2px solid #38a169",transform:"rotate(8deg)"}}>
-                <span style={{fontSize:9,fontWeight:800,color:"white"}}>♥ ME INTERESA</span>
-              </div>
-            )}
-            {esPropia&&(
-              <div style={{position:"absolute",top:12,right:12,zIndex:5,background:"rgba(124,106,255,0.8)",borderRadius:8,padding:"2px 8px",border:"2px solid #7c6aff"}}>
-                <span style={{fontSize:9,fontWeight:800,color:"white"}}>Tu ficha</span>
-              </div>
+            {/* Nota */}
+            {fichaActual.nota && (
+              <p style={{margin:"0 0 12px",fontSize:13,color:"#e2e8f0",lineHeight:1.6,padding:"10px 12px",background:"rgba(124,106,255,0.06)",borderRadius:10,borderLeft:`2px solid ${familia.color}66`}}>
+                &ldquo;{fichaActual.nota}&rdquo;
+              </p>
             )}
 
-            <div style={{padding:"12px 14px",height:"calc(100% - 4px)",display:"flex",flexDirection:"column",overflowY:"auto"}}>
-              {/* Header con icono grande de la familia */}
-              <div style={{display:"flex",alignItems:"center",gap:12,marginBottom:10}}>
-                <div style={{width:46,height:46,borderRadius:14,background:familia.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0,boxShadow:`0 4px 14px ${familia.color}44`}}>
-                  {familia.emoji}
-                </div>
-                <div style={{flex:1,minWidth:0}}>
-                  <div style={{fontSize:15,fontWeight:800,color:"white",lineHeight:1.2,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{fichaActual.titulo||fichaActual.especialidad||fichaActual.subtipo}</div>
-                  <div style={{display:"flex",alignItems:"center",gap:6,marginTop:3}}>
-                    <FamiliaChip subtipo={fichaActual.subtipo||"Derivación"} small/>
-                  </div>
-                  <div style={{fontSize:10,color:"#4a5270",marginTop:3}}>por {fichaActual.derivadoPor} · {tiempoRelativo(fichaActual.creadoEn?.seconds)}</div>
-                </div>
-              </div>
+            {/* Tags */}
+            <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:14}}>
+              {fichaActual.modalidad && <Tag label={`📍 ${fichaActual.modalidad}`}/>}
+              {fichaActual.especialidad && fichaActual.especialidad!==fichaActual.titulo && <Tag label={fichaActual.especialidad}/>}
+              {fichaActual.genero && fichaActual.genero!=="Indistinto" && <Tag label={`${fichaActual.genero==="Femenino"?"👩":"👨"} ${fichaActual.genero}`}/>}
+              {fichaActual.edad && fichaActual.edad!=="Indistinto" && <Tag label={`🎂 ${fichaActual.edad}`}/>}
+              {fichaActual.dias?.length>0 && <Tag label={`📅 ${fichaActual.dias.join(" · ")}`}/>}
+              {fichaActual.franjas?.length>0 && <Tag label={`⏰ ${fichaActual.franjas.join(" · ")}`}/>}
+            </div>
 
-              {fichaActual.nota&&(
-                <p style={{margin:"0 0 10px",fontSize:12,color:"#e2e8f0",lineHeight:1.55,padding:"9px 11px",background:"rgba(124,106,255,0.06)",borderRadius:10,borderLeft:`2px solid ${familia.color}66`}}>
-                  &ldquo;{fichaActual.nota}&rdquo;
-                </p>
+            {/* Botones */}
+            <div style={{display:"flex",gap:8,marginTop:"auto"}}>
+              <button onClick={()=>triggerH("left")} style={{flex:1,padding:"11px",borderRadius:14,border:"1px solid rgba(239,83,80,0.3)",background:"rgba(239,83,80,0.08)",color:"#ef5350",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕ Archivar</button>
+              {!esPropia && (
+                <button onClick={()=>triggerH("right")} style={{flex:2,padding:"11px",borderRadius:14,border:"none",background:yaInteresado?"rgba(56,161,105,0.15)":"linear-gradient(135deg,#38a169,#2d8a5e)",color:yaInteresado?"#66bb6a":"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
+                  ♥ {yaInteresado?"Ya te postulaste":"Me interesa"}
+                </button>
               )}
-
-              <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:10}}>
-                {fichaActual.modalidad&&<Tag label={`📍 ${fichaActual.modalidad}`}/>}
-                {fichaActual.especialidad&&fichaActual.especialidad!==fichaActual.titulo&&<Tag label={fichaActual.especialidad}/>}
-                {fichaActual.genero&&fichaActual.genero!=="Indistinto"&&<Tag label={fichaActual.genero}/>}
-                {fichaActual.dias?.length>0&&<Tag label={`📅 ${fichaActual.dias.slice(0,2).join("·")}`}/>}
-                {fichaActual.franjas?.length>0&&<Tag label={`⏰ ${fichaActual.franjas.join("·")}`}/>}
-              </div>
-
-              <div style={{display:"flex",gap:8,marginTop:"auto"}}>
-                <button onClick={()=>triggerH("left")} style={{flex:1,padding:"10px",borderRadius:13,border:"1px solid rgba(239,83,80,0.3)",background:"rgba(239,83,80,0.08)",color:"#ef5350",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕ Archivar</button>
-                {!esPropia&&(
-                  <button onClick={()=>triggerH("right")} style={{flex:2,padding:"10px",borderRadius:13,border:"none",background:yaInteresado?"rgba(56,161,105,0.15)":"linear-gradient(135deg,#38a169,#2d8a5e)",color:yaInteresado?"#66bb6a":"white",fontWeight:700,fontSize:12,cursor:"pointer"}}>
-                    ♥ {yaInteresado?"Postulado":"Me interesa"}
-                  </button>
-                )}
-              </div>
             </div>
           </div>
         </div>
+      </div>
 
-        {/* INDICADORES DE SWIPE H */}
-        <div style={{display:"flex",justifyContent:"space-between",width:"100%",marginTop:8,padding:"0 4px"}}>
-          <div style={{display:"flex",alignItems:"center",gap:5,opacity:swipeDir==="left"?1:0.2,transition:"opacity 0.15s"}}>
-            <div style={{width:22,height:22,borderRadius:"50%",background:"rgba(239,83,80,0.15)",border:"1.5px solid #ef5350",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:9,color:"#ef5350"}}>✕</span></div>
-            <span style={{fontSize:9,color:"#ef5350",fontWeight:600}}>Archivar</span>
-          </div>
-          <span style={{fontSize:10,color:"#4a5270"}}>{getIdx(0)+1}/{total}</span>
-          <div style={{display:"flex",alignItems:"center",gap:5,opacity:swipeDir==="right"?1:0.2,transition:"opacity 0.15s"}}>
-            <span style={{fontSize:9,color:"#66bb6a",fontWeight:600}}>Me interesa</span>
-            <div style={{width:22,height:22,borderRadius:"50%",background:"rgba(102,187,106,0.15)",border:"1.5px solid #66bb6a",display:"flex",alignItems:"center",justifyContent:"center"}}><span style={{fontSize:9,color:"#66bb6a"}}>♥</span></div>
-          </div>
-        </div>
+      {/* Hint navegación */}
+      <div style={{display:"flex",justifyContent:"center",gap:16,marginTop:8,opacity:0.25}}>
+        <span style={{fontSize:9,color:"#a0a8c0"}}>↑ ↓ navegar</span>
+        <span style={{fontSize:9,color:"#a0a8c0"}}>← → responder</span>
+      </div>
+    </div>
+  );
+}
 
-        {/* FLECHA ABAJO — botón + hint */}
-        <button onClick={()=>triggerV("up")}
-          style={{position:"absolute",bottom:2,left:"50%",transform:"translateX(-50%)",zIndex:10,background:"none",border:"none",cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:1,opacity:isMovingUp?0.9:0.3,transition:"opacity 0.2s",padding:"4px 20px"}}>
-          <span style={{fontSize:8,color:"#7c6aff",fontWeight:600,letterSpacing:1}}>SIGUIENTE</span>
-          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
+// ── FORM NUEVA FICHA — con selector de familia y subtipo ─────────────────────
+function FormNuevaFicha({ usuario, onPublicar, onCerrar }) {
+  const [step, setStep] = useState("familia"); // familia → subtipo → detalle
+  const [familiaId, setFamiliaId] = useState(null);
+  const [subtipo, setSubtipo] = useState(null);
+  const [form, setForm] = useState({titulo:"",especialidad:"",otraEspecialidad:"",modalidad:"Ambas",dias:[],franjas:[],genero:"Indistinto",edad:"Indistinto",nota:""});
+
+  const familia = FAMILIAS.find(f=>f.id===familiaId);
+  function toggleArr(arr, val) { return arr.includes(val)?arr.filter(x=>x!==val):[...arr,val]; }
+  const chip = (label,active,onClick,color) => (
+    <button key={label} onClick={onClick} style={{padding:"6px 14px",borderRadius:20,border:`1px solid ${active?(color||"#7c6aff"):"rgba(124,106,255,0.2)"}`,background:active?`${color||"#667eea"}22`:"transparent",color:active?(color||"#a78bfa"):"#a0a8c0",fontSize:11,fontWeight:600,cursor:"pointer",transition:"all 0.15s"}}>{label}</button>
+  );
+  const inp = {width:"100%",padding:"10px 12px",borderRadius:10,border:"1px solid rgba(124,106,255,0.2)",fontSize:13,marginBottom:10,boxSizing:"border-box",outline:"none",background:"rgba(14,12,28,0.8)",color:"white",fontFamily:"inherit"};
+  const lbl = {display:"block",fontSize:10,fontWeight:700,color:"#a0a8c0",marginBottom:6,textTransform:"uppercase",letterSpacing:.5};
+
+  async function publicar() {
+    const esp = form.especialidad==="Otro"?form.otraEspecialidad||"Otro":form.especialidad;
+    await onPublicar({
+      familia: familiaId, subtipo,
+      titulo: form.titulo.trim()||subtipo,
+      especialidad: esp,
+      modalidad: form.modalidad,
+      dias: form.dias, franjas: form.franjas,
+      genero: form.genero, edad: form.edad,
+      nota: form.nota.trim(),
+    });
+    onCerrar();
+  }
+
+  return (
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.85)",display:"flex",alignItems:"flex-end",justifyContent:"center",zIndex:3000}}>
+      <div style={{background:"#0a0a14",borderRadius:"24px 24px 0 0",padding:"20px 20px 40px",width:"100%",maxWidth:520,border:"1px solid rgba(124,106,255,0.2)",maxHeight:"88vh",overflowY:"auto"}}>
+        <div style={{width:36,height:4,borderRadius:2,background:"rgba(255,255,255,0.1)",margin:"0 auto 16px"}}/>
+
+        {/* PASO 1: elegir familia */}
+        {step==="familia" && (
+          <>
+            <h3 style={{margin:"0 0 6px",fontSize:16,fontWeight:800,color:"white"}}>Nueva ficha</h3>
+            <p style={{margin:"0 0 20px",fontSize:12,color:"#4a5270"}}>¿De qué tipo es?</p>
+            <div style={{display:"flex",flexDirection:"column",gap:12}}>
+              {FAMILIAS.map(f=>(
+                <button key={f.id} onClick={()=>{setFamiliaId(f.id);setStep("subtipo");}}
+                  style={{width:"100%",padding:"18px 20px",borderRadius:18,border:`1px solid ${f.color}44`,background:`${f.color}11`,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:14}}>
+                  <div style={{width:48,height:48,borderRadius:14,background:f.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:22,flexShrink:0}}>{f.emoji}</div>
+                  <div>
+                    <div style={{fontSize:16,fontWeight:800,color:"white"}}>{f.label}</div>
+                    <div style={{fontSize:11,color:"#a0a8c0",marginTop:3}}>{f.tipos.join(" · ")}</div>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <button onClick={onCerrar} style={{width:"100%",marginTop:14,padding:"10px",borderRadius:12,border:"1px solid rgba(124,106,255,0.15)",background:"transparent",color:"#4a5270",fontWeight:600,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+          </>
+        )}
+
+        {/* PASO 2: elegir subtipo */}
+        {step==="subtipo" && familia && (
+          <>
+            <button onClick={()=>setStep("familia")} style={{background:"none",border:"none",color:"#7c6aff",cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:14,padding:0,display:"flex",alignItems:"center",gap:6}}>← {familia.label}</button>
+            <h3 style={{margin:"0 0 6px",fontSize:16,fontWeight:800,color:"white"}}>¿Qué tipo de {familia.label.toLowerCase()}?</h3>
+            <p style={{margin:"0 0 20px",fontSize:12,color:"#4a5270"}}>Elegí la categoría más específica</p>
+            <div style={{display:"flex",flexDirection:"column",gap:10}}>
+              {familia.tipos.map(t=>(
+                <button key={t} onClick={()=>{setSubtipo(t);setStep("detalle");}}
+                  style={{width:"100%",padding:"14px 18px",borderRadius:14,border:`1px solid ${familia.color}33`,background:`${familia.color}0e`,cursor:"pointer",textAlign:"left",display:"flex",alignItems:"center",gap:12}}>
+                  <div style={{width:36,height:36,borderRadius:10,background:familia.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{familia.emoji}</div>
+                  <span style={{fontSize:15,fontWeight:700,color:"white"}}>{t}</span>
+                </button>
+              ))}
+            </div>
+            <button onClick={onCerrar} style={{width:"100%",marginTop:14,padding:"10px",borderRadius:12,border:"1px solid rgba(124,106,255,0.15)",background:"transparent",color:"#4a5270",fontWeight:600,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+          </>
+        )}
+
+        {/* PASO 3: detalles */}
+        {step==="detalle" && familia && subtipo && (
+          <>
+            <button onClick={()=>setStep("subtipo")} style={{background:"none",border:"none",color:"#7c6aff",cursor:"pointer",fontSize:13,fontWeight:600,marginBottom:14,padding:0,display:"flex",alignItems:"center",gap:6}}>← {subtipo}</button>
+            <div style={{display:"flex",alignItems:"center",gap:10,marginBottom:16}}>
+              <div style={{width:36,height:36,borderRadius:10,background:familia.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:16,flexShrink:0}}>{familia.emoji}</div>
+              <div>
+                <div style={{fontSize:15,fontWeight:800,color:"white"}}>{subtipo}</div>
+                <div style={{fontSize:10,color:familia.color,fontWeight:600}}>{familia.label}</div>
+              </div>
+            </div>
+
+            <label style={lbl}>Título (opcional)</label>
+            <input value={form.titulo} onChange={e=>setForm(f=>({...f,titulo:e.target.value}))} placeholder={`Ej: ${subtipo} en ${familiaId==="casos"?"psicología adultos":familiaId==="formacion"?"clínica lacaniana":"proyecto comunitario"}`} style={inp}/>
+
+            {familiaId==="casos" && (
+              <>
+                <label style={lbl}>Especialidad buscada</label>
+                <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>
+                  {ESPECIALIDADES.map(e=>chip(e,form.especialidad===e,()=>setForm(f=>({...f,especialidad:e})),familia.color))}
+                </div>
+                {form.especialidad==="Otro"&&<input value={form.otraEspecialidad} onChange={e=>setForm(f=>({...f,otraEspecialidad:e.target.value}))} placeholder="Especificá" style={inp}/>}
+                <label style={lbl}>Modalidad</label>
+                <div style={{display:"flex",gap:6,marginBottom:10}}>{MODALIDADES.map(m=>chip(m,form.modalidad===m,()=>setForm(f=>({...f,modalidad:m})),familia.color))}</div>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:12,marginBottom:10}}>
+                  <div><label style={lbl}>Género</label><div style={{display:"flex",flexDirection:"column",gap:5}}>{["Indistinto","Femenino","Masculino"].map(g=>chip(g,form.genero===g,()=>setForm(f=>({...f,genero:g})),familia.color))}</div></div>
+                  <div><label style={lbl}>Franja etaria</label><div style={{display:"flex",flexDirection:"column",gap:5}}>{["Indistinto","Joven","Adulto"].map(e=>chip(e,form.edad===e,()=>setForm(f=>({...f,edad:e})),familia.color))}</div></div>
+                </div>
+              </>
+            )}
+
+            <label style={lbl}>Días disponibles</label>
+            <div style={{display:"flex",flexWrap:"wrap",gap:6,marginBottom:10}}>{DIAS.map(d=>chip(d,form.dias.includes(d),()=>setForm(f=>({...f,dias:toggleArr(f.dias,d)})),familia.color))}</div>
+            <label style={lbl}>Franjas horarias</label>
+            <div style={{display:"flex",gap:6,marginBottom:10}}>{FRANJAS.map(fr=>chip(fr,form.franjas.includes(fr),()=>setForm(f=>({...f,franjas:toggleArr(f.franjas,fr)})),familia.color))}</div>
+            <label style={lbl}>Descripción / nota</label>
+            <textarea value={form.nota} onChange={e=>setForm(f=>({...f,nota:e.target.value}))} placeholder={familiaId==="casos"?"Contexto clínico sin datos identificatorios...":familiaId==="formacion"?"¿Qué buscás en este espacio?":"Describí el proyecto o propuesta..."} rows={3} style={{...inp,resize:"vertical"}}/>
+
+            <div style={{display:"flex",gap:10,marginTop:6}}>
+              <button onClick={onCerrar} style={{flex:1,padding:13,borderRadius:12,border:"1px solid rgba(124,106,255,0.2)",background:"transparent",color:"#a0a8c0",fontWeight:600,fontSize:13,cursor:"pointer"}}>Cancelar</button>
+              <button onClick={publicar} style={{flex:2,padding:13,borderRadius:12,border:"none",background:familia.grad,color:"white",fontWeight:800,fontSize:13,cursor:"pointer"}}>Publicar ficha</button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
 // ── FOOTER CON FILTRO ─────────────────────────────────────────────────────────
-function FooterCartelera({ onNueva, onArchivo, onMeInteresa, onMisFichas }) {
+function FooterCartelera({ filtro, setFiltro, onNueva, onArchivo, onMeInteresa, onMisFichas }) {
   return (
     <div style={{position:"fixed",bottom:90,left:"50%",transform:"translateX(-50%)",zIndex:60,display:"flex",flexDirection:"column",alignItems:"center",gap:6,width:"calc(100% - 24px)",maxWidth:360}}>
+      {/* Filtros de familia */}
+      <div style={{display:"flex",gap:5,width:"100%",background:"rgba(10,10,20,0.9)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:"1px solid rgba(124,106,255,0.15)",borderRadius:18,padding:"6px 8px"}}>
+        <button onClick={()=>setFiltro("todas")} style={{flex:1,padding:"5px 4px",borderRadius:12,border:"none",background:filtro==="todas"?"rgba(124,106,255,0.25)":"transparent",color:filtro==="todas"?"#a78bfa":"#4a5270",fontSize:10,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>Todas</button>
+        {FAMILIAS.map(f=>(
+          <button key={f.id} onClick={()=>setFiltro(f.id)} style={{flex:1,padding:"5px 4px",borderRadius:12,border:"none",background:filtro===f.id?`${f.color}33`:"transparent",color:filtro===f.id?f.color:"#4a5270",fontSize:10,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>
+            {f.emoji} {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Acciones principales */}
       <div style={{display:"flex",alignItems:"center",width:"100%",gap:6,background:"rgba(10,10,20,0.92)",backdropFilter:"blur(20px)",WebkitBackdropFilter:"blur(20px)",border:"1px solid rgba(124,106,255,0.2)",borderRadius:22,padding:"8px 10px",boxShadow:"0 8px 32px rgba(0,0,0,0.4)"}}>
         <button onClick={onArchivo} style={{flex:1,background:"transparent",border:"none",color:"#a0a8c0",fontSize:10,fontWeight:600,cursor:"pointer",display:"flex",flexDirection:"column",alignItems:"center",gap:3,padding:"4px 0"}}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round"><path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/></svg>
@@ -395,6 +516,7 @@ function FooterCartelera({ onNueva, onArchivo, onMeInteresa, onMisFichas }) {
           Me interesa
         </button>
       </div>
+
       <button onClick={onMisFichas} style={{width:"100%",background:"rgba(14,12,28,0.85)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:"1px solid rgba(124,106,255,0.18)",borderRadius:16,padding:"9px",color:"#a0a8c0",fontSize:11,fontWeight:700,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:8}}>
         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
         Mis fichas
@@ -732,23 +854,11 @@ export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatI
     return <ChatFullscreen derivacionId={chatAbierto.derivacionId} usuario={usuario} otroNombre={chatAbierto.otroNombre} otroPerfil={op} onCerrar={()=>setChatAbierto(null)}/>;
   }
 
-  const tituloVista = { cartelera:"Cartelera", archivo:"Archivo", meInteresa:"Me interesa", misPublicaciones:"Mis fichas", conexiones:"Conexiones" }[vista] || "Lazos";
-
   return (
     <div>
-      {/* STICKY BAR — título dinámico */}
-      <div style={{position:"fixed",top:0,left:0,right:0,zIndex:50,background:"rgba(0,0,0,0.92)",backdropFilter:"blur(24px)",WebkitBackdropFilter:"blur(24px)",borderBottom:"1px solid rgba(124,106,255,0.15)",padding:"10px 20px",display:"flex",alignItems:"center",justifyContent:"space-between",height:54}}>
-        <span style={{fontSize:14,fontWeight:800,color:"white"}}>Lazos</span>
-        <span style={{fontSize:12,fontWeight:700,color:"#7c6aff"}}>{tituloVista}</span>
-        <span style={{fontSize:11,color:"#7c6aff",fontWeight:700,letterSpacing:2,opacity:0.6}}>GRINS</span>
-      </div>
-
-      {/* Espaciador para sticky bar */}
-      <div style={{height:54}}/>
-
       {mostrarForm&&<FormNuevaFicha usuario={usuario} onPublicar={publicar} onCerrar={()=>setMostrarForm(false)}/>}
 
-      {vista==="cartelera"&&<CarteleraLoop fichas={fichasCartelera} filtro={filtro} setFiltro={setFiltro} usuario={usuario} onInteresa={meInteresa} onArchivar={archivarLocal} onQuitarInteres={quitarInteres}/>}
+      {vista==="cartelera"&&<CarteleraLoop fichas={fichasCartelera} usuario={usuario} onInteresa={meInteresa} onArchivar={archivarLocal} onQuitarInteres={quitarInteres}/>}
       {vista==="archivo"&&<VistaArchivo archivadas={archivadas} setArchivadas={setArchivadas} derivaciones={derivaciones} usuario={usuario} esAdmin={esAdmin} onVolver={()=>setVista("cartelera")} onEliminarDefinitivo={eliminar}/>}
       {vista==="meInteresa"&&<VistaMeInteresa archivadas={archivadas} derivaciones={derivaciones} usuario={usuario} onVolver={()=>setVista("cartelera")} onQuitarInteres={quitarInteres}/>}
       {vista==="misPublicaciones"&&<MisPublicaciones derivaciones={derivaciones} usuario={usuario} perfiles={perfiles} esAdmin={esAdmin} onAsignar={asignar} onCerrar={cerrar} onEliminar={eliminar} onAbrirChat={abrirChat} onVolver={()=>setVista("cartelera")}/>}
@@ -756,6 +866,7 @@ export default function Derivaciones({ usuario, t, esAdmin, chatInicial, onChatI
 
       {vista==="cartelera"&&(
         <FooterCartelera
+          filtro={filtro} setFiltro={setFiltro}
           onNueva={()=>setMostrarForm(true)}
           onArchivo={()=>setVista("archivo")}
           onMeInteresa={()=>setVista("meInteresa")}

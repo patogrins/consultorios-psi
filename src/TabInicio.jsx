@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "./firebase";
 import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore";
+import QuizPsicologia from "./QuizPsicologia";
 
 const HORAS = Array.from({ length: 14 }, (_, i) => i + 8);
 const CONSULTORIOS = ["Consultorio 3", "Consultorio 4", "Consultorio 5"];
@@ -29,6 +30,7 @@ async function subirArchivoCloudinary(file) {
 }
 
 export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, reservas = [] }) {
+  const [mostrarQuiz, setMostrarQuiz] = useState(false);
   const [mensajes, setMensajes] = useState([]);
   const [nuevoMsg, setNuevoMsg] = useState("");
   const [archivosNuevos, setArchivosNuevos] = useState([]);
@@ -244,6 +246,13 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
   return (
     <div ref={scrollRef} style={{ height: "100vh", overflowY: "auto", background: "#000000" }} className="tab-content">
 
+      {/* QUIZ — pantalla completa */}
+      {mostrarQuiz && (
+        <div style={{ position:"fixed", inset:0, zIndex:200, overflowY:"auto", background:"#000" }}>
+          <QuizPsicologia onVolver={() => setMostrarQuiz(false)}/>
+        </div>
+      )}
+
       {/* ══ STICKY BAR ══ */}
       <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 20, background: stickyVisible ? "rgba(0,0,0,0.92)" : "transparent", backdropFilter: stickyVisible ? "blur(24px)" : "none", WebkitBackdropFilter: stickyVisible ? "blur(24px)" : "none", borderBottom: stickyVisible ? "1px solid rgba(124,106,255,0.15)" : "none", transition: "all 0.3s ease", padding: stickyVisible ? "10px 20px" : "0", height: stickyVisible ? "auto" : 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -299,6 +308,21 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
             </div>
           </div>
         )}
+      </div>
+
+      {/* BOTÓN QUIZ — siempre visible */}
+      <div style={{ padding:"0 14px 14px" }}>
+        <button onClick={() => setMostrarQuiz(true)}
+          style={{ width:"100%", padding:"14px 18px", borderRadius:18, border:"none", background:"linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)", cursor:"pointer", display:"flex", alignItems:"center", gap:14, boxShadow:"0 4px 20px rgba(0,0,0,0.4)", position:"relative", overflow:"hidden" }}>
+          {/* Borde superior decorativo */}
+          <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:"linear-gradient(90deg,#667eea,#764ba2,#f093fb)" }}/>
+          <div style={{ width:44, height:44, borderRadius:13, background:"rgba(102,126,234,0.2)", border:"1px solid rgba(102,126,234,0.3)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>🧠</div>
+          <div style={{ textAlign:"left", flex:1 }}>
+            <div style={{ fontSize:14, fontWeight:800, color:"white", marginBottom:3 }}>Evaluación · Psicología del Deporte</div>
+            <div style={{ fontSize:11, color:"rgba(160,168,192,0.8)" }}>10 preguntas · ATFA 2026</div>
+          </div>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(124,106,255,0.6)" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
       </div>
 
       <div style={{ padding: "14px 14px 100px" }}>

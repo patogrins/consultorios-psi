@@ -76,7 +76,7 @@ function getLineaPct() {
 }
 
 // ── POPUP DE RESERVA ──────────────────────────────────────────────────────────
-function PopupReserva({ reserva, colorMap, usuarios, esAdmin, onClose, onEditar, onEliminar, onNotificar, onAsociarUsuario }) {
+function PopupReserva({ reserva, colorMap, usuarios, esAdmin, puedeEditar, onClose, onEditar, onEliminar, onNotificar, onAsociarUsuario }) {
   const col = colorMap[reserva.profesional] || COLORES_PROF[0];
   const usuarioData = usuarios?.find(u => u.nombre === reserva.profesional);
   const duracion = reserva.horaFin - reserva.horaInicio;
@@ -121,11 +121,9 @@ function PopupReserva({ reserva, colorMap, usuarios, esAdmin, onClose, onEditar,
           ))}
         </div>
 
-        {/* Acciones admin */}
+        {/* Acciones solo para admin */}
         {esAdmin && (
           <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
-
-            {/* Asociar usuario registrado */}
             {!asociando ? (
               <button onClick={()=>setAsociando(true)}
                 style={{ width:"100%", padding:"10px", borderRadius:12, border:"1px solid rgba(99,179,237,0.3)", background:"rgba(99,179,237,0.08)", color:"#63b3ed", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
@@ -144,24 +142,25 @@ function PopupReserva({ reserva, colorMap, usuarios, esAdmin, onClose, onEditar,
                 </select>
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={()=>setAsociando(false)} style={{ flex:1, padding:"8px", borderRadius:9, border:"1px solid rgba(255,255,255,0.08)", background:"transparent", color:"#4a5270", fontSize:12, cursor:"pointer", fontWeight:600 }}>Cancelar</button>
-                  <button
-                    onClick={async ()=>{ if(!usuarioSel) return; await onAsociarUsuario(reserva, usuarioSel); setAsociando(false); onClose(); }}
-                    disabled={!usuarioSel}
+                  <button onClick={async ()=>{ if(!usuarioSel) return; await onAsociarUsuario(reserva, usuarioSel); setAsociando(false); onClose(); }} disabled={!usuarioSel}
                     style={{ flex:2, padding:"8px", borderRadius:9, border:"none", background:usuarioSel?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(255,255,255,0.05)", color:usuarioSel?"white":"#4a5270", fontSize:12, fontWeight:800, cursor:usuarioSel?"pointer":"not-allowed" }}>
                     Asociar y notificar
                   </button>
                 </div>
               </div>
             )}
-
             <button onClick={()=>onNotificar(reserva)} style={{ width:"100%", padding:"10px", borderRadius:12, border:"1px solid rgba(124,106,255,0.25)", background:"rgba(124,106,255,0.1)", color:"#a78bfa", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
               Enviar mensaje al profesional
             </button>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>{onEditar(reserva);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(255,255,255,0.1)", background:"transparent", color:"#a0a8c0", fontWeight:600, fontSize:12, cursor:"pointer" }}>✎ Editar</button>
-              <button onClick={()=>{onEliminar(reserva.id);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(239,83,80,0.3)", background:"rgba(239,83,80,0.08)", color:"#ef5350", fontWeight:600, fontSize:12, cursor:"pointer" }}>🗑 Eliminar</button>
-            </div>
+          </div>
+        )}
+
+        {/* Editar / Eliminar — visible para el dueño de la reserva O para el admin */}
+        {(esAdmin || puedeEditar) && (
+          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+            <button onClick={()=>{onEditar(reserva);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(255,255,255,0.1)", background:"transparent", color:"#a0a8c0", fontWeight:600, fontSize:12, cursor:"pointer" }}>✎ Editar</button>
+            <button onClick={()=>{onEliminar(reserva.id);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(239,83,80,0.3)", background:"rgba(239,83,80,0.08)", color:"#ef5350", fontWeight:600, fontSize:12, cursor:"pointer" }}>🗑 Eliminar</button>
           </div>
         )}
 
@@ -758,6 +757,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
         <PopupReserva
           reserva={popupReserva} colorMap={colorMap} usuarios={usuarios}
           esAdmin={esAdmin}
+          puedeEditar={puedeEditarFn(popupReserva)}
           onClose={()=>setPopupReserva(null)}
           onEditar={(r)=>{onOpenEditar(r);setPopupReserva(null);}}
           onEliminar={(id)=>{setConfirmDelete(id);setPopupReserva(null);}}

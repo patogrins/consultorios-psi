@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from "react";
 import { db } from "./firebase";
 import { collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import QuizPsicologia from "./QuizPsicologia";
+import QuizResultadosAdmin from "./QuizResultadosAdmin";
 
 const HORAS = Array.from({ length: 14 }, (_, i) => i + 8);
 const CONSULTORIOS = ["Consultorio 3", "Consultorio 4", "Consultorio 5"];
@@ -31,6 +32,7 @@ async function subirArchivoCloudinary(file) {
 
 export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, reservas = [] }) {
   const [mostrarQuiz, setMostrarQuiz] = useState(false);
+  const [mostrarResultadosAdmin, setMostrarResultadosAdmin] = useState(false);
   const [mensajes, setMensajes] = useState([]);
   const [nuevoMsg, setNuevoMsg] = useState("");
   const [archivosNuevos, setArchivosNuevos] = useState([]);
@@ -246,10 +248,17 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
   return (
     <div ref={scrollRef} style={{ height: "100vh", overflowY: "auto", background: "#000000" }} className="tab-content">
 
-      {/* QUIZ — pantalla completa */}
+      {/* QUIZ */}
       {mostrarQuiz && (
         <div style={{ position:"fixed", inset:0, zIndex:200, overflowY:"auto", background:"#000" }}>
           <QuizPsicologia onVolver={() => setMostrarQuiz(false)}/>
+        </div>
+      )}
+
+      {/* RESULTADOS ADMIN */}
+      {mostrarResultadosAdmin && (
+        <div style={{ position:"fixed", inset:0, zIndex:200, overflowY:"auto", background:"#000" }}>
+          <QuizResultadosAdmin onVolver={() => setMostrarResultadosAdmin(false)}/>
         </div>
       )}
 
@@ -310,19 +319,27 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
         )}
       </div>
 
-      {/* BOTÓN QUIZ — siempre visible */}
+      {/* BOTÓN QUIZ */}
       <div style={{ padding:"0 14px 14px" }}>
         <button onClick={() => setMostrarQuiz(true)}
           style={{ width:"100%", padding:"14px 18px", borderRadius:18, border:"none", background:"linear-gradient(135deg,#1a1a2e 0%,#16213e 50%,#0f3460 100%)", cursor:"pointer", display:"flex", alignItems:"center", gap:14, boxShadow:"0 4px 20px rgba(0,0,0,0.4)", position:"relative", overflow:"hidden" }}>
-          {/* Borde superior decorativo */}
           <div style={{ position:"absolute", top:0, left:0, right:0, height:2, background:"linear-gradient(90deg,#667eea,#764ba2,#f093fb)" }}/>
           <div style={{ width:44, height:44, borderRadius:13, background:"rgba(102,126,234,0.2)", border:"1px solid rgba(102,126,234,0.3)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>🧠</div>
           <div style={{ textAlign:"left", flex:1 }}>
             <div style={{ fontSize:14, fontWeight:800, color:"white", marginBottom:3 }}>Evaluación · Psicología del Deporte</div>
-            <div style={{ fontSize:11, color:"rgba(160,168,192,0.8)" }}>10 preguntas · ATFA 2026</div>
+            <div style={{ fontSize:11, color:"rgba(160,168,192,0.8)" }}>10 preguntas · ATFA 2026 · 2 intentos</div>
           </div>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="rgba(124,106,255,0.6)" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
         </button>
+
+        {/* Botón ver resultados — solo admin */}
+        {esAdmin && (
+          <button onClick={() => setMostrarResultadosAdmin(true)}
+            style={{ width:"100%", marginTop:8, padding:"10px 18px", borderRadius:14, border:"1px solid rgba(124,106,255,0.2)", background:"rgba(124,106,255,0.06)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c6aff" strokeWidth="2" strokeLinecap="round"><path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/></svg>
+            <span style={{ fontSize:12, fontWeight:700, color:"#7c6aff" }}>Ver resultados del quiz</span>
+          </button>
+        )}
       </div>
 
       <div style={{ padding: "14px 14px 100px" }}>

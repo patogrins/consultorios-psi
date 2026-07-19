@@ -111,7 +111,6 @@ function ChatFullscreen({ derivacionId, usuario, otroNombre, otroPerfil, onCerra
 // ── NOTA CON FLECHAS — navegación independiente sin scroll ────────────────────
 function NotaConFlechas({ nota, colorBorde }) {
   const LINEAS_POR_VISTA = 4;
-  // Dividir el texto en líneas lógicas de ~50 chars
   const palabras = nota.split(" ");
   const lineas = [];
   let linea = "";
@@ -163,7 +162,6 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
   const [offsetX, setOffsetX] = useState(0);
   const [offsetY, setOffsetY] = useState(0);
   const [swipeDir, setSwipeDir] = useState(null);
-  // Swipe en vista compacta
   const [compactSwipeId, setCompactSwipeId] = useState(null);
   const [compactOffset, setCompactOffset] = useState(0);
   const startX = useRef(null);
@@ -188,7 +186,6 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
 
   function cerrar() { setExpandida(null); setOffsetX(0); setOffsetY(0); setSwipeDir(null); setAnimando(null); }
 
-  // Swipe en modal expandido
   function onTouchStart(e) { if(e.touches.length!==1) return; startX.current=e.touches[0].clientX; startY.current=e.touches[0].clientY; }
   function onTouchMove(e) {
     if(startX.current===null) return; e.preventDefault();
@@ -223,7 +220,6 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
     },220);
   }
 
-  // Swipe en vista compacta
   function onCompactStart(e, id) { compactStartX.current=e.touches[0].clientX; setCompactSwipeId(id); setCompactOffset(0); }
   function onCompactMove(e) {
     if(!compactStartX.current) return;
@@ -246,7 +242,6 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
 
   return (
     <div style={{padding:"10px 14px 0"}}>
-      {/* FILTROS */}
       <div style={{display:"flex",gap:5,background:"rgba(10,10,20,0.7)",backdropFilter:"blur(16px)",WebkitBackdropFilter:"blur(16px)",border:"1px solid rgba(124,106,255,0.15)",borderRadius:18,padding:"5px 6px",marginBottom:12}}>
         <button onClick={()=>setFiltro("todas")} style={{flex:1,padding:"6px 4px",borderRadius:12,border:"none",background:filtro==="todas"?"rgba(124,106,255,0.25)":"transparent",color:filtro==="todas"?"#a78bfa":"#4a5270",fontSize:11,fontWeight:700,cursor:"pointer",transition:"all 0.15s"}}>Todas</button>
         {FAMILIAS.map(f=>(
@@ -257,7 +252,6 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
         ))}
       </div>
 
-      {/* LISTA COMPACTA CON SWIPE */}
       {fichas.length===0?(
         <div style={{textAlign:"center",padding:"40px 20px"}}>
           <div style={{fontSize:48,marginBottom:12}}>📌</div>
@@ -274,11 +268,9 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
             const showRight=off>30, showLeft=off<-30;
             return (
               <div key={f.id} style={{position:"relative",borderRadius:14,overflow:"hidden"}}>
-                {/* Fondo acción izquierda (archivar) */}
                 <div style={{position:"absolute",inset:0,background:"rgba(239,83,80,0.15)",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:16,borderRadius:14,opacity:showLeft?1:0,transition:"opacity 0.15s"}}>
                   <span style={{fontSize:11,color:"#ef5350",fontWeight:700}}>Archivar ✕</span>
                 </div>
-                {/* Fondo acción derecha (me interesa) */}
                 <div style={{position:"absolute",inset:0,background:"rgba(102,187,106,0.15)",display:"flex",alignItems:"center",paddingLeft:16,borderRadius:14,opacity:showRight?1:0,transition:"opacity 0.15s"}}>
                   <span style={{fontSize:11,color:"#66bb6a",fontWeight:700}}>♥ Me interesa</span>
                 </div>
@@ -287,7 +279,7 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
                   onTouchMove={onCompactMove}
                   onTouchEnd={()=>onCompactEnd(f)}
                   onClick={()=>{ if(Math.abs(off)<5) setExpandida(f.id); }}
-                  style={{display:"flex",alignItems:"center",gap:12,background:"rgba(14,12,28,0.85)",borderRadius:14,padding:"11px 14px",border:`1px solid ${yaInt?"rgba(102,187,106,0.25)":"rgba(124,106,255,0.1)"}`,cursor:"pointer",position:"relative",transform:`translateX(${off}px)`,transition:isSwiping?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
+                  style={{display:"flex",alignItems:"center",gap:12,background:"rgba(14,12,28,0.85)",borderRadius:14,padding:"11px 14px",border:`1px solid ${yaInt?"rgba(102,187,106,0.25)":"rgba(124,106,255,0.1)"}`,cursor:"pointer",position:"relative",transform:`translateX(${off}px)`,transition:isSw?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
                   <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:fam.grad,borderRadius:"3px 0 0 3px"}}/>
                   <div style={{width:36,height:36,borderRadius:11,background:fam.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{fam.emoji}</div>
                   <div style={{flex:1,minWidth:0}}>
@@ -314,7 +306,6 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
         </div>
       )}
 
-      {/* MODAL EXPANDIDO — tamaño fijo uniforme */}
       {expandida&&fichaActual&&(()=>{
         const fam=familiaDeSubtipo(fichaActual.subtipo||"Derivación");
         const yaInt=fichaActual.interesadosEmails?.includes(usuario.email);
@@ -323,7 +314,6 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
           <div style={{position:"fixed",inset:0,zIndex:3000,background:"rgba(0,0,0,0.75)",display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",padding:"16px 14px"}}
             onClick={e=>{if(e.target===e.currentTarget) cerrar();}}>
 
-            {/* PEEK ANTERIOR — más visible */}
             {total>1&&(
               <div style={{position:"absolute",left:14,right:14,top:"calc(50% - 220px)",height:440,borderRadius:20,background:"rgba(20,18,36,0.92)",border:"1px solid rgba(124,106,255,0.2)",overflow:"hidden",transform:`translateY(${-28+(isDown?Math.min(28,peekPct*50):0)}px) scale(${0.88+(isDown?peekPct*0.09:0)})`,opacity:isDown?0.55+peekPct*0.35:0.45,filter:`blur(${isDown?Math.max(0,3-peekPct*3):3}px)`,transition:animando?"transform 0.26s,opacity 0.26s,filter 0.26s":"none",zIndex:1,pointerEvents:"none",maxWidth:420,margin:"0 auto"}}>
                 <div style={{height:4,background:familiaDeSubtipo(fichaAnt?.subtipo||"Derivación").grad}}/>
@@ -335,7 +325,6 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
               </div>
             )}
 
-            {/* PEEK SIGUIENTE — más visible */}
             {total>1&&(
               <div style={{position:"absolute",left:14,right:14,top:"calc(50% - 220px)",height:440,borderRadius:20,background:"rgba(20,18,36,0.92)",border:"1px solid rgba(124,106,255,0.2)",overflow:"hidden",transform:`translateY(${20+(isUp?Math.min(20,peekPct*44):0)}px) scale(${0.92+(isUp?peekPct*0.06:0)})`,opacity:isUp?0.6+peekPct*0.3:0.5,filter:`blur(${isUp?Math.max(0,2-peekPct*2):2}px)`,transition:animando?"transform 0.26s,opacity 0.26s,filter 0.26s":"none",zIndex:2,pointerEvents:"none",maxWidth:420,margin:"0 auto"}}>
                 <div style={{height:4,background:familiaDeSubtipo(fichaSig?.subtipo||"Derivación").grad}}/>
@@ -347,7 +336,6 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
               </div>
             )}
 
-            {/* CARTA ACTIVA — tamaño fijo */}
             <div onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
               style={{position:"relative",zIndex:3,width:"100%",maxWidth:420,height:440,background:"rgba(14,12,28,0.98)",borderRadius:22,border:`1px solid ${swipeDir==="right"?"rgba(102,187,106,0.7)":swipeDir==="left"?"rgba(239,83,80,0.7)":fam.color+"55"}`,transform:`translate(${flyX}px,${flyY}px) rotate(${rot}deg)`,opacity:opActual,transition:animando?"transform 0.32s cubic-bezier(0.4,0,0.2,1),opacity 0.32s":"border 0.15s",cursor:"grab",userSelect:"none",touchAction:"none",boxShadow:"0 24px 64px rgba(0,0,0,0.8)",overflow:"hidden",display:"flex",flexDirection:"column"}}>
               <div style={{height:4,background:fam.grad,flexShrink:0}}/>
@@ -562,11 +550,9 @@ function VistaArchivo({ archivadas, setArchivadas, derivaciones, usuario, esAdmi
         const showR=off>30, showL=off<-30;
         return (
           <div key={d.id} style={{position:"relative",marginBottom:10,borderRadius:14,overflow:"hidden"}}>
-            {/* Fondo restaurar (derecha) */}
             <div style={{position:"absolute",inset:0,background:"rgba(124,106,255,0.15)",display:"flex",alignItems:"center",paddingLeft:16,borderRadius:14,opacity:showR?1:0,transition:"opacity 0.15s"}}>
               <span style={{fontSize:11,color:"#a78bfa",fontWeight:700}}>↩ Restaurar</span>
             </div>
-            {/* Fondo eliminar (izquierda) */}
             <div style={{position:"absolute",inset:0,background:"rgba(239,83,80,0.15)",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:16,borderRadius:14,opacity:showL?1:0,transition:"opacity 0.15s"}}>
               <span style={{fontSize:11,color:"#ef5350",fontWeight:700}}>Quitar ✕</span>
             </div>
@@ -685,7 +671,6 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
                 </div>
               )}
               {asignada&&<div style={{display:"flex",gap:8,marginBottom:10}}><div style={{flex:1,padding:"9px 12px",background:"rgba(102,187,106,0.08)",borderRadius:10,border:"1px solid rgba(102,187,106,0.2)",display:"flex",alignItems:"center",gap:8}}><span>🔗</span><span style={{fontSize:12,color:"#66bb6a",fontWeight:600}}>{d.asignadoA}</span></div><button onClick={()=>onAbrirChat(d.id,d.asignadoA,d.asignadoEmail)} style={{padding:"0 14px",borderRadius:10,border:"1px solid rgba(124,106,255,0.25)",background:"rgba(124,106,255,0.1)",color:"#a78bfa",fontWeight:700,fontSize:11,cursor:"pointer"}}>💬</button></div>}
-              {/* Chat grupal — disponible para Formación y Colaboración cuando se alcanza el mínimo */}
               {d.minimoInteresados&&(d.interesadosEmails?.length||0)>=d.minimoInteresados&&(
                 <button onClick={()=>onAbrirChatGrupal(d)} style={{width:"100%",padding:"9px",borderRadius:10,border:"1px solid rgba(56,161,105,0.3)",background:"rgba(56,161,105,0.08)",color:"#66bb6a",fontWeight:700,fontSize:12,cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",gap:6,marginBottom:8}}>
                   👥 Chat grupal · {d.interesadosEmails?.length} participantes
@@ -749,6 +734,186 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
           </div>
         );
       })}
+    </div>
+  );
+}
+
+// ── COMPONENTE PRINCIPAL CON EXPORT DEFAULT ──────────────────────────────────
+export default function Derivaciones({ usuario, perfiles, esAdmin, vistaInicial = "cartelera" }) {
+  const [vista, setVista] = useState(vistaInicial);
+  const [derivaciones, setDerivaciones] = useState([]);
+  const [filtro, setFiltro] = useState("todas");
+  const [mostrarForm, setMostrarForm] = useState(false);
+  const [archivadas, setArchivadas] = useState([]);
+  const [chatActivo, setChatActivo] = useState(null);
+
+  // Cargar IDs de fichas archivadas localmente
+  useEffect(() => {
+    if (!usuario?.email) return;
+    try {
+      const guardadas = localStorage.getItem(`grins_arch_${usuario.email}`);
+      if (guardadas) setArchivadas(JSON.parse(guardadas));
+    } catch (e) {
+      console.error(e);
+    }
+  }, [usuario]);
+
+  // Escuchar la colección de derivaciones en tiempo real
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "derivaciones"), (snap) => {
+      setDerivaciones(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  // Manejadores de acciones globales de Firebase
+  const handlePublicar = async (nuevaFicha) => {
+    await addDoc(collection(db, "derivaciones"), {
+      ...nuevaFicha,
+      derivadoPor: usuario.nombre,
+      derivadoPorEmail: usuario.email,
+      estado: "activa",
+      interesados: [],
+      interesadosEmails: [],
+      creadoEn: serverTimestamp()
+    });
+  };
+
+  const handleInteresa = async (ficha) => {
+    if (ficha.interesadosEmails?.includes(usuario.email)) return;
+    const internos = ficha.interesados || [];
+    const emails = ficha.interesadosEmails || [];
+    await updateDoc(doc(db, "derivaciones", ficha.id), {
+      interesados: [...internos, usuario.nombre],
+      interesadosEmails: [...emails, usuario.email]
+    });
+  };
+
+  const handleArchivar = (ficha) => {
+    if (archivadas.includes(ficha.id)) return;
+    const nuevas = [...archivadas, ficha.id];
+    setArchivadas(nuevas);
+    try {
+      localStorage.setItem(`grins_arch_${usuario.email}`, JSON.stringify(nuevas));
+    } catch {}
+  };
+
+  const handleQuitarInteres = async (id) => {
+    const ficha = derivaciones.find(d => d.id === id);
+    if (!ficha) return;
+    await updateDoc(doc(db, "derivaciones", id), {
+      interesados: (ficha.interesados || []).filter(n => n !== usuario.nombre),
+      interesadosEmails: (ficha.interesadosEmails || []).filter(e => e !== usuario.email)
+    });
+  };
+
+  const handleAsignar = async (ficha, nombreAsignado, emailAsignado) => {
+    await updateDoc(doc(db, "derivaciones", ficha.id), {
+      estado: "asignada",
+      asignadoA: nombreAsignado,
+      asignadoEmail: emailAsignado
+    });
+  };
+
+  const handleCerrarFicha = async (ficha) => {
+    await updateDoc(doc(db, "derivaciones", ficha.id), { estado: "cerrada" });
+  };
+
+  const handleEliminarFicha = async (id) => {
+    await deleteDoc(doc(db, "derivaciones", id));
+  };
+
+  // Filtrar las fichas visibles de la cartelera activa
+  const fichasVisibles = derivaciones.filter(d => {
+    if (d.estado !== "activa") return false;
+    if (archivadas.includes(d.id)) return false;
+    if (filtro !== "todas" && familiaDeSubtipo(d.subtipo).id !== filtro) return false;
+    return true;
+  });
+
+  return (
+    <div style={{ minHeight: "100vh", background: "#05050a", color: "white", paddingBottom: 120 }}>
+      {/* Selector de Pestañas Superiores (Cartelera / Conexiones) */}
+      {vista === "cartelera" && (
+        <CarteleraLoop
+          fichas={fichasVisibles}
+          filtro={filtro}
+          setFiltro={setFiltro}
+          usuario={usuario}
+          onInteresa={handleInteresa}
+          onArchivar={handleArchivar}
+        />
+      )}
+
+      {vista === "archivo" && (
+        <VistaArchivo
+          archivadas={archivadas}
+          setArchivadas={setArchivadas}
+          derivaciones={derivaciones}
+          usuario={usuario}
+          esAdmin={esAdmin}
+          onVolver={() => setVista("cartelera")}
+          onEliminarDefinitivo={handleEliminarFicha}
+        />
+      )}
+
+      {vista === "me_interesa" && (
+        <VistaMeInteresa
+          archivadas={archivadas}
+          derivaciones={derivaciones}
+          usuario={usuario}
+          onVolver={() => setVista("cartelera")}
+          onQuitarInteres={handleQuitarInteres}
+        />
+      )}
+
+      {vista === "mis_fichas" && (
+        <MisPublicaciones
+          derivaciones={derivaciones}
+          usuario={usuario}
+          perfiles={perfiles}
+          esAdmin={esAdmin}
+          onAsignar={handleAsignar}
+          onCerrar={handleCerrarFicha}
+          onEliminar={handleEliminarFicha}
+          onAbrirChat={(id, nombre, email) => setChatActivo({ id, nombre, email, esGrupal: false })}
+          onAbrirChatGrupal={(d) => setChatActivo({ id: d.id, esGrupal: true, tituloGrupo: d.titulo, participantes: d.interesados })}
+          onVolver={() => setVista("cartelera")}
+        />
+      )}
+
+      {/* Menú y Footer de Navegación de Cartelera */}
+      {["cartelera", "conexiones"].includes(vista) && (
+        <FooterCartelera
+          onNueva={() => setMostrarForm(true)}
+          onArchivo={() => setVista("archivo")}
+          onMeInteresa={() => setVista("me_interesa")}
+          onMisFichas={() => setVista("mis_fichas")}
+        />
+      )}
+
+      {/* Modal para Crear Nueva Ficha */}
+      {mostrarForm && (
+        <FormNuevaFicha
+          usuario={usuario}
+          onPublicar={handlePublicar}
+          onCerrar={() => setMostrarForm(false)}
+        />
+      )}
+
+      {/* Pantalla Completa de Mensajería Interactiva */}
+      {chatActivo && (
+        <ChatFullscreen
+          derivacionId={chatActivo.id}
+          usuario={usuario}
+          otroNombre={chatActivo.nombre}
+          otroPerfil={perfiles?.find(p => p.email === chatActivo.email)}
+          esGrupal={chatActivo.esGrupal}
+          tituloGrupo={chatActivo.tituloGrupo}
+          participantes={chatActivo.participantes}
+          onCerrar={() => setChatActivo(null)}
+        />
+      )}
     </div>
   );
 }

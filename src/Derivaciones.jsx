@@ -741,6 +741,7 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
 export default function Derivaciones({ usuario, perfiles, esAdmin, vistaInicial = "cartelera" }) {
   const [vista, setVista] = useState(vistaInicial);
   const [derivaciones, setDerivaciones] = useState([]);
+  const [perfiles, setPerfiles] = useState([]);
   const [filtro, setFiltro] = useState("todas");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [archivadas, setArchivadas] = useState([]);
@@ -761,6 +762,14 @@ export default function Derivaciones({ usuario, perfiles, esAdmin, vistaInicial 
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "derivaciones"), (snap) => {
       setDerivaciones(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  // Escuchar la colección de usuarios (perfiles) en tiempo real
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "usuarios"), (snap) => {
+      setPerfiles(snap.docs.map(d => ({ email: d.id, ...d.data() })));
     });
     return () => unsub();
   }, []);

@@ -556,7 +556,7 @@ function VistaArchivo({ archivadas, setArchivadas, derivaciones, usuario, esAdmi
               <span style={{fontSize:11,color:"#ef5350",fontWeight:700}}>Quitar ✕</span>
             </div>
             <div onTouchStart={e=>onTS(e,d.id)} onTouchMove={onTM} onTouchEnd={()=>onTE(d)}
-              style={{background:"rgba(14,12,28,0.7)",borderRadius:14,padding:"12px 14px",border:"1px solid rgba(255,255,255,0.06)",opacity:0.8,transform:`translateX(${off}px)`,transition:isSwiping?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
+              style={{background:"rgba(14,12,28,0.7)",borderRadius:14,padding:"12px 14px",border:"1px solid rgba(255,255,255,0.06)",opacity:0.8,transform:`translateX(${off}px)`,transition:isSw?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
               <div style={{marginBottom:6}}><FamiliaChip subtipo={d.subtipo||"Derivación"} small/><div style={{fontSize:13,fontWeight:700,color:"#4a5270",marginTop:6}}>{d.titulo||d.especialidad||d.subtipo}</div><div style={{fontSize:10,color:"#3a3a5a",marginTop:2}}>por {d.derivadoPor} · {tiempoRelativo(d.creadoEn?.seconds)}</div></div>
               {d.nota&&<p style={{margin:"0 0 8px",fontSize:11,color:"#3a3a5a",fontStyle:"italic"}}>"{d.nota.slice(0,80)}{d.nota.length>80?"…":""}"</p>}
               {esAdmin&&(
@@ -595,7 +595,7 @@ function VistaMeInteresa({ archivadas, derivaciones, usuario, onVolver, onQuitar
         return (
           <div key={d.id} style={{position:"relative",marginBottom:10,overflow:"hidden",borderRadius:14}}>
             <div style={{position:"absolute",inset:0,background:"rgba(239,83,80,0.12)",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:20,borderRadius:14}}><span style={{fontSize:11,color:"#ef5350",fontWeight:700,opacity:off<-30?1:0,transition:"opacity 0.15s"}}>← Quitar interés</span></div>
-            <div onTouchStart={e=>onTSC(e,d.id)} onTouchMove={onTMC} onTouchEnd={()=>onTEC(d.id)} style={{background:"rgba(14,12,28,0.9)",borderRadius:14,padding:"14px",border:"1px solid rgba(102,187,106,0.2)",transform:`translateX(${off}px)`,transition:isSwiping?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
+            <div onTouchStart={e=>onTSC(e,d.id)} onTouchMove={onTMC} onTouchEnd={()=>onTEC(d.id)} style={{background:"rgba(14,12,28,0.9)",borderRadius:14,padding:"14px",border:"1px solid rgba(102,187,106,0.2)",transform:`translateX(${off}px)`,transition:isSw?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
               <div style={{height:3,background:fam.grad,borderRadius:2,marginBottom:10}}/>
               <FamiliaChip subtipo={d.subtipo||"Derivación"} small/>
               <div style={{fontSize:14,fontWeight:800,color:"white",marginTop:6}}>{d.titulo||d.especialidad||d.subtipo}</div>

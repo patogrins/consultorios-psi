@@ -109,53 +109,35 @@ function ChatFullscreen({ derivacionId, usuario, otroNombre, otroPerfil, onCerra
 }
 
 // ── NOTA CON FLECHAS — navegación independiente sin scroll ────────────────────
+// ── NOTA CON FLECHAS ─────────────────────────────────────────────────────────
 function NotaConFlechas({ nota, colorBorde }) {
-  const LINEAS_POR_VISTA = 4;
-  const palabras = nota.split(" ");
-  const lineas = [];
-  let linea = "";
-  palabras.forEach(p => {
-    if ((linea + " " + p).trim().length > 48) { lineas.push(linea.trim()); linea = p; }
-    else linea = (linea + " " + p).trim();
-  });
-  if (linea) lineas.push(linea);
-
-  const totalBloques = Math.ceil(lineas.length / LINEAS_POR_VISTA);
-  const [bloque, setBloque] = useState(0);
-  const inicio = bloque * LINEAS_POR_VISTA;
-  const textoVisible = lineas.slice(inicio, inicio + LINEAS_POR_VISTA).join(" ");
-  const hayAnterior = bloque > 0;
-  const haySiguiente = bloque < totalBloques - 1;
-
-  if (totalBloques <= 1) {
-    return (
-      <div style={{margin:"0 0 10px",fontSize:13,color:"#e2e8f0",lineHeight:1.6,padding:"9px 12px",background:"rgba(124,106,255,0.06)",borderRadius:10,borderLeft:`2px solid ${colorBorde}66`}}>
-        &ldquo;{nota}&rdquo;
-      </div>
-    );
-  }
-
+  const CHARS = 140;
+  const bloques = [];
+  for (let i = 0; i < nota.length; i += CHARS) bloques.push(nota.slice(i, i + CHARS));
+  const [b, setB] = useState(0);
+  if (bloques.length <= 1) return (
+    <div style={{margin:"0 0 10px",fontSize:12,color:"#e2e8f0",lineHeight:1.6,padding:"9px 12px",background:"rgba(124,106,255,0.06)",borderRadius:10,borderLeft:`2px solid ${colorBorde}66`}}>
+      &ldquo;{nota}&rdquo;
+    </div>
+  );
   return (
-    <div style={{margin:"0 0 10px",background:"rgba(124,106,255,0.06)",borderRadius:10,border:`1px solid ${colorBorde}22`,overflow:"hidden"}}>
-      <div style={{padding:"9px 12px",borderLeft:`2px solid ${colorBorde}66`}}>
-        <div style={{fontSize:13,color:"#e2e8f0",lineHeight:1.6,minHeight:84}}>&ldquo;{textoVisible}{haySiguiente?"…":""}&rdquo;</div>
+    <div style={{margin:"0 0 10px",background:"rgba(124,106,255,0.06)",borderRadius:10,border:`1px solid ${colorBorde}22`}}>
+      <div style={{padding:"9px 12px",borderLeft:`2px solid ${colorBorde}66`,minHeight:70}}>
+        <div style={{fontSize:12,color:"#e2e8f0",lineHeight:1.6}}>
+          &ldquo;{bloques[b]}{b < bloques.length-1 ? "…" : ""}&rdquo;
+        </div>
       </div>
-      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"5px 10px",borderTop:`1px solid ${colorBorde}22`,background:`${colorBorde}0a`}}>
-        <button onClick={e=>{e.stopPropagation();if(hayAnterior)setBloque(b=>b-1);}}
-          style={{width:28,height:28,borderRadius:"50%",border:"none",background:hayAnterior?`${colorBorde}33`:"transparent",color:hayAnterior?"#e2e8f0":"#3a3a5a",cursor:hayAnterior?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700}}>
-          ↑
-        </button>
-        <span style={{fontSize:9,color:`${colorBorde}`,fontWeight:600}}>{bloque+1}/{totalBloques}</span>
-        <button onClick={e=>{e.stopPropagation();if(haySiguiente)setBloque(b=>b+1);}}
-          style={{width:28,height:28,borderRadius:"50%",border:"none",background:haySiguiente?`${colorBorde}33`:"transparent",color:haySiguiente?"#e2e8f0":"#3a3a5a",cursor:haySiguiente?"pointer":"default",display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:700}}>
-          ↓
-        </button>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"4px 10px",borderTop:`1px solid ${colorBorde}22`}}>
+        <button onClick={e=>{e.stopPropagation();if(b>0)setB(i=>i-1);}}
+          style={{width:28,height:28,borderRadius:"50%",border:"none",background:b>0?`${colorBorde}33`:"transparent",color:b>0?"#e2e8f0":"#3a3a5a",cursor:b>0?"pointer":"default",fontSize:14,fontWeight:700}}>↑</button>
+        <span style={{fontSize:9,color:colorBorde,fontWeight:600}}>{b+1}/{bloques.length}</span>
+        <button onClick={e=>{e.stopPropagation();if(b<bloques.length-1)setB(i=>i+1);}}
+          style={{width:28,height:28,borderRadius:"50%",border:"none",background:b<bloques.length-1?`${colorBorde}33`:"transparent",color:b<bloques.length-1?"#e2e8f0":"#3a3a5a",cursor:b<bloques.length-1?"pointer":"default",fontSize:14,fontWeight:700}}>↓</button>
       </div>
     </div>
   );
 }
 
-// ── CARTELERA: lista compacta + modal expandible con swipe ────────────────────
 function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchivar }) {
   const [expandida, setExpandida] = useState(null);
   const [animando, setAnimando] = useState(null);
@@ -279,7 +261,7 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
                   onTouchMove={onCompactMove}
                   onTouchEnd={()=>onCompactEnd(f)}
                   onClick={()=>{ if(Math.abs(off)<5) setExpandida(f.id); }}
-                  style={{display:"flex",alignItems:"center",gap:12,background:"rgba(14,12,28,0.85)",borderRadius:14,padding:"11px 14px",border:`1px solid ${yaInt?"rgba(102,187,106,0.25)":"rgba(124,106,255,0.1)"}`,cursor:"pointer",position:"relative",transform:`translateX(${off}px)`,transition:isSw?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
+                  style={{display:"flex",alignItems:"center",gap:12,background:"rgba(14,12,28,0.85)",borderRadius:14,padding:"11px 14px",border:`1px solid ${yaInt?"rgba(102,187,106,0.25)":"rgba(124,106,255,0.1)"}`,cursor:"pointer",position:"relative",transform:`translateX(${off}px)`,transition:isSwiping?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
                   <div style={{position:"absolute",left:0,top:0,bottom:0,width:3,background:fam.grad,borderRadius:"3px 0 0 3px"}}/>
                   <div style={{width:36,height:36,borderRadius:11,background:fam.grad,display:"flex",alignItems:"center",justifyContent:"center",fontSize:17,flexShrink:0}}>{fam.emoji}</div>
                   <div style={{flex:1,minWidth:0}}>
@@ -353,8 +335,8 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
                   </div>
                   <button onClick={cerrar} style={{width:28,height:28,borderRadius:"50%",background:"rgba(255,255,255,0.06)",border:"none",color:"#4a5270",cursor:"pointer",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0,fontSize:16}}>✕</button>
                 </div>
-                {fichaActual.nota&&<div style={{margin:"0 0 10px",fontSize:12,color:"#e2e8f0",lineHeight:1.6,padding:"9px 12px",background:"rgba(124,106,255,0.06)",borderRadius:10,borderLeft:`2px solid ${fam.color}66`,overflowY:"auto",maxHeight:120,WebkitOverflowScrolling:"touch",flexShrink:0}}>&ldquo;{fichaActual.nota}&rdquo;</div>}
-                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:12,flexShrink:0}}>
+                {fichaActual.nota&&<NotaConFlechas nota={fichaActual.nota} colorBorde={fam.color}/>}
+                <div style={{display:"flex",flexWrap:"wrap",gap:4,marginBottom:8,flexShrink:0}}>
                   {fichaActual.modalidad&&<Tag label={`📍 ${fichaActual.modalidad}`}/>}
                   {fichaActual.especialidad&&fichaActual.especialidad!==fichaActual.titulo&&<Tag label={fichaActual.especialidad}/>}
                   {fichaActual.genero&&fichaActual.genero!=="Indistinto"&&<Tag label={fichaActual.genero}/>}
@@ -362,6 +344,23 @@ function CarteleraLoop({ fichas, filtro, setFiltro, usuario, onInteresa, onArchi
                   {fichaActual.dias?.length>0&&<Tag label={`📅 ${fichaActual.dias.join("·")}`}/>}
                   {fichaActual.franjas?.length>0&&<Tag label={`⏰ ${fichaActual.franjas.join("·")}`}/>}
                 </div>
+                {(fichaActual.minimoInteresados||fichaActual.maxParticipantes)&&(()=>{
+                  const n=fichaActual.interesadosEmails?.length||0;
+                  const min=fichaActual.minimoInteresados||0;
+                  const max=fichaActual.maxParticipantes||0;
+                  const ok=min>0&&n>=min;
+                  return (
+                    <div style={{marginBottom:8,padding:"8px 12px",background:ok?"rgba(56,161,105,0.1)":"rgba(124,106,255,0.06)",borderRadius:10,border:`1px solid ${ok?"rgba(56,161,105,0.3)":"rgba(124,106,255,0.15)"}`,flexShrink:0}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:min>0?4:0}}>
+                        {min>0&&<span style={{fontSize:10,color:ok?"#66bb6a":"#a0a8c0",fontWeight:700}}>{ok?"✓ Mínimo alcanzado":"⏳ Mínimo para realizarse"}</span>}
+                        <span style={{fontSize:10,color:"#a0a8c0",fontWeight:600,marginLeft:"auto"}}>
+                          {min>0&&`${n}/${min} mín`}{min>0&&max>0&&" · "}{max>0&&`${n}/${max} cupos`}
+                        </span>
+                      </div>
+                      {min>0&&<div style={{height:3,background:"rgba(255,255,255,0.06)",borderRadius:4,overflow:"hidden"}}><div style={{height:"100%",width:`${Math.min(100,(n/min)*100)}%`,background:ok?"linear-gradient(90deg,#38a169,#2d8a5e)":"linear-gradient(90deg,#667eea,#764ba2)",borderRadius:4}}/></div>}
+                    </div>
+                  );
+                })()}
                 <div style={{marginTop:"auto",display:"flex",flexDirection:"column",gap:8,flexShrink:0}}>
                   <div style={{display:"flex",gap:8}}>
                     <button onClick={()=>triggerH("left")} style={{flex:1,padding:"10px",borderRadius:13,border:"1px solid rgba(239,83,80,0.3)",background:"rgba(239,83,80,0.08)",color:"#ef5350",fontWeight:700,fontSize:12,cursor:"pointer"}}>✕ Archivar</button>
@@ -557,7 +556,7 @@ function VistaArchivo({ archivadas, setArchivadas, derivaciones, usuario, esAdmi
               <span style={{fontSize:11,color:"#ef5350",fontWeight:700}}>Quitar ✕</span>
             </div>
             <div onTouchStart={e=>onTS(e,d.id)} onTouchMove={onTM} onTouchEnd={()=>onTE(d)}
-              style={{background:"rgba(14,12,28,0.7)",borderRadius:14,padding:"12px 14px",border:"1px solid rgba(255,255,255,0.06)",opacity:0.8,transform:`translateX(${off}px)`,transition:isSw?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
+              style={{background:"rgba(14,12,28,0.7)",borderRadius:14,padding:"12px 14px",border:"1px solid rgba(255,255,255,0.06)",opacity:0.8,transform:`translateX(${off}px)`,transition:isSwiping?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
               <div style={{marginBottom:6}}><FamiliaChip subtipo={d.subtipo||"Derivación"} small/><div style={{fontSize:13,fontWeight:700,color:"#4a5270",marginTop:6}}>{d.titulo||d.especialidad||d.subtipo}</div><div style={{fontSize:10,color:"#3a3a5a",marginTop:2}}>por {d.derivadoPor} · {tiempoRelativo(d.creadoEn?.seconds)}</div></div>
               {d.nota&&<p style={{margin:"0 0 8px",fontSize:11,color:"#3a3a5a",fontStyle:"italic"}}>"{d.nota.slice(0,80)}{d.nota.length>80?"…":""}"</p>}
               {esAdmin&&(
@@ -596,7 +595,7 @@ function VistaMeInteresa({ archivadas, derivaciones, usuario, onVolver, onQuitar
         return (
           <div key={d.id} style={{position:"relative",marginBottom:10,overflow:"hidden",borderRadius:14}}>
             <div style={{position:"absolute",inset:0,background:"rgba(239,83,80,0.12)",display:"flex",alignItems:"center",justifyContent:"flex-end",paddingRight:20,borderRadius:14}}><span style={{fontSize:11,color:"#ef5350",fontWeight:700,opacity:off<-30?1:0,transition:"opacity 0.15s"}}>← Quitar interés</span></div>
-            <div onTouchStart={e=>onTSC(e,d.id)} onTouchMove={onTMC} onTouchEnd={()=>onTEC(d.id)} style={{background:"rgba(14,12,28,0.9)",borderRadius:14,padding:"14px",border:"1px solid rgba(102,187,106,0.2)",transform:`translateX(${off}px)`,transition:isSw?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
+            <div onTouchStart={e=>onTSC(e,d.id)} onTouchMove={onTMC} onTouchEnd={()=>onTEC(d.id)} style={{background:"rgba(14,12,28,0.9)",borderRadius:14,padding:"14px",border:"1px solid rgba(102,187,106,0.2)",transform:`translateX(${off}px)`,transition:isSwiping?"none":"transform 0.3s ease",touchAction:"pan-y"}}>
               <div style={{height:3,background:fam.grad,borderRadius:2,marginBottom:10}}/>
               <FamiliaChip subtipo={d.subtipo||"Derivación"} small/>
               <div style={{fontSize:14,fontWeight:800,color:"white",marginTop:6}}>{d.titulo||d.especialidad||d.subtipo}</div>
@@ -780,12 +779,14 @@ export default function Derivaciones({ usuario, perfiles, esAdmin, vistaInicial 
   };
 
   const handleInteresa = async (ficha) => {
+    if (ficha.derivadoPorEmail === usuario.email) return;
     if (ficha.interesadosEmails?.includes(usuario.email)) return;
     const internos = ficha.interesados || [];
     const emails = ficha.interesadosEmails || [];
     await updateDoc(doc(db, "derivaciones", ficha.id), {
       interesados: [...internos, usuario.nombre],
-      interesadosEmails: [...emails, usuario.email]
+      interesadosEmails: [...emails, usuario.email],
+      estado: "con_interesados"
     });
   };
 
@@ -827,6 +828,8 @@ export default function Derivaciones({ usuario, perfiles, esAdmin, vistaInicial 
   const fichasVisibles = derivaciones.filter(d => {
     if (d.estado !== "activa") return false;
     if (archivadas.includes(d.id)) return false;
+    // Ocultar si el cupo máximo está lleno
+    if (d.maxParticipantes && (d.interesadosEmails?.length || 0) >= d.maxParticipantes) return false;
     if (filtro !== "todas" && familiaDeSubtipo(d.subtipo).id !== filtro) return false;
     return true;
   });
@@ -882,8 +885,20 @@ export default function Derivaciones({ usuario, perfiles, esAdmin, vistaInicial 
         />
       )}
 
-      {/* Menú y Footer de Navegación de Cartelera */}
-      {["cartelera", "conexiones"].includes(vista) && (
+      {vista === "conexiones" && (
+        <Conexiones
+          derivaciones={derivaciones}
+          usuario={usuario}
+          perfiles={perfiles}
+          chatInicial={null}
+          onChatInicialUsado={() => {}}
+          onAbrirChat={(id, nombre, email) => setChatActivo({ id, nombre, email, esGrupal: false })}
+          onAbrirChatGrupal={(d) => setChatActivo({ id: d.id, esGrupal: true, tituloGrupo: d.titulo, participantes: d.interesados })}
+        />
+      )}
+
+      {/* Footer solo en vistas sin su propio botón volver */}
+      {["cartelera"].includes(vista) && (
         <FooterCartelera
           onNueva={() => setMostrarForm(true)}
           onArchivo={() => setVista("archivo")}

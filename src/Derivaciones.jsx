@@ -738,7 +738,7 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
 }
 
 // ── COMPONENTE PRINCIPAL CON EXPORT DEFAULT ──────────────────────────────────
-export default function Derivaciones({ usuario, perfiles, esAdmin, vistaInicial = "cartelera" }) {
+export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartelera" }) {
   const [vista, setVista] = useState(vistaInicial);
   const [derivaciones, setDerivaciones] = useState([]);
   const [perfiles, setPerfiles] = useState([]);

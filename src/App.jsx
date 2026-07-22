@@ -33,6 +33,15 @@ export default function App() {
   const [mostrarLogin, setMostrarLogin] = useState(false);
   const [esPublico, setEsPublico] = useState(false);
   const [tab, setTab] = useState("inicio");
+
+  // Permite que otras partes de la app (ej: tocar una notificación en Inicio)
+  // pidan navegar a un tab específico sin tener que pasar setTab en cascada.
+  useEffect(() => {
+    const handler = (e) => { if (e.detail) setTab(e.detail); };
+    window.addEventListener("irATab", handler);
+    return () => window.removeEventListener("irATab", handler);
+  }, []);
+
   const [toast, setToast] = useState(null);
   const [installPrompt, setInstallPrompt] = useState(null);
   const [mostrarBannerIOS, setMostrarBannerIOS] = useState(() => {

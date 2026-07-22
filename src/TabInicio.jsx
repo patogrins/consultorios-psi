@@ -355,15 +355,18 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
               let cuerpo = n.mensaje || "";
               let colorBorde = "rgba(124,106,255,0.25)";
               let colorFondo = "rgba(124,106,255,0.1)";
+              let esClickeable = false;
 
               if (n.tipo === "derivacion_asignada") {
                 icono = "✅";
                 titulo = "¡Te eligieron para una derivación!";
                 cuerpo = n.mensaje || `${n.deNombre} te designó para atender un caso de ${n.especialidad}`;
+                esClickeable = true;
               } else if (n.tipo === "match_derivacion") {
                 icono = "🤝";
                 titulo = "¡Derivación asignada con éxito!";
                 cuerpo = n.mensaje || `Designaste a ${n.deNombre} para tu derivación de ${n.especialidad}`;
+                esClickeable = true;
               } else if (n.tipo === "admin_reserva") {
                 icono = "📋";
                 titulo = `Mensaje de ${n.deNombre || "Admin"}`;
@@ -376,10 +379,30 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
                 cuerpo = n.mensaje || `Reserva en ${n.consultorio} el ${n.fecha} de ${n.horaInicio}:00 a ${n.horaFin}:00`;
                 colorBorde = "rgba(56,161,105,0.3)";
                 colorFondo = "rgba(56,161,105,0.08)";
+              } else if (n.tipo === "grupo_minimo_alcanzado") {
+                icono = "👥";
+                titulo = "¡Se activó un chat grupal!";
+                cuerpo = n.mensaje || `El grupo "${n.tituloFicha}" alcanzó el mínimo de interesados. Ya podés coordinar en el chat.`;
+                colorBorde = "rgba(56,161,105,0.3)";
+                colorFondo = "rgba(56,161,105,0.08)";
+                esClickeable = true;
+              }
+
+              function handleClick() {
+                if (!esClickeable) return;
+                marcarLeida(n.id);
+                if (n.tipo === "grupo_minimo_alcanzado") {
+                  // Ir a Lazos y abrir directo el chat grupal de esa ficha
+                  window.dispatchEvent(new CustomEvent("irATab", { detail: "lazos" }));
+                  window.dispatchEvent(new CustomEvent("abrirChatGrupalDesdeNotif", { detail: { derivacionId: n.derivacionId, tituloFicha: n.tituloFicha } }));
+                } else {
+                  window.dispatchEvent(new CustomEvent("irATab", { detail: "lazos" }));
+                  window.dispatchEvent(new CustomEvent("abrirChatConexion", { detail: { email: n.tipo === "derivacion_asignada" ? n.de : n.para } }));
+                }
               }
 
               return (
-                <div key={n.id} style={{ background: colorFondo, borderRadius: 14, padding: "12px 14px", marginBottom: 8, border: `1px solid ${colorBorde}`, display: "flex", alignItems: "flex-start", gap: 10 }}>
+                <div key={n.id} onClick={handleClick} style={{ background: colorFondo, borderRadius: 14, padding: "12px 14px", marginBottom: 8, border: `1px solid ${colorBorde}`, display: "flex", alignItems: "flex-start", gap: 10, cursor: esClickeable ? "pointer" : "default" }}>
                   <div style={{ width: 36, height: 36, borderRadius: "50%", background: "linear-gradient(135deg,#667eea,#764ba2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 16, flexShrink: 0 }}>
                     {icono}
                   </div>
@@ -389,8 +412,11 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
                     {(n.tipo === "derivacion_asignada" || n.tipo === "match_derivacion") && (
                       <div style={{ fontSize: 11, color: "#4a5270" }}>Ir a Lazos → Conexiones para coordinar</div>
                     )}
+                    {n.tipo === "grupo_minimo_alcanzado" && (
+                      <div style={{ fontSize: 11, color: "#66bb6a" }}>Tocá para abrir el chat grupal</div>
+                    )}
                   </div>
-                  <button onClick={() => marcarLeida(n.id)} style={{ background: "none", border: "none", color: "#4a5270", cursor: "pointer", fontSize: 16, padding: 0, flexShrink: 0 }}>✕</button>
+                  <button onClick={(e) => { e.stopPropagation(); marcarLeida(n.id); }} style={{ background: "none", border: "none", color: "#4a5270", cursor: "pointer", fontSize: 16, padding: 0, flexShrink: 0 }}>✕</button>
                 </div>
               );
             })}

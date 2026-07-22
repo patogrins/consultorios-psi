@@ -738,7 +738,7 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
 }
 
 // ── COMPONENTE PRINCIPAL CON EXPORT DEFAULT ──────────────────────────────────
-export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartelera", chatInicial, onChatInicialUsado }) {
+export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartelera", chatInicial, onChatInicialUsado, chatGrupalInicial, onChatGrupalInicialUsado }) {
   const [vista, setVista] = useState(vistaInicial);
 
   // Sincronizar cuando TabLazos cambia de sección (el componente no se desmonta)
@@ -751,6 +751,20 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
   const [mostrarForm, setMostrarForm] = useState(false);
   const [archivadas, setArchivadas] = useState([]);
   const [chatActivo, setChatActivo] = useState(null);
+
+  // Llega desde una notificación de "grupo_minimo_alcanzado": abrir el chat
+  // grupal de esa ficha directamente.
+  useEffect(() => {
+    if (!chatGrupalInicial) return;
+    const ficha = derivaciones.find(d => d.id === chatGrupalInicial.derivacionId);
+    setChatActivo({
+      id: chatGrupalInicial.derivacionId,
+      esGrupal: true,
+      tituloGrupo: chatGrupalInicial.tituloFicha,
+      participantes: ficha?.interesadosEmails || [],
+    });
+    onChatGrupalInicialUsado?.();
+  }, [chatGrupalInicial, derivaciones]);
 
   // Cargar IDs de fichas archivadas localmente
   useEffect(() => {
@@ -797,13 +811,38 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
     if (ficha.interesadosEmails?.includes(usuario.email)) return;
     const internos = ficha.interesados || [];
     const emails = ficha.interesadosEmails || [];
+    const nuevosInternos = [...internos, usuario.nombre];
+    const nuevosEmails = [...emails, usuario.email];
+
     await updateDoc(doc(db, "derivaciones", ficha.id), {
-      interesados: [...internos, usuario.nombre],
-      interesadosEmails: [...emails, usuario.email],
+      interesados: nuevosInternos,
+      interesadosEmails: nuevosEmails,
       // No tocamos "estado" acá: la ficha debe seguir viva en el loop
       // mientras no se llene el cupo máximo. El estado solo cambia
       // a "asignada" (elegido el profesional) o "cerrada" (manual).
     });
+
+    // Si esta postulación es la que hace cruzar el mínimo requerido por
+    // primera vez, se activa el chat grupal y se notifica a todos los
+    // interesados (incluyendo a quien recién se sumó).
+    const min = ficha.minimoInteresados || 0;
+    const yaEstabaAlcanzado = min > 0 && emails.length >= min;
+    const ahoraAlcanzado = min > 0 && nuevosEmails.length >= min;
+    if (ahoraAlcanzado && !yaEstabaAlcanzado) {
+      const titulo = ficha.titulo || ficha.subtipo || "Grupo";
+      await Promise.all(nuevosEmails.map(email =>
+        addDoc(collection(db, "notificaciones"), {
+          para: email,
+          de: usuario.email,
+          deNombre: usuario.nombre,
+          tipo: "grupo_minimo_alcanzado",
+          derivacionId: ficha.id,
+          tituloFicha: titulo,
+          leida: false,
+          creadoEn: serverTimestamp(),
+        })
+      ));
+    }
   };
 
   const handleArchivar = (ficha) => {

@@ -800,7 +800,9 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
     await updateDoc(doc(db, "derivaciones", ficha.id), {
       interesados: [...internos, usuario.nombre],
       interesadosEmails: [...emails, usuario.email],
-      estado: "con_interesados"
+      // No tocamos "estado" acá: la ficha debe seguir viva en el loop
+      // mientras no se llene el cupo máximo. El estado solo cambia
+      // a "asignada" (elegido el profesional) o "cerrada" (manual).
     });
   };
 

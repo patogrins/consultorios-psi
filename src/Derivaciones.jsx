@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, runTransaction } from "firebase/firestore";
 
 const FAMILIAS = [
   { id:"casos",       label:"Casos",         emoji:"🧩", color:"#667eea", grad:"linear-gradient(135deg,#667eea,#764ba2)", tipos:["Derivación","Supervisión","Dispositivo"] },
@@ -753,7 +753,10 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
   const [chatActivo, setChatActivo] = useState(null);
 
   // Llega desde una notificación de "grupo_minimo_alcanzado": abrir el chat
-  // grupal de esa ficha directamente.
+  // grupal de esa ficha directamente. Solo depende de chatGrupalInicial —
+  // si dependiera de "derivaciones" (que cambia todo el tiempo por el
+  // onSnapshot), este efecto se re-disparía en cada actualización y podía
+  // consumir el evento antes de que el chat llegue a abrirse.
   useEffect(() => {
     if (!chatGrupalInicial) return;
     const ficha = derivaciones.find(d => d.id === chatGrupalInicial.derivacionId);
@@ -764,7 +767,8 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
       participantes: ficha?.interesadosEmails || [],
     });
     onChatGrupalInicialUsado?.();
-  }, [chatGrupalInicial, derivaciones]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatGrupalInicial]);
 
   // Cargar IDs de fichas archivadas localmente
   useEffect(() => {
@@ -808,40 +812,72 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
 
   const handleInteresa = async (ficha) => {
     if (ficha.derivadoPorEmail === usuario.email) return;
-    if (ficha.interesadosEmails?.includes(usuario.email)) return;
-    const internos = ficha.interesados || [];
-    const emails = ficha.interesadosEmails || [];
-    const nuevosInternos = [...internos, usuario.nombre];
-    const nuevosEmails = [...emails, usuario.email];
 
-    await updateDoc(doc(db, "derivaciones", ficha.id), {
-      interesados: nuevosInternos,
-      interesadosEmails: nuevosEmails,
-      // No tocamos "estado" acá: la ficha debe seguir viva en el loop
-      // mientras no se llene el cupo máximo. El estado solo cambia
-      // a "asignada" (elegido el profesional) o "cerrada" (manual).
-    });
+    // Usamos una transacción para leer y escribir el documento de forma
+    // atómica. Esto evita que dos personas postulándose casi al mismo
+    // tiempo se pisen entre sí (una sobrescribiendo el array de la otra)
+    // y evita que el cálculo de "recién se alcanzó el mínimo" se haga
+    // sobre datos locales desactualizados.
+    const ref = doc(db, "derivaciones", ficha.id);
+    let nuevosEmailsFinal = null;
+    let minAlcanzadoAhora = false;
+    let tituloFicha = ficha.titulo || ficha.subtipo || "Grupo";
 
-    // Si esta postulación es la que hace cruzar el mínimo requerido por
-    // primera vez, se activa el chat grupal y se notifica a todos los
-    // interesados (incluyendo a quien recién se sumó).
-    const min = ficha.minimoInteresados || 0;
-    const yaEstabaAlcanzado = min > 0 && emails.length >= min;
-    const ahoraAlcanzado = min > 0 && nuevosEmails.length >= min;
-    if (ahoraAlcanzado && !yaEstabaAlcanzado) {
-      const titulo = ficha.titulo || ficha.subtipo || "Grupo";
-      await Promise.all(nuevosEmails.map(email =>
+    try {
+      await runTransaction(db, async (tx) => {
+        const snap = await tx.get(ref);
+        if (!snap.exists()) return;
+        const data = snap.data();
+        const emailsActuales = data.interesadosEmails || [];
+        const internosActuales = data.interesados || [];
+
+        if (emailsActuales.includes(usuario.email)) return; // ya estaba postulado
+
+        const nuevosInternos = [...internosActuales, usuario.nombre];
+        const nuevosEmails = [...emailsActuales, usuario.email];
+
+        tx.update(ref, {
+          interesados: nuevosInternos,
+          interesadosEmails: nuevosEmails,
+          // El estado no se toca acá: la ficha sigue viva en el loop
+          // mientras no se llene el cupo máximo.
+        });
+
+        const min = data.minimoInteresados || 0;
+        const yaEstabaAlcanzado = min > 0 && emailsActuales.length >= min;
+        const ahoraAlcanzado = min > 0 && nuevosEmails.length >= min;
+
+        nuevosEmailsFinal = nuevosEmails;
+        tituloFicha = data.titulo || data.subtipo || "Grupo";
+        minAlcanzadoAhora = ahoraAlcanzado && !yaEstabaAlcanzado;
+      });
+    } catch (e) {
+      console.error("Error al postularse:", e);
+      return;
+    }
+
+    // Recién acá, fuera de la transacción, notificamos. Como la transacción
+    // garantiza que solo UN cliente puede ser quien "cruza el mínimo",
+    // esta notificación se dispara una sola vez y con la lista completa
+    // y actualizada de interesados.
+    if (minAlcanzadoAhora && nuevosEmailsFinal) {
+      const resultados = await Promise.allSettled(nuevosEmailsFinal.map(email =>
         addDoc(collection(db, "notificaciones"), {
           para: email,
           de: usuario.email,
           deNombre: usuario.nombre,
           tipo: "grupo_minimo_alcanzado",
           derivacionId: ficha.id,
-          tituloFicha: titulo,
+          tituloFicha,
           leida: false,
           creadoEn: serverTimestamp(),
         })
       ));
+      resultados.forEach((r, i) => {
+        if (r.status === "rejected") {
+          console.error(`No se pudo notificar a ${nuevosEmailsFinal[i]}:`, r.reason);
+        }
+      });
     }
   };
 

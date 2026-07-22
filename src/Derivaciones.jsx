@@ -738,8 +738,13 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
 }
 
 // ── COMPONENTE PRINCIPAL CON EXPORT DEFAULT ──────────────────────────────────
-export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartelera" }) {
+export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartelera", chatInicial, onChatInicialUsado }) {
   const [vista, setVista] = useState(vistaInicial);
+
+  // Sincronizar cuando TabLazos cambia de sección (el componente no se desmonta)
+  useEffect(() => {
+    setVista(vistaInicial);
+  }, [vistaInicial]);
   const [derivaciones, setDerivaciones] = useState([]);
   const [perfiles, setPerfiles] = useState([]);
   const [filtro, setFiltro] = useState("todas");
@@ -899,8 +904,8 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
           derivaciones={derivaciones}
           usuario={usuario}
           perfiles={perfiles}
-          chatInicial={null}
-          onChatInicialUsado={() => {}}
+          chatInicial={chatInicial}
+          onChatInicialUsado={onChatInicialUsado}
           onAbrirChat={(id, nombre, email) => setChatActivo({ id, nombre, email, esGrupal: false })}
           onAbrirChatGrupal={(d) => setChatActivo({ id: d.id, esGrupal: true, tituloGrupo: d.titulo, participantes: d.interesados })}
         />

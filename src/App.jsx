@@ -54,6 +54,19 @@ export default function App() {
   const t = TEMA;
   const esAdmin = usuario?.rol === "admin";
 
+  // Detecta orientación horizontal (ancho > alto) — cubre PC, tablets
+  // y el celular apoyado de costado.
+  const [esHorizontal, setEsHorizontal] = useState(() => window.innerWidth > window.innerHeight);
+  useEffect(() => {
+    function checkOrientacion() { setEsHorizontal(window.innerWidth > window.innerHeight); }
+    window.addEventListener("resize", checkOrientacion);
+    window.addEventListener("orientationchange", checkOrientacion);
+    return () => {
+      window.removeEventListener("resize", checkOrientacion);
+      window.removeEventListener("orientationchange", checkOrientacion);
+    };
+  }, []);
+
   useEffect(() => {
     const handler = e => { e.preventDefault(); setInstallPrompt(e); };
     window.addEventListener("beforeinstallprompt", handler);
@@ -224,28 +237,68 @@ export default function App() {
         </div>
       )}
 
-      {/* CONTENIDO */}
-      <div style={{ paddingBottom:90 }}>
-        {tab==="inicio"   && <TabInicio   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas}/>}
-        {tab==="reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} usuarios={usuarios} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin}/>}
-        {tab==="lazos"    && <TabLazos    usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas}/>}
-        {tab==="perfil"   && <TabPerfil   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={pedirLogin} onLogout={async()=>{ await logoutUser(); setUsuario(null); setEsPublico(false); setMostrarLogin(true); }}/>}
+      {/* CONTENIDO — con sidebar lateral en horizontal, o barra inferior en vertical */}
+      <div style={{ display:"flex", minHeight:"100vh" }}>
+
+        {/* SIDEBAR — solo en horizontal */}
+        {esHorizontal && (
+          <div style={{
+            width:88, flexShrink:0, position:"sticky", top:0, height:"100vh",
+            background:"rgba(10,10,20,0.92)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)",
+            borderRight:"1px solid rgba(255,255,255,0.07)",
+            display:"flex", flexDirection:"column", alignItems:"center",
+            paddingTop:28, gap:8, zIndex:1000,
+          }}>
+            {tabs.map(({ id, label, icon }) => {
+              const active = tab===id;
+              return (
+                <button key={id} onClick={()=>setTab(id)} style={{
+                  display:"flex", flexDirection:"column", alignItems:"center", gap:4,
+                  width:68, padding:"10px 4px", borderRadius:16, border:"none", cursor:"pointer",
+                  background:active?t.pill:"transparent", color:active?t.acento:t.textoMuy,
+                  transition:"all 0.25s cubic-bezier(0.34,1.56,0.64,1)",
+                }}>
+                  <div style={{ transition:"transform 0.25s cubic-bezier(0.34,1.56,0.64,1)", transform:active?"scale(1.1)":"scale(1)" }}>
+                    {icon}
+                  </div>
+                  <span style={{ fontSize:9, fontWeight:active?700:500, letterSpacing:0.3 }}>{label}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* ÁREA DE CONTENIDO — centrado con ancho máximo en horizontal */}
+        <div style={{
+          flex:1, minWidth:0,
+          paddingBottom: esHorizontal ? 24 : 90,
+          display:"flex", justifyContent:"center",
+        }}>
+          <div style={{ width:"100%", maxWidth: esHorizontal ? 720 : "none" }}>
+            {tab==="inicio"   && <TabInicio   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas}/>}
+            {tab==="reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} usuarios={usuarios} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin}/>}
+            {tab==="lazos"    && <TabLazos    usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas}/>}
+            {tab==="perfil"   && <TabPerfil   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={pedirLogin} onLogout={async()=>{ await logoutUser(); setUsuario(null); setEsPublico(false); setMostrarLogin(true); }}/>}
+          </div>
+        </div>
       </div>
 
-      {/* BOTTOM TAB BAR */}
-      <div style={{ position:"fixed", bottom:16, left:"50%", transform:"translateX(-50%)", width:"calc(100% - 32px)", maxWidth:480, background:"rgba(10,10,20,0.88)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderRadius:28, border:"1px solid rgba(255,255,255,0.07)", boxShadow:"0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)", display:"flex", alignItems:"center", justifyContent:"space-around", padding:"8px 8px", zIndex:1000 }}>
-        {tabs.map(({ id, label, icon }) => {
-          const active = tab===id;
-          return (
-            <button key={id} onClick={()=>setTab(id)} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:active?"8px 20px":"8px 12px", borderRadius:20, border:"none", cursor:"pointer", background:active?t.pill:"transparent", color:active?t.acento:t.textoMuy, transition:"all 0.25s cubic-bezier(0.34,1.56,0.64,1)", minWidth:active?80:56 }}>
-              <div style={{ transition:"transform 0.25s cubic-bezier(0.34,1.56,0.64,1)", transform:active?"scale(1.1)":"scale(1)" }}>
-                {icon}
-              </div>
-              <span style={{ fontSize:10, fontWeight:active?700:500, letterSpacing:0.3 }}>{label}</span>
-            </button>
-          );
-        })}
-      </div>
+      {/* BOTTOM TAB BAR — solo en vertical */}
+      {!esHorizontal && (
+        <div style={{ position:"fixed", bottom:16, left:"50%", transform:"translateX(-50%)", width:"calc(100% - 32px)", maxWidth:480, background:"rgba(10,10,20,0.88)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderRadius:28, border:"1px solid rgba(255,255,255,0.07)", boxShadow:"0 8px 40px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)", display:"flex", alignItems:"center", justifyContent:"space-around", padding:"8px 8px", zIndex:1000 }}>
+          {tabs.map(({ id, label, icon }) => {
+            const active = tab===id;
+            return (
+              <button key={id} onClick={()=>setTab(id)} style={{ display:"flex", flexDirection:"column", alignItems:"center", gap:3, padding:active?"8px 20px":"8px 12px", borderRadius:20, border:"none", cursor:"pointer", background:active?t.pill:"transparent", color:active?t.acento:t.textoMuy, transition:"all 0.25s cubic-bezier(0.34,1.56,0.64,1)", minWidth:active?80:56 }}>
+                <div style={{ transition:"transform 0.25s cubic-bezier(0.34,1.56,0.64,1)", transform:active?"scale(1.1)":"scale(1)" }}>
+                  {icon}
+                </div>
+                <span style={{ fontSize:10, fontWeight:active?700:500, letterSpacing:0.3 }}>{label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <style>{`
         * { -webkit-tap-highlight-color: transparent; box-sizing: border-box; }

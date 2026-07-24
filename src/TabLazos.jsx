@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import Derivaciones from "./Derivaciones";
 import RedGrins from "./RedGrins";
 
-export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, reservas = [] }) {
+export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, reservas = [], esHorizontal=false }) {
   const [seccion, setSeccion] = useState("cartelera");
   const [chatInicial, setChatInicial] = useState(null);
   const [vistaDerivaciones, setVistaDerivaciones] = useState(null);
@@ -45,8 +45,8 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
   return (
     <div className="tab-content" style={{ minHeight:"100vh", background:"#000" }}>
 
-      {/* STICKY BAR — solo Lazos / GRINS */}
-      <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:50, background:"rgba(0,0,0,0.92)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderBottom:"1px solid rgba(124,106,255,0.15)", height:48, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px" }}>
+      {/* STICKY BAR — solo Lazos / GRINS. Deja espacio al sidebar en horizontal */}
+      <div style={{ position:"fixed", top:0, left: esHorizontal ? 88 : 0, right:0, zIndex:50, background:"rgba(0,0,0,0.92)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderBottom:"1px solid rgba(124,106,255,0.15)", height:48, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px" }}>
         <span style={{ fontSize:15, fontWeight:800, color:"white" }}>Lazos</span>
         <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
       </div>
@@ -90,6 +90,7 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
             vistaInicial={vistaDerivaciones || "cartelera"}
             chatGrupalInicial={chatGrupalInicial}
             onChatGrupalInicialUsado={() => setChatGrupalInicial(null)}
+            esHorizontal={esHorizontal}
           />
         )}
       </div>

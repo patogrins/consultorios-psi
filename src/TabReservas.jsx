@@ -360,7 +360,7 @@ const Grilla = memo(function Grilla({
 });
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
-export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], usuarios=[], agregarReserva, actualizarReserva, eliminarReserva, showToast, onLogin }) {
+export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], usuarios=[], agregarReserva, actualizarReserva, eliminarReserva, showToast, onLogin, esHorizontal=false }) {
   const [zoom, setZoom] = useState(1.0);
   const [weekOffset, setWeekOffset] = useState(0);
   const [mesOffset, setMesOffset] = useState(0);
@@ -573,7 +573,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
     <div ref={outerRef} style={{ height:"100vh", overflowY:"auto", overflowX:"hidden", background:"#000" }} className="tab-content">
 
       {/* STICKY BAR */}
-      <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:50, background:stickyVisible?"rgba(0,0,0,0.92)":"transparent", backdropFilter:stickyVisible?"blur(24px)":"none", WebkitBackdropFilter:stickyVisible?"blur(24px)":"none", borderBottom:stickyVisible?"1px solid rgba(124,106,255,0.15)":"none", transition:"all 0.3s", padding:stickyVisible?"10px 20px":"0", height:stickyVisible?44:0, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ position:"fixed", top:0, left: esHorizontal ? 88 : 0, right:0, zIndex:50, background:stickyVisible?"rgba(0,0,0,0.92)":"transparent", backdropFilter:stickyVisible?"blur(24px)":"none", WebkitBackdropFilter:stickyVisible?"blur(24px)":"none", borderBottom:stickyVisible?"1px solid rgba(124,106,255,0.15)":"none", transition:"all 0.3s", padding:stickyVisible?"10px 20px":"0", height:stickyVisible?44:0, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span style={{ fontSize:14, fontWeight:800, color:"white" }}>Reservas</span>
         <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
       </div>
@@ -689,9 +689,12 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
         </div>
       )}
 
-      {/* FOOTER AGENDA */}
+      {/* FOOTER AGENDA — abajo centrado en vertical, a la derecha en horizontal */}
       {!verPagos && (
-        <div style={{ position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:"calc(100% - 32px)", maxWidth:340 }}>
+        <div style={esHorizontal
+          ? { position:"fixed", top:"50%", right:20, transform:"translateY(-50%)", zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:220 }
+          : { position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:"calc(100% - 32px)", maxWidth:340 }
+        }>
           <div style={{ display:"flex", alignItems:"center", width:"100%", background:"rgba(10,10,20,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(124,106,255,0.2)", borderRadius:22, padding:"8px 12px", boxShadow:"0 8px 32px rgba(0,0,0,0.4)", position:"relative", minHeight:66 }}>
             <div style={{ flex:1, minWidth:0, paddingRight:60 }}>
               {!pasoActivo ? (
@@ -744,7 +747,10 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
       )}
 
       {verPagos && (
-        <div style={{ position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, width:"calc(100% - 32px)", maxWidth:340 }}>
+        <div style={esHorizontal
+          ? { position:"fixed", top:"50%", right:20, transform:"translateY(-50%)", zIndex:60, width:220 }
+          : { position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, width:"calc(100% - 32px)", maxWidth:340 }
+        }>
           <button onClick={()=>setVerPagos(false)} style={{ width:"100%", padding:"10px", borderRadius:16, border:"1px solid rgba(124,106,255,0.25)", background:"rgba(14,12,28,0.9)", backdropFilter:"blur(16px)", color:"#7c6aff", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c6aff" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
             Volver a la agenda

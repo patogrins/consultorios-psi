@@ -240,14 +240,14 @@ export default function App() {
       {/* CONTENIDO — con sidebar lateral en horizontal, o barra inferior en vertical */}
       <div style={{ display:"flex", minHeight:"100vh" }}>
 
-        {/* SIDEBAR — solo en horizontal */}
+        {/* SIDEBAR — solo en horizontal, bajado para no chocar con la barra superior de cada tab */}
         {esHorizontal && (
           <div style={{
             width:88, flexShrink:0, position:"sticky", top:0, height:"100vh",
             background:"rgba(10,10,20,0.92)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)",
             borderRight:"1px solid rgba(255,255,255,0.07)",
             display:"flex", flexDirection:"column", alignItems:"center",
-            paddingTop:28, gap:8, zIndex:1000,
+            paddingTop:64, gap:8, zIndex:1000,
           }}>
             {tabs.map(({ id, label, icon }) => {
               const active = tab===id;
@@ -276,8 +276,8 @@ export default function App() {
         }}>
           <div style={{ width:"100%", maxWidth: esHorizontal ? 720 : "none" }}>
             {tab==="inicio"   && <TabInicio   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas}/>}
-            {tab==="reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} usuarios={usuarios} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin}/>}
-            {tab==="lazos"    && <TabLazos    usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas}/>}
+            {tab==="reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} usuarios={usuarios} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin} esHorizontal={esHorizontal}/>}
+            {tab==="lazos"    && <TabLazos    usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} esHorizontal={esHorizontal}/>}
             {tab==="perfil"   && <TabPerfil   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={pedirLogin} onLogout={async()=>{ await logoutUser(); setUsuario(null); setEsPublico(false); setMostrarLogin(true); }}/>}
           </div>
         </div>

@@ -689,12 +689,71 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
         </div>
       )}
 
-      {/* FOOTER AGENDA — abajo centrado en vertical, a la derecha en horizontal */}
-      {!verPagos && (
-        <div style={esHorizontal
-          ? { position:"fixed", top:"50%", right:20, transform:"translateY(-50%)", zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:220 }
-          : { position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:"calc(100% - 32px)", maxWidth:340 }
-        }>
+      {/* FOOTER AGENDA — abajo centrado en vertical; en horizontal se divide en
+          dos piezas independientes a la derecha: zoom vertical arriba, y
+          resumen + botón "+" abajo, cerca de "Mis reservas". */}
+      {!verPagos && esHorizontal && (
+        <>
+          {/* ZOOM — vertical, aparte, más arriba a la derecha */}
+          <div style={{ position:"fixed", top:"32%", right:20, transform:"translateY(-50%)", zIndex:60, background:"rgba(10,10,20,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(124,106,255,0.2)", borderRadius:18, padding:"12px 8px", boxShadow:"0 8px 32px rgba(0,0,0,0.4)", display:"flex", flexDirection:"column", alignItems:"center", gap:8, width:56 }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:3, alignItems:"center" }}>
+              {["4×","3×","2×","1×"].map((z,i)=>(
+                <span key={i} style={{ fontSize:7, color:Math.round(zoom-1)===(3-i)?"#7c6aff":"#3a3a5a", fontWeight:Math.round(zoom-1)===(3-i)?800:500 }}>{z}</span>
+              ))}
+            </div>
+            <input type="range" min={1} max={4} step={0.05} value={zoom}
+              onChange={e=>{
+                const el=outerRef.current;
+                const scrollTop=el?.scrollTop||0, clientH=el?.clientHeight||window.innerHeight, scrollH=el?.scrollHeight||1;
+                const centerPct=scrollH>clientH?(scrollTop+clientH/2)/scrollH:0.5;
+                setZoom(Number(e.target.value));
+                requestAnimationFrame(()=>requestAnimationFrame(()=>{ if(el) el.scrollTop=Math.max(0,centerPct*el.scrollHeight-clientH/2); }));
+              }}
+              style={{
+                width:4, height:110, cursor:"pointer", accentColor:"#7c6aff", borderRadius:4, outline:"none",
+                WebkitAppearance:"slider-vertical", appearance:"slider-vertical",
+                writingMode:"vertical-lr", direction:"rtl",
+                background:`linear-gradient(to top,#7c6aff ${(zoom-1)/3*100}%,rgba(124,106,255,0.2) ${(zoom-1)/3*100}%)`
+              }}
+            />
+          </div>
+
+          {/* RESUMEN + BOTÓN "+" — abajo a la derecha */}
+          <div style={{ position:"fixed", bottom:90, right:20, zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:220 }}>
+            <div style={{ display:"flex", alignItems:"center", width:"100%", background:"rgba(10,10,20,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(124,106,255,0.2)", borderRadius:22, padding:"10px 12px", boxShadow:"0 8px 32px rgba(0,0,0,0.4)", position:"relative", minHeight:66, gap:10 }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                {!pasoActivo ? (
+                  <p style={{ margin:0, fontSize:10, color:"#4a5270" }}>Tocá una celda libre para reservar</p>
+                ) : (
+                  <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                    {[{n:"1",label:diaLabel||"Elegí un día",done:!!diaLabel,color:"#667eea"},{n:"2",label:consLabel?flujoConsultorio:"Elegí consultorio",done:!!consLabel,color:"#7c6aff"},{n:"3",label:horasLabel||"Seleccioná horarios",done:!!horasLabel,color:"#38a169"}].map(s=>(
+                      <div key={s.n} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                        <div style={{ width:15, height:15, borderRadius:"50%", background:s.done?`linear-gradient(135deg,${s.color},${s.color}99)`:"rgba(124,106,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, fontWeight:800, color:"white", flexShrink:0 }}>{s.n}</div>
+                        <span style={{ fontSize:10, color:s.done?"white":"#4a5270", fontWeight:s.done?700:400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {pasoActivo && (
+                <button onClick={resetFlujo} style={{ width:26, height:26, borderRadius:"50%", background:"rgba(239,83,80,0.15)", border:"1.5px solid rgba(239,83,80,0.4)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef5350" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+              )}
+              <button onClick={()=>{ if(!pasoActivo||flujoHoras.length===0) return; setForm({profesional:esAdmin?"":usuario?.nombre||"",horaInicio:Math.min(...flujoHoras),horaFin:Math.max(...flujoHoras)+1,repeteSemanal:false}); setModal("confirmar");setErrorSolapamiento(""); }}
+                style={{ width:46, height:46, borderRadius:"50%", border:"none", background:flujoHoras.length>0?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(124,106,255,0.15)", color:flujoHoras.length>0?"white":"#4a5270", fontSize:24, cursor:flujoHoras.length>0?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:flujoHoras.length>0?"0 4px 16px rgba(124,106,255,0.5)":"none", transition:"all 0.2s", flexShrink:0 }}>+</button>
+            </div>
+            <button onClick={()=>setVerPagos(true)} style={{ width:"100%", background:"rgba(14,12,28,0.85)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", border:"1px solid rgba(124,106,255,0.18)", borderRadius:16, padding:"9px", color:"#a0a8c0", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+              Mis reservas
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* FOOTER AGENDA — versión vertical original, sin cambios */}
+      {!verPagos && !esHorizontal && (
+        <div style={{ position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:"calc(100% - 32px)", maxWidth:340 }}>
           <div style={{ display:"flex", alignItems:"center", width:"100%", background:"rgba(10,10,20,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(124,106,255,0.2)", borderRadius:22, padding:"8px 12px", boxShadow:"0 8px 32px rgba(0,0,0,0.4)", position:"relative", minHeight:66 }}>
             <div style={{ flex:1, minWidth:0, paddingRight:60 }}>
               {!pasoActivo ? (

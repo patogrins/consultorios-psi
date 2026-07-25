@@ -76,7 +76,7 @@ function getLineaPct() {
 }
 
 // ── POPUP DE RESERVA ──────────────────────────────────────────────────────────
-function PopupReserva({ reserva, colorMap, usuarios, esAdmin, onClose, onEditar, onEliminar, onNotificar, onAsociarUsuario }) {
+function PopupReserva({ reserva, colorMap, usuarios, esAdmin, puedeEditar, onClose, onEditar, onEliminar, onNotificar, onAsociarUsuario }) {
   const col = colorMap[reserva.profesional] || COLORES_PROF[0];
   const usuarioData = usuarios?.find(u => u.nombre === reserva.profesional);
   const duracion = reserva.horaFin - reserva.horaInicio;
@@ -121,11 +121,9 @@ function PopupReserva({ reserva, colorMap, usuarios, esAdmin, onClose, onEditar,
           ))}
         </div>
 
-        {/* Acciones admin */}
+        {/* Acciones solo para admin */}
         {esAdmin && (
           <div style={{ display:"flex", flexDirection:"column", gap:8, marginBottom:12 }}>
-
-            {/* Asociar usuario registrado */}
             {!asociando ? (
               <button onClick={()=>setAsociando(true)}
                 style={{ width:"100%", padding:"10px", borderRadius:12, border:"1px solid rgba(99,179,237,0.3)", background:"rgba(99,179,237,0.08)", color:"#63b3ed", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
@@ -144,24 +142,25 @@ function PopupReserva({ reserva, colorMap, usuarios, esAdmin, onClose, onEditar,
                 </select>
                 <div style={{ display:"flex", gap:8 }}>
                   <button onClick={()=>setAsociando(false)} style={{ flex:1, padding:"8px", borderRadius:9, border:"1px solid rgba(255,255,255,0.08)", background:"transparent", color:"#4a5270", fontSize:12, cursor:"pointer", fontWeight:600 }}>Cancelar</button>
-                  <button
-                    onClick={async ()=>{ if(!usuarioSel) return; await onAsociarUsuario(reserva, usuarioSel); setAsociando(false); onClose(); }}
-                    disabled={!usuarioSel}
+                  <button onClick={async ()=>{ if(!usuarioSel) return; await onAsociarUsuario(reserva, usuarioSel); setAsociando(false); onClose(); }} disabled={!usuarioSel}
                     style={{ flex:2, padding:"8px", borderRadius:9, border:"none", background:usuarioSel?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(255,255,255,0.05)", color:usuarioSel?"white":"#4a5270", fontSize:12, fontWeight:800, cursor:usuarioSel?"pointer":"not-allowed" }}>
                     Asociar y notificar
                   </button>
                 </div>
               </div>
             )}
-
             <button onClick={()=>onNotificar(reserva)} style={{ width:"100%", padding:"10px", borderRadius:12, border:"1px solid rgba(124,106,255,0.25)", background:"rgba(124,106,255,0.1)", color:"#a78bfa", fontWeight:700, fontSize:12, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
               Enviar mensaje al profesional
             </button>
-            <div style={{ display:"flex", gap:8 }}>
-              <button onClick={()=>{onEditar(reserva);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(255,255,255,0.1)", background:"transparent", color:"#a0a8c0", fontWeight:600, fontSize:12, cursor:"pointer" }}>✎ Editar</button>
-              <button onClick={()=>{onEliminar(reserva.id);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(239,83,80,0.3)", background:"rgba(239,83,80,0.08)", color:"#ef5350", fontWeight:600, fontSize:12, cursor:"pointer" }}>🗑 Eliminar</button>
-            </div>
+          </div>
+        )}
+
+        {/* Editar / Eliminar — visible para el dueño de la reserva O para el admin */}
+        {(esAdmin || puedeEditar) && (
+          <div style={{ display:"flex", gap:8, marginBottom:12 }}>
+            <button onClick={()=>{onEditar(reserva);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(255,255,255,0.1)", background:"transparent", color:"#a0a8c0", fontWeight:600, fontSize:12, cursor:"pointer" }}>✎ Editar</button>
+            <button onClick={()=>{onEliminar(reserva.id);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(239,83,80,0.3)", background:"rgba(239,83,80,0.08)", color:"#ef5350", fontWeight:600, fontSize:12, cursor:"pointer" }}>🗑 Eliminar</button>
           </div>
         )}
 
@@ -361,7 +360,7 @@ const Grilla = memo(function Grilla({
 });
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
-export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], usuarios=[], agregarReserva, actualizarReserva, eliminarReserva, showToast, onLogin }) {
+export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], usuarios=[], agregarReserva, actualizarReserva, eliminarReserva, showToast, onLogin, esHorizontal=false }) {
   const [zoom, setZoom] = useState(1.0);
   const [weekOffset, setWeekOffset] = useState(0);
   const [mesOffset, setMesOffset] = useState(0);
@@ -574,7 +573,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
     <div ref={outerRef} style={{ height:"100vh", overflowY:"auto", overflowX:"hidden", background:"#000" }} className="tab-content">
 
       {/* STICKY BAR */}
-      <div style={{ position:"fixed", top:0, left:0, right:0, zIndex:50, background:stickyVisible?"rgba(0,0,0,0.92)":"transparent", backdropFilter:stickyVisible?"blur(24px)":"none", WebkitBackdropFilter:stickyVisible?"blur(24px)":"none", borderBottom:stickyVisible?"1px solid rgba(124,106,255,0.15)":"none", transition:"all 0.3s", padding:stickyVisible?"10px 20px":"0", height:stickyVisible?44:0, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      <div style={{ position:"fixed", top:0, left: esHorizontal ? 88 : 0, right:0, zIndex:50, background:stickyVisible?"rgba(0,0,0,0.92)":"transparent", backdropFilter:stickyVisible?"blur(24px)":"none", WebkitBackdropFilter:stickyVisible?"blur(24px)":"none", borderBottom:stickyVisible?"1px solid rgba(124,106,255,0.15)":"none", transition:"all 0.3s", padding:stickyVisible?"10px 20px":"0", height:stickyVisible?44:0, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span style={{ fontSize:14, fontWeight:800, color:"white" }}>Reservas</span>
         <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
       </div>
@@ -690,8 +689,74 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
         </div>
       )}
 
-      {/* FOOTER AGENDA */}
-      {!verPagos && (
+      {/* FOOTER AGENDA — en horizontal: zoom fijo centrado en la mitad de la
+          pantalla (siempre visible, no molesta porque es angosto); el panel
+          de resumen + botón "+" solo aparece cuando hay un paso activo
+          (se seleccionó día/consultorio/hora), pegado a la esquina inferior
+          derecha para no taparle la grilla al usuario mientras elige. */}
+      {!verPagos && esHorizontal && (
+        <>
+          {/* ZOOM — vertical, centrado a mitad de pantalla, siempre visible */}
+          <div style={{ position:"fixed", top:"50%", right:20, transform:"translateY(-50%)", zIndex:60, background:"rgba(10,10,20,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(124,106,255,0.2)", borderRadius:18, padding:"12px 8px", boxShadow:"0 8px 32px rgba(0,0,0,0.4)", display:"flex", flexDirection:"column", alignItems:"center", gap:8, width:56 }}>
+            <div style={{ display:"flex", flexDirection:"column", gap:3, alignItems:"center" }}>
+              {["4×","3×","2×","1×"].map((z,i)=>(
+                <span key={i} style={{ fontSize:7, color:Math.round(zoom-1)===(3-i)?"#7c6aff":"#3a3a5a", fontWeight:Math.round(zoom-1)===(3-i)?800:500 }}>{z}</span>
+              ))}
+            </div>
+            <input type="range" min={1} max={4} step={0.05} value={zoom}
+              onChange={e=>{
+                const el=outerRef.current;
+                const scrollTop=el?.scrollTop||0, clientH=el?.clientHeight||window.innerHeight, scrollH=el?.scrollHeight||1;
+                const centerPct=scrollH>clientH?(scrollTop+clientH/2)/scrollH:0.5;
+                setZoom(Number(e.target.value));
+                requestAnimationFrame(()=>requestAnimationFrame(()=>{ if(el) el.scrollTop=Math.max(0,centerPct*el.scrollHeight-clientH/2); }));
+              }}
+              style={{
+                width:4, height:110, cursor:"pointer", accentColor:"#7c6aff", borderRadius:4, outline:"none",
+                WebkitAppearance:"slider-vertical", appearance:"slider-vertical",
+                writingMode:"vertical-lr", direction:"rtl",
+                background:`linear-gradient(to top,#7c6aff ${(zoom-1)/3*100}%,rgba(124,106,255,0.2) ${(zoom-1)/3*100}%)`
+              }}
+            />
+          </div>
+
+          {/* RESUMEN + BOTÓN "+" — solo visible con un paso activo, esquina
+              inferior derecha, bien abajo, para no taparle la agenda */}
+          {pasoActivo && (
+            <div style={{ position:"fixed", bottom:20, right:20, zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:220, animation:"fadeUp 0.25s ease" }}>
+              <div style={{ display:"flex", alignItems:"center", width:"100%", background:"rgba(10,10,20,0.94)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(124,106,255,0.25)", borderRadius:22, padding:"10px 12px", boxShadow:"0 8px 32px rgba(0,0,0,0.5)", position:"relative", minHeight:66, gap:10 }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", flexDirection:"column", gap:3 }}>
+                    {[{n:"1",label:diaLabel||"Elegí un día",done:!!diaLabel,color:"#667eea"},{n:"2",label:consLabel?flujoConsultorio:"Elegí consultorio",done:!!consLabel,color:"#7c6aff"},{n:"3",label:horasLabel||"Seleccioná horarios",done:!!horasLabel,color:"#38a169"}].map(s=>(
+                      <div key={s.n} style={{ display:"flex", alignItems:"center", gap:5 }}>
+                        <div style={{ width:15, height:15, borderRadius:"50%", background:s.done?`linear-gradient(135deg,${s.color},${s.color}99)`:"rgba(124,106,255,0.15)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:8, fontWeight:800, color:"white", flexShrink:0 }}>{s.n}</div>
+                        <span style={{ fontSize:10, color:s.done?"white":"#4a5270", fontWeight:s.done?700:400, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{s.label}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                <button onClick={resetFlujo} style={{ width:26, height:26, borderRadius:"50%", background:"rgba(239,83,80,0.15)", border:"1.5px solid rgba(239,83,80,0.4)", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#ef5350" strokeWidth="3" strokeLinecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+                <button onClick={()=>{ if(flujoHoras.length===0) return; setForm({profesional:esAdmin?"":usuario?.nombre||"",horaInicio:Math.min(...flujoHoras),horaFin:Math.max(...flujoHoras)+1,repeteSemanal:false}); setModal("confirmar");setErrorSolapamiento(""); }}
+                  style={{ width:46, height:46, borderRadius:"50%", border:"none", background:flujoHoras.length>0?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(124,106,255,0.15)", color:flujoHoras.length>0?"white":"#4a5270", fontSize:24, cursor:flujoHoras.length>0?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", boxShadow:flujoHoras.length>0?"0 4px 16px rgba(124,106,255,0.5)":"none", transition:"all 0.2s", flexShrink:0 }}>+</button>
+              </div>
+            </div>
+          )}
+
+          {/* MIS RESERVAS — siempre visible, esquina inferior derecha (más
+              arriba si el panel de "+" está abierto, para no superponerse) */}
+          <div style={{ position:"fixed", bottom: pasoActivo ? 96 : 20, right:20, zIndex:59, width:220, transition:"bottom 0.25s ease" }}>
+            <button onClick={()=>setVerPagos(true)} style={{ width:"100%", background:"rgba(14,12,28,0.85)", backdropFilter:"blur(16px)", WebkitBackdropFilter:"blur(16px)", border:"1px solid rgba(124,106,255,0.18)", borderRadius:16, padding:"9px", color:"#a0a8c0", fontSize:11, fontWeight:700, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#a0a8c0" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>
+              Mis reservas
+            </button>
+          </div>
+        </>
+      )}
+
+      {/* FOOTER AGENDA — versión vertical original, sin cambios */}
+      {!verPagos && !esHorizontal && (
         <div style={{ position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, display:"flex", flexDirection:"column", alignItems:"center", gap:6, width:"calc(100% - 32px)", maxWidth:340 }}>
           <div style={{ display:"flex", alignItems:"center", width:"100%", background:"rgba(10,10,20,0.92)", backdropFilter:"blur(20px)", WebkitBackdropFilter:"blur(20px)", border:"1px solid rgba(124,106,255,0.2)", borderRadius:22, padding:"8px 12px", boxShadow:"0 8px 32px rgba(0,0,0,0.4)", position:"relative", minHeight:66 }}>
             <div style={{ flex:1, minWidth:0, paddingRight:60 }}>
@@ -745,7 +810,10 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
       )}
 
       {verPagos && (
-        <div style={{ position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, width:"calc(100% - 32px)", maxWidth:340 }}>
+        <div style={esHorizontal
+          ? { position:"fixed", top:"50%", right:20, transform:"translateY(-50%)", zIndex:60, width:220 }
+          : { position:"fixed", bottom:90, left:"50%", transform:"translateX(-50%)", zIndex:60, width:"calc(100% - 32px)", maxWidth:340 }
+        }>
           <button onClick={()=>setVerPagos(false)} style={{ width:"100%", padding:"10px", borderRadius:16, border:"1px solid rgba(124,106,255,0.25)", background:"rgba(14,12,28,0.9)", backdropFilter:"blur(16px)", color:"#7c6aff", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7c6aff" strokeWidth="2.5" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
             Volver a la agenda
@@ -758,6 +826,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
         <PopupReserva
           reserva={popupReserva} colorMap={colorMap} usuarios={usuarios}
           esAdmin={esAdmin}
+          puedeEditar={puedeEditarFn(popupReserva)}
           onClose={()=>setPopupReserva(null)}
           onEditar={(r)=>{onOpenEditar(r);setPopupReserva(null);}}
           onEliminar={(id)=>{setConfirmDelete(id);setPopupReserva(null);}}
@@ -856,6 +925,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
         @keyframes slideUp { from { transform:translateY(100%); opacity:0; } to { transform:none; opacity:1; } }
         input[type=range]::-webkit-slider-thumb { -webkit-appearance:none; width:14px; height:14px; border-radius:50%; background:#7c6aff; cursor:pointer; box-shadow:0 0 6px rgba(124,106,255,0.6); }
         input[type=range]::-webkit-slider-runnable-track { height:4px; border-radius:4px; }
+        @keyframes fadeUp { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
       `}</style>
     </div>
   );

@@ -264,7 +264,8 @@ const Celda = memo(function Celda({
 const Grilla = memo(function Grilla({
   weekDates, zoom, lineaPct, todayKey,
   reservas, colorMap, flujoHoras, flujoDia, flujoConsultorio, paso,
-  esPublico, puedeEditarFn, onToggleHora, onLogin, onClickReserva, onSeleccionarDia
+  esPublico, puedeEditarFn, onToggleHora, onLogin, onClickReserva, onSeleccionarDia,
+  esHorizontal=false,
 }) {
   const hoyEnDias = weekDates.some(f => dateKey(f)===todayKey);
   const cellH = Math.round(ROW_H * zoom);
@@ -272,6 +273,10 @@ const Grilla = memo(function Grilla({
   const HEAD_H1 = 44;
   const HEAD_H2 = 22;
   const bodyRef = useRef(null);
+  // En horizontal dejamos espacio extra al final del scroll para poder
+  // arrastrar más allá del último día y centrar viernes/sábado en pantalla,
+  // liberando esa zona de la derecha donde vive el panel de resumen/"+".
+  const espacioExtra = esHorizontal ? 260 : 0;
 
   // Sincronizar scroll horizontal del body con los headers
   function onBodyScroll(e) {
@@ -304,6 +309,7 @@ const Grilla = memo(function Grilla({
                 </div>
               );
             })}
+            {espacioExtra > 0 && <div style={{ width:espacioExtra, minWidth:espacioExtra, flexShrink:0 }}/>}
           </div>
         </div>
 
@@ -320,13 +326,14 @@ const Grilla = memo(function Grilla({
                 </div>
               );
             }))}
+            {espacioExtra > 0 && <div style={{ width:espacioExtra, minWidth:espacioExtra, flexShrink:0 }}/>}
           </div>
         </div>
       </div>
 
       {/* ── CUERPO con scroll horizontal sincronizado ── */}
       <div ref={bodyRef} style={{ overflowX:"auto", position:"relative" }} onScroll={onBodyScroll}>
-        <div style={{ width: HORA_COL + weekDates.length*3*cellW, position:"relative" }}>
+        <div style={{ width: HORA_COL + weekDates.length*3*cellW + espacioExtra, position:"relative" }}>
 
           {HORAS.map(hora => (
             <div key={hora} style={{ display:"flex", height:cellH, borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
@@ -567,6 +574,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
     reservas, colorMap, flujoHoras, flujoDia, flujoConsultorio, paso,
     esPublico, puedeEditarFn,
     onToggleHora, onLogin, onClickReserva, onSeleccionarDia,
+    esHorizontal,
   };
 
   return (

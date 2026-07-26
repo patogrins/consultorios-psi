@@ -367,7 +367,7 @@ const Grilla = memo(function Grilla({
 });
 
 // ── COMPONENTE PRINCIPAL ──────────────────────────────────────────────────────
-export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], usuarios=[], agregarReserva, actualizarReserva, eliminarReserva, showToast, onLogin, esHorizontal=false }) {
+export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], usuarios=[], agregarReserva, actualizarReserva, eliminarReserva, showToast, onLogin, esHorizontal=false, esPantallaGrande=false }) {
   const [zoom, setZoom] = useState(1.0);
   const [weekOffset, setWeekOffset] = useState(0);
   const [mesOffset, setMesOffset] = useState(0);
@@ -586,23 +586,31 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
         <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
       </div>
 
-      {/* HERO HEADER */}
-      <div style={{ background:"linear-gradient(180deg,#0a0a14 0%,#000 100%)", padding:"54px 20px 20px" }}>
-        <div style={{ textAlign:"center", marginBottom:16 }}>
-          <img src="/logohead.jpeg" alt="GRINS" style={{ height:36, objectFit:"contain", opacity:0.9 }}/>
-        </div>
-        <div style={{ background:"rgba(14,12,28,0.7)", borderRadius:16, padding:"14px 16px", border:"1px solid rgba(124,106,255,0.15)" }}>
-          <div style={{ fontSize:13, fontWeight:800, color:"white", marginBottom:10 }}>Cómo reservar</div>
-          {[{n:"1",c:"#667eea",t:"Tocá una celda libre — detecta día y consultorio solo"},{n:"2",c:"#7c6aff",t:"Seleccioná todas las horas que necesitás"},{n:"3",c:"#38a169",t:"Tocá + para confirmar"}].map(s=>(
-            <div key={s.n} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
-              <div style={{ width:22, height:22, borderRadius:"50%", background:`linear-gradient(135deg,${s.c},${s.c}99)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"white", flexShrink:0 }}>{s.n}</div>
-              <span style={{ fontSize:12, color:"#a0a8c0" }}>{s.t}</span>
-            </div>
-          ))}
-          <div style={{ marginTop:8, padding:"7px 10px", background:"rgba(124,106,255,0.08)", borderRadius:10, fontSize:10, color:"#4a5270" }}>
-            🤏 Pellizco para hacer zoom · tocá un bloque reservado para ver detalles
+      {/* HERO HEADER — compacto en pantalla grande para dejarle más aire a la agenda */}
+      <div style={{ background:"linear-gradient(180deg,#0a0a14 0%,#000 100%)", padding: esPantallaGrande ? "24px 20px 12px" : "54px 20px 20px" }}>
+        {!esPantallaGrande && (
+          <div style={{ textAlign:"center", marginBottom:16 }}>
+            <img src="/logohead.jpeg" alt="GRINS" style={{ height:36, objectFit:"contain", opacity:0.9 }}/>
           </div>
-        </div>
+        )}
+        {esPantallaGrande ? (
+          <div style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(14,12,28,0.6)", borderRadius:12, padding:"8px 14px", border:"1px solid rgba(124,106,255,0.12)" }}>
+            <span style={{ fontSize:11, color:"#a0a8c0" }}>💡 Tocá una celda libre para reservar · tocá un bloque ocupado para ver detalles · pellizco o scroll para zoom</span>
+          </div>
+        ) : (
+          <div style={{ background:"rgba(14,12,28,0.7)", borderRadius:16, padding:"14px 16px", border:"1px solid rgba(124,106,255,0.15)" }}>
+            <div style={{ fontSize:13, fontWeight:800, color:"white", marginBottom:10 }}>Cómo reservar</div>
+            {[{n:"1",c:"#667eea",t:"Tocá una celda libre — detecta día y consultorio solo"},{n:"2",c:"#7c6aff",t:"Seleccioná todas las horas que necesitás"},{n:"3",c:"#38a169",t:"Tocá + para confirmar"}].map(s=>(
+              <div key={s.n} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
+                <div style={{ width:22, height:22, borderRadius:"50%", background:`linear-gradient(135deg,${s.c},${s.c}99)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"white", flexShrink:0 }}>{s.n}</div>
+                <span style={{ fontSize:12, color:"#a0a8c0" }}>{s.t}</span>
+              </div>
+            ))}
+            <div style={{ marginTop:8, padding:"7px 10px", background:"rgba(124,106,255,0.08)", borderRadius:10, fontSize:10, color:"#4a5270" }}>
+              🤏 Pellizco para hacer zoom · tocá un bloque reservado para ver detalles
+            </div>
+          </div>
+        )}
       </div>
 
       {/* NAV SEMANA */}

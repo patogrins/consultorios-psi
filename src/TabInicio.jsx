@@ -30,7 +30,7 @@ async function subirArchivoCloudinary(file) {
   return { url: data.secure_url, tipo: isImage ? "imagen" : "archivo", nombre: file.name, tamaño: file.size };
 }
 
-export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, reservas = [] }) {
+export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, reservas = [], esPantallaGrande=false }) {
   const [mostrarQuiz, setMostrarQuiz] = useState(false);
   const [mostrarResultadosAdmin, setMostrarResultadosAdmin] = useState(false);
   const [mensajes, setMensajes] = useState([]);
@@ -342,7 +342,9 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
         )}
       </div>
 
-      <div style={{ padding: "14px 14px 100px" }}>
+      <div style={{ padding: "14px 14px 100px", display: esPantallaGrande ? "flex" : "block", gap: esPantallaGrande ? 24 : 0, alignItems:"flex-start" }}>
+
+        <div style={{ flex: esPantallaGrande ? "1 1 auto" : "none", minWidth: 0 }}>
 
         {/* ══ NOTIFICACIONES DE MATCH ══ */}
         {notificacionesNoLeidas.length > 0 && (
@@ -392,12 +394,19 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
                 if (!esClickeable) return;
                 marcarLeida(n.id);
                 if (n.tipo === "grupo_minimo_alcanzado") {
-                  // Ir a Lazos y abrir directo el chat grupal de esa ficha
+                  // Ir a Lazos primero; recién cuando ese tab ya está montado
+                  // (y su listener registrado) disparamos el evento que abre
+                  // el chat grupal específico. Sin el delay, el segundo evento
+                  // se pierde porque nadie lo está escuchando todavía.
                   window.dispatchEvent(new CustomEvent("irATab", { detail: "lazos" }));
-                  window.dispatchEvent(new CustomEvent("abrirChatGrupalDesdeNotif", { detail: { derivacionId: n.derivacionId, tituloFicha: n.tituloFicha } }));
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent("abrirChatGrupalDesdeNotif", { detail: { derivacionId: n.derivacionId, tituloFicha: n.tituloFicha } }));
+                  }, 150);
                 } else {
                   window.dispatchEvent(new CustomEvent("irATab", { detail: "lazos" }));
-                  window.dispatchEvent(new CustomEvent("abrirChatConexion", { detail: { email: n.tipo === "derivacion_asignada" ? n.de : n.para } }));
+                  setTimeout(() => {
+                    window.dispatchEvent(new CustomEvent("abrirChatConexion", { detail: { email: n.tipo === "derivacion_asignada" ? n.de : n.para } }));
+                  }, 150);
                 }
               }
 
@@ -529,6 +538,13 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
           </div>
         </div>
 
+        </div>
+
+        {/* Columna izquierda cerrada acá. En pantalla grande, Novedades pasa
+            a ser una columna aparte a la derecha; en celular/tablet sigue
+            siendo parte del mismo flujo vertical de siempre. */}
+        <div style={{ flex: esPantallaGrande ? "0 0 340px" : "none", minWidth: 0 }}>
+
         {/* ══ NOVEDADES ══ */}
         <div style={{ marginBottom: 10, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h2 style={{ margin: 0, fontSize: 11, fontWeight: 700, color: "#a0a8c0", textTransform: "uppercase", letterSpacing: 1.5 }}>Novedades</h2>
@@ -612,6 +628,8 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
             )}
           </div>
         ))}
+
+        </div>
 
       </div>
 

@@ -57,8 +57,15 @@ export default function App() {
   // Detecta orientación horizontal (ancho > alto) — cubre PC, tablets
   // y el celular apoyado de costado.
   const [esHorizontal, setEsHorizontal] = useState(() => window.innerWidth > window.innerHeight);
+  // Detecta pantalla grande (PC/tablet grande) por ancho real, independiente
+  // de la orientación — un celular de costado no debería activar esto, pero
+  // una PC sí, para aprovechar mejor el espacio horizontal disponible.
+  const [esPantallaGrande, setEsPantallaGrande] = useState(() => window.innerWidth >= 1024);
   useEffect(() => {
-    function checkOrientacion() { setEsHorizontal(window.innerWidth > window.innerHeight); }
+    function checkOrientacion() {
+      setEsHorizontal(window.innerWidth > window.innerHeight);
+      setEsPantallaGrande(window.innerWidth >= 1024);
+    }
     window.addEventListener("resize", checkOrientacion);
     window.addEventListener("orientationchange", checkOrientacion);
     return () => {
@@ -268,15 +275,21 @@ export default function App() {
           </div>
         )}
 
-        {/* ÁREA DE CONTENIDO — centrado con ancho máximo en horizontal */}
+        {/* ÁREA DE CONTENIDO — centrado con ancho máximo en horizontal de
+            celular; en pantalla grande (PC), Reservas e Inicio aprovechan
+            todo el ancho disponible (cada uno maneja su propio layout
+            interno, como las dos columnas de Inicio). */}
         <div style={{
           flex:1, minWidth:0,
           paddingBottom: esHorizontal ? 24 : 90,
           display:"flex", justifyContent:"center",
         }}>
-          <div style={{ width:"100%", maxWidth: esHorizontal ? 720 : "none" }}>
-            {tab==="inicio"   && <TabInicio   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas}/>}
-            {tab==="reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} usuarios={usuarios} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin} esHorizontal={esHorizontal}/>}
+          <div style={{
+            width:"100%",
+            maxWidth: esPantallaGrande ? "none" : (esHorizontal ? 720 : "none"),
+          }}>
+            {tab==="inicio"   && <TabInicio   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} esPantallaGrande={esPantallaGrande}/>}
+            {tab==="reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} usuarios={usuarios} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin} esHorizontal={esHorizontal} esPantallaGrande={esPantallaGrande}/>}
             {tab==="lazos"    && <TabLazos    usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} esHorizontal={esHorizontal}/>}
             {tab==="perfil"   && <TabPerfil   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={pedirLogin} onLogout={async()=>{ await logoutUser(); setUsuario(null); setEsPublico(false); setMostrarLogin(true); }}/>}
           </div>

@@ -1,12 +1,27 @@
 import { useState, useEffect } from "react";
 import Derivaciones from "./Derivaciones";
 import RedGrins from "./RedGrins";
+import OnboardingLazos from "./OnboardingLazos";
 
 export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, reservas = [], esHorizontal=false }) {
   const [seccion, setSeccion] = useState("cartelera");
   const [chatInicial, setChatInicial] = useState(null);
   const [vistaDerivaciones, setVistaDerivaciones] = useState(null);
   const [chatGrupalInicial, setChatGrupalInicial] = useState(null);
+
+  // Onboarding: se muestra automáticamente la primera vez que este usuario
+  // entra a Lazos. Se recuerda por email en localStorage para no repetirlo.
+  const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
+  useEffect(() => {
+    if (!usuario?.email) return;
+    const yaVisto = localStorage.getItem(`grins_onboarding_lazos_${usuario.email}`);
+    if (!yaVisto) setMostrarOnboarding(true);
+  }, [usuario?.email]);
+
+  function cerrarOnboarding() {
+    setMostrarOnboarding(false);
+    if (usuario?.email) localStorage.setItem(`grins_onboarding_lazos_${usuario.email}`, "1");
+  }
 
   useEffect(() => {
     const handler = (e) => {
@@ -45,11 +60,19 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
   return (
     <div className="tab-content" style={{ minHeight:"100vh", background:"#000" }}>
 
-      {/* STICKY BAR — solo Lazos / GRINS. Deja espacio al sidebar en horizontal */}
+      {/* STICKY BAR — Lazos / ayuda / GRINS. Deja espacio al sidebar en horizontal */}
       <div style={{ position:"fixed", top:0, left: esHorizontal ? 88 : 0, right:0, zIndex:50, background:"rgba(0,0,0,0.92)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderBottom:"1px solid rgba(124,106,255,0.15)", height:48, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px" }}>
         <span style={{ fontSize:15, fontWeight:800, color:"white" }}>Lazos</span>
-        <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <button onClick={() => setMostrarOnboarding(true)} aria-label="Cómo funciona Lazos"
+            style={{ width:26, height:26, borderRadius:"50%", border:"1px solid rgba(124,106,255,0.3)", background:"rgba(124,106,255,0.1)", color:"#7c6aff", fontSize:12, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            ?
+          </button>
+          <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
+        </div>
       </div>
+
+      {mostrarOnboarding && <OnboardingLazos onCerrar={cerrarOnboarding}/>}
 
       {/* Espaciador */}
       <div style={{ height:48 }}/>

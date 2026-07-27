@@ -9,6 +9,17 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
   const [vistaDerivaciones, setVistaDerivaciones] = useState(null);
   const [chatGrupalInicial, setChatGrupalInicial] = useState(null);
 
+  // Mismo criterio que el resto de las pestañas: el header aparece al
+  // hacer scroll hacia abajo. Acá el scroll ocurre a nivel window, no en
+  // un contenedor propio, porque Derivaciones no usa un scroll interno.
+  const [scrollY, setScrollY] = useState(0);
+  useEffect(() => {
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+  const stickyVisible = scrollY > 100;
+
   // Onboarding: se muestra automáticamente la primera vez que este usuario
   // entra a Lazos. Se recuerda por email en localStorage para no repetirlo.
   const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
@@ -60,12 +71,12 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
   return (
     <div className="tab-content" style={{ minHeight:"100vh", background:"#000" }}>
 
-      {/* STICKY BAR — Lazos / ayuda / GRINS. Deja espacio al sidebar en horizontal */}
-      <div style={{ position:"fixed", top:0, left: esHorizontal ? 88 : 0, right:0, zIndex:50, background:"rgba(0,0,0,0.92)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderBottom:"1px solid rgba(124,106,255,0.15)", height:48, display:"flex", alignItems:"center", justifyContent:"space-between", padding:"0 20px" }}>
-        <span style={{ fontSize:15, fontWeight:800, color:"white" }}>Lazos</span>
+      {/* STICKY BAR — mismo criterio que el resto: aparece con el scroll */}
+      <div style={{ position:"fixed", top:0, left: esHorizontal ? 88 : 0, right:0, zIndex:50, background:stickyVisible?"rgba(0,0,0,0.92)":"transparent", backdropFilter:stickyVisible?"blur(24px)":"none", WebkitBackdropFilter:stickyVisible?"blur(24px)":"none", borderBottom:stickyVisible?"1px solid rgba(124,106,255,0.15)":"none", transition:"all 0.3s", padding:stickyVisible?"10px 20px":"0", height:stickyVisible?"auto":0, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <span style={{ fontSize:14, fontWeight:800, color:"white" }}>Lazos</span>
         <div style={{ display:"flex", alignItems:"center", gap:12 }}>
           <button onClick={() => setMostrarOnboarding(true)} aria-label="Cómo funciona Lazos"
-            style={{ width:26, height:26, borderRadius:"50%", border:"1px solid rgba(124,106,255,0.3)", background:"rgba(124,106,255,0.1)", color:"#7c6aff", fontSize:12, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center" }}>
+            style={{ width:26, height:26, borderRadius:"50%", border:"1px solid rgba(124,106,255,0.3)", background:"rgba(124,106,255,0.1)", color:"#7c6aff", fontSize:12, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
             ?
           </button>
           <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
@@ -74,11 +85,9 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
 
       {mostrarOnboarding && <OnboardingLazos onCerrar={cerrarOnboarding}/>}
 
-      {/* Espaciador */}
-      <div style={{ height:48 }}/>
-
-      {/* NAV Red / Cartelera / Conexiones — fuera del sticky, como antes */}
-      <div style={{ padding:"10px 16px 0", background:"#000" }}>
+      {/* NAV Red / Cartelera / Conexiones — con su propio padding-top,
+          mismo criterio que el hero header de las demás pestañas */}
+      <div style={{ padding:"54px 16px 0", background:"#000" }}>
         <div style={{ display:"flex", gap:6, background:"rgba(14,12,28,0.8)", border:"1px solid rgba(124,106,255,0.15)", borderRadius:20, padding:"5px 6px" }}>
           {[
             { id:"red", label:"Red", emoji:"🌐" },

@@ -25,7 +25,7 @@ function avatarColor(nombre) {
   return colores[Math.abs(hash) % colores.length];
 }
 
-export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, onLogin, onLogout }) {
+export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, onLogin, onLogout, esHorizontal=false }) {
   const mesStr = new Date().toISOString().slice(0, 7);
   const [perfil, setPerfil] = useState({ nombre: "", telefono: "", bio: "", especialidad: "", fotoUrl: "" });
   const [editando, setEditando] = useState(false);
@@ -34,6 +34,16 @@ export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, on
   const [subiendoFoto, setSubiendoFoto] = useState(false);
   const [toast, setToast] = useState(null);
   const fileRef = useRef();
+
+  // Sticky bar unificado: aparece con el scroll, igual que en las demás
+  // pestañas. Acá el scroll ocurre a nivel window (sin contenedor propio).
+  const [scrollY, setScrollY] = useState(0);
+  useEffect(() => {
+    const handleScroll = () => setScrollY(window.scrollY);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+  const stickyVisible = scrollY > 100;
 
   useEffect(() => {
     if (!usuario) return;
@@ -161,6 +171,12 @@ export default function TabPerfil({ usuario, esAdmin, esPublico, t, reservas, on
           {toast.msg}
         </div>
       )}
+
+      {/* STICKY BAR — mismo criterio que el resto de las pestañas */}
+      <div style={{ position: "fixed", top: 0, left: esHorizontal ? 88 : 0, right: 0, zIndex: 50, background: stickyVisible ? "rgba(0,0,0,0.92)" : "transparent", backdropFilter: stickyVisible ? "blur(24px)" : "none", WebkitBackdropFilter: stickyVisible ? "blur(24px)" : "none", borderBottom: stickyVisible ? "1px solid rgba(124,106,255,0.15)" : "none", transition: "all 0.3s ease", padding: stickyVisible ? "10px 20px" : "0", height: stickyVisible ? "auto" : 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <span style={{ fontSize: 14, fontWeight: 800, color: "white" }}>Perfil</span>
+        <span style={{ fontSize: 11, color: "#7c6aff", fontWeight: 700, letterSpacing: 2 }}>GRINS</span>
+      </div>
 
       {/* HEADER */}
       <div style={{ padding: "56px 20px 24px", background: "linear-gradient(180deg,#0d0d1a 0%,#000 100%)" }}>

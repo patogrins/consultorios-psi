@@ -30,7 +30,7 @@ async function subirArchivoCloudinary(file) {
   return { url: data.secure_url, tipo: isImage ? "imagen" : "archivo", nombre: file.name, tamaño: file.size };
 }
 
-export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, reservas = [], esPantallaGrande=false }) {
+export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, reservas = [], esPantallaGrande=false, esHorizontal=false }) {
   const [mostrarQuiz, setMostrarQuiz] = useState(false);
   const [mostrarResultadosAdmin, setMostrarResultadosAdmin] = useState(false);
   const [mensajes, setMensajes] = useState([]);
@@ -262,18 +262,19 @@ export default function TabInicio({ usuario, esAdmin, esPublico, t, onLogin, res
         </div>
       )}
 
-      {/* ══ STICKY BAR ══ */}
-      <div style={{ position: "fixed", top: 0, left: 0, right: 0, zIndex: 20, background: stickyVisible ? "rgba(0,0,0,0.92)" : "transparent", backdropFilter: stickyVisible ? "blur(24px)" : "none", WebkitBackdropFilter: stickyVisible ? "blur(24px)" : "none", borderBottom: stickyVisible ? "1px solid rgba(124,106,255,0.15)" : "none", transition: "all 0.3s ease", padding: stickyVisible ? "10px 20px" : "0", height: stickyVisible ? "auto" : 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+      {/* ══ STICKY BAR — unificado con el resto de las pestañas: mismo
+          z-index, respeta el sidebar en horizontal, aparece con el scroll ══ */}
+      <div style={{ position: "fixed", top: 0, left: esHorizontal ? 88 : 0, right: 0, zIndex: 50, background: stickyVisible ? "rgba(0,0,0,0.92)" : "transparent", backdropFilter: stickyVisible ? "blur(24px)" : "none", WebkitBackdropFilter: stickyVisible ? "blur(24px)" : "none", borderBottom: stickyVisible ? "1px solid rgba(124,106,255,0.15)" : "none", transition: "all 0.3s ease", padding: stickyVisible ? "10px 20px" : "0", height: stickyVisible ? "auto" : 0, overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div style={{ width: 32, height: 32, borderRadius: "50%", background: avatarColor(nombreMostrado || ""), overflow: "hidden", border: "1.5px solid rgba(124,106,255,0.4)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 13, fontWeight: 800, color: "white", flexShrink: 0 }}>
             {fotoUrl ? <img src={fotoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : inicial}
           </div>
           <div>
-            <div style={{ fontSize: 14, fontWeight: 800, color: "white", lineHeight: 1 }}>{esPublico ? "GRINS" : nombreMostrado}</div>
-            {especialidad && <div style={{ fontSize: 10, color: "#7c6aff", fontWeight: 600, marginTop: 2 }}>{especialidad}</div>}
+            <div style={{ fontSize: 14, fontWeight: 800, color: "white", lineHeight: 1 }}>{esPublico ? "Inicio" : nombreMostrado}</div>
+            {especialidad && !esPublico && <div style={{ fontSize: 10, color: "#7c6aff", fontWeight: 600, marginTop: 2 }}>{especialidad}</div>}
           </div>
         </div>
-        <span style={{ fontSize: 13, fontWeight: 700, color: "rgba(255,255,255,0.4)", letterSpacing: 2 }}>GRINS</span>
+        <span style={{ fontSize: 11, color: "#7c6aff", fontWeight: 700, letterSpacing: 2 }}>GRINS</span>
       </div>
 
       {/* ══ HERO ══ */}

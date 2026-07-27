@@ -288,10 +288,10 @@ export default function App() {
             width:"100%",
             maxWidth: esPantallaGrande ? "none" : (esHorizontal ? 720 : "none"),
           }}>
-            {tab==="inicio"   && <TabInicio   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} esPantallaGrande={esPantallaGrande}/>}
+            {tab==="inicio"   && <TabInicio   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} esPantallaGrande={esPantallaGrande} esHorizontal={esHorizontal}/>}
             {tab==="reservas" && <TabReservas usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} usuarios={usuarios} agregarReserva={agregarReserva} actualizarReserva={actualizarReserva} eliminarReserva={eliminarReserva} showToast={showToast} onLogin={pedirLogin} esHorizontal={esHorizontal} esPantallaGrande={esPantallaGrande}/>}
             {tab==="lazos"    && <TabLazos    usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} onLogin={pedirLogin} reservas={reservas} esHorizontal={esHorizontal}/>}
-            {tab==="perfil"   && <TabPerfil   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={pedirLogin} onLogout={async()=>{ await logoutUser(); setUsuario(null); setEsPublico(false); setMostrarLogin(true); }}/>}
+            {tab==="perfil"   && <TabPerfil   usuario={usuario} esAdmin={esAdmin} esPublico={esPublico} t={t} reservas={reservas} onLogin={pedirLogin} esHorizontal={esHorizontal} onLogout={async()=>{ await logoutUser(); setUsuario(null); setEsPublico(false); setMostrarLogin(true); }}/>}
           </div>
         </div>
       </div>

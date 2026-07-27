@@ -1,6 +1,7 @@
 import { useState, useMemo, useRef, useEffect, memo, useCallback } from "react";
 import { db } from "./firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import OnboardingReservas from "./OnboardingReservas";
 
 const HORA_PRECIO = 3500;
 const HORAS = Array.from({ length: 14 }, (_, i) => i + 8);
@@ -375,6 +376,19 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
   const [modal, setModal] = useState(null);
   const [form, setForm] = useState({ profesional:"", horaInicio:8, horaFin:9, repeteSemanal:false });
   const [confirmDelete, setConfirmDelete] = useState(null);
+
+  // Onboarding: se muestra automáticamente la primera vez que este usuario
+  // entra a Reservas. Se recuerda por email en localStorage.
+  const [mostrarOnboarding, setMostrarOnboarding] = useState(false);
+  useEffect(() => {
+    if (!usuario?.email) return;
+    const yaVisto = localStorage.getItem(`grins_onboarding_reservas_${usuario.email}`);
+    if (!yaVisto) setMostrarOnboarding(true);
+  }, [usuario?.email]);
+  function cerrarOnboarding() {
+    setMostrarOnboarding(false);
+    if (usuario?.email) localStorage.setItem(`grins_onboarding_reservas_${usuario.email}`, "1");
+  }
   const [errorSolapamiento, setErrorSolapamiento] = useState("");
   const [editandoReserva, setEditandoReserva] = useState(null);
   const [lineaPct, setLineaPct] = useState(getLineaPct());
@@ -580,35 +594,25 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
   return (
     <div ref={outerRef} style={{ height:"100vh", overflowY:"auto", overflowX:"hidden", background:"#000" }} className="tab-content">
 
-      {/* STICKY BAR — mismo criterio que el resto de las pestañas */}
-      <div style={{ position:"fixed", top:0, left: esHorizontal ? 88 : 0, right:0, zIndex:50, background:stickyVisible?"rgba(0,0,0,0.92)":"transparent", backdropFilter:stickyVisible?"blur(24px)":"none", WebkitBackdropFilter:stickyVisible?"blur(24px)":"none", borderBottom:stickyVisible?"1px solid rgba(124,106,255,0.15)":"none", transition:"all 0.3s", padding:stickyVisible?"10px 20px":"0", height:stickyVisible?"auto":0, overflow:"hidden", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+      {mostrarOnboarding && <OnboardingReservas onCerrar={cerrarOnboarding}/>}
+
+      {/* STICKY BAR — siempre visible en esta pestaña */}
+      <div style={{ position:"fixed", top:0, left: esHorizontal ? 88 : 0, right:0, zIndex:50, background:"rgba(0,0,0,0.92)", backdropFilter:"blur(24px)", WebkitBackdropFilter:"blur(24px)", borderBottom:"1px solid rgba(124,106,255,0.15)", padding:"10px 20px", height:"auto", display:"flex", alignItems:"center", justifyContent:"space-between" }}>
         <span style={{ fontSize:14, fontWeight:800, color:"white" }}>Reservas</span>
-        <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
+        <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+          <button onClick={() => setMostrarOnboarding(true)} aria-label="Cómo reservar"
+            style={{ width:26, height:26, borderRadius:"50%", border:"1px solid rgba(124,106,255,0.3)", background:"rgba(124,106,255,0.1)", color:"#7c6aff", fontSize:12, fontWeight:800, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+            ?
+          </button>
+          <span style={{ fontSize:11, color:"#7c6aff", fontWeight:700, letterSpacing:2 }}>GRINS</span>
+        </div>
       </div>
 
       {/* HERO HEADER — compacto en pantalla grande para dejarle más aire a la agenda */}
-      <div style={{ background:"linear-gradient(180deg,#0a0a14 0%,#000 100%)", padding: esPantallaGrande ? "24px 20px 12px" : "54px 20px 20px" }}>
+      <div style={{ background:"linear-gradient(180deg,#0a0a14 0%,#000 100%)", padding: esPantallaGrande ? "24px 20px 16px" : "70px 20px 20px" }}>
         {!esPantallaGrande && (
-          <div style={{ textAlign:"center", marginBottom:16 }}>
+          <div style={{ textAlign:"center" }}>
             <img src="/logohead.jpeg" alt="GRINS" style={{ height:36, objectFit:"contain", opacity:0.9 }}/>
-          </div>
-        )}
-        {esPantallaGrande ? (
-          <div style={{ display:"flex", alignItems:"center", gap:10, background:"rgba(14,12,28,0.6)", borderRadius:12, padding:"8px 14px", border:"1px solid rgba(124,106,255,0.12)" }}>
-            <span style={{ fontSize:11, color:"#a0a8c0" }}>💡 Tocá una celda libre para reservar · tocá un bloque ocupado para ver detalles · pellizco o scroll para zoom</span>
-          </div>
-        ) : (
-          <div style={{ background:"rgba(14,12,28,0.7)", borderRadius:16, padding:"14px 16px", border:"1px solid rgba(124,106,255,0.15)" }}>
-            <div style={{ fontSize:13, fontWeight:800, color:"white", marginBottom:10 }}>Cómo reservar</div>
-            {[{n:"1",c:"#667eea",t:"Tocá una celda libre — detecta día y consultorio solo"},{n:"2",c:"#7c6aff",t:"Seleccioná todas las horas que necesitás"},{n:"3",c:"#38a169",t:"Tocá + para confirmar"}].map(s=>(
-              <div key={s.n} style={{ display:"flex", alignItems:"center", gap:10, marginBottom:6 }}>
-                <div style={{ width:22, height:22, borderRadius:"50%", background:`linear-gradient(135deg,${s.c},${s.c}99)`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:800, color:"white", flexShrink:0 }}>{s.n}</div>
-                <span style={{ fontSize:12, color:"#a0a8c0" }}>{s.t}</span>
-              </div>
-            ))}
-            <div style={{ marginTop:8, padding:"7px 10px", background:"rgba(124,106,255,0.08)", borderRadius:10, fontSize:10, color:"#4a5270" }}>
-              🤏 Pellizco para hacer zoom · tocá un bloque reservado para ver detalles
-            </div>
           </div>
         )}
       </div>

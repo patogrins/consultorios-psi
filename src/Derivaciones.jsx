@@ -726,6 +726,14 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
 // ── CONEXIONES ────────────────────────────────────────────────────────────────
 function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicialUsado, onAbrirChat, onAbrirChatGrupal }) {
   const conexiones = derivaciones.filter(d=>d.estado==="asignada"&&(d.derivadoPorEmail===usuario.email||d.asignadoEmail===usuario.email));
+  // Grupos donde el usuario participa: es el dueño de la ficha, o está
+  // entre los interesados, y ya se alcanzó el mínimo requerido.
+  const grupos = derivaciones.filter(d => {
+    const esParte = d.derivadoPorEmail === usuario.email || d.interesadosEmails?.includes(usuario.email);
+    const min = d.minimoInteresados || 0;
+    const n = d.interesadosEmails?.length || 0;
+    return esParte && min > 0 && n >= min;
+  });
   useEffect(()=>{
     if(!chatInicial) return;
     const c=conexiones.find(d=>d.derivadoPorEmail===chatInicial||d.asignadoEmail===chatInicial);
@@ -738,10 +746,60 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
     // nueva cada vez), consumiendo el chatInicial antes de tiempo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[chatInicial]);
-  if(conexiones.length===0) return <div style={{padding:"32px 20px",textAlign:"center"}}><div style={{fontSize:40,marginBottom:10}}>🔗</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>Aún no tenés conexiones activas.</p></div>;
+
+  if(conexiones.length===0 && grupos.length===0) return <div style={{padding:"32px 20px",textAlign:"center"}}><div style={{fontSize:40,marginBottom:10}}>🔗</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>Aún no tenés conexiones activas.</p></div>;
+
   return (
     <div style={{padding:"12px 14px 20px"}}>
-      {conexiones.map(d=>{
+
+      {/* ── CHATS GRUPALES ── */}
+      {grupos.length > 0 && (
+        <div style={{ marginBottom: conexiones.length>0 ? 20 : 0 }}>
+          <div style={{ fontSize:11, fontWeight:700, color:"#a0a8c0", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>👥 Chats grupales</div>
+          {grupos.map(d => {
+            const fam = familiaDeSubtipo(d.subtipo||"Derivación");
+            const n = d.interesadosEmails?.length || 0;
+            const esDueño = d.derivadoPorEmail === usuario.email;
+            return (
+              <div key={d.id} style={{background:"rgba(14,12,28,0.9)",borderRadius:18,marginBottom:10,overflow:"hidden",border:"1px solid rgba(56,161,105,0.25)"}}>
+                <div style={{height:3,background:fam.grad}}/>
+                <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:12}}>
+                  <div style={{ display:"flex", flexShrink:0 }}>
+                    {(d.interesadosEmails||[]).slice(0,3).map((email,i) => {
+                      const p = perfiles.find(x=>x.email===email);
+                      const nombre = d.interesados?.[i] || email;
+                      return (
+                        <div key={email} style={{width:34,height:34,borderRadius:"50%",background:avatarColor(nombre),overflow:"hidden",border:"2px solid #0a0a14",marginLeft:i>0?-10:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"white"}}>
+                          {p?.fotoUrl?<img src={p.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:nombre[0]?.toUpperCase()}
+                        </div>
+                      );
+                    })}
+                    {n > 3 && (
+                      <div style={{width:34,height:34,borderRadius:"50%",background:"rgba(255,255,255,0.08)",border:"2px solid #0a0a14",marginLeft:-10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#a0a8c0"}}>
+                        +{n-3}
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{fontSize:13,fontWeight:800,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.titulo||d.especialidad||d.subtipo}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2}}>
+                      <FamiliaChip subtipo={d.subtipo||"Derivación"} small/>
+                      <span style={{fontSize:10,color:"#4a5270"}}>{n} participante{n>1?"s":""}{esDueño?" · tu ficha":""}</span>
+                    </div>
+                  </div>
+                  <button onClick={()=>onAbrirChatGrupal(d)} style={{padding:"9px 14px",borderRadius:12,border:"1px solid rgba(56,161,105,0.3)",background:"rgba(56,161,105,0.1)",color:"#66bb6a",fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>💬</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── CONEXIONES 1:1 ── */}
+      {conexiones.length > 0 && (
+        <>
+          {grupos.length > 0 && <div style={{ fontSize:11, fontWeight:700, color:"#a0a8c0", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>🔗 Asignaciones directas</div>}
+          {conexiones.map(d=>{
         const dp=perfiles.find(p=>p.email===d.derivadoPorEmail), ap=perfiles.find(p=>p.email===d.asignadoEmail);
         const oE=d.derivadoPorEmail===usuario.email?d.asignadoEmail:d.derivadoPorEmail;
         const oN=d.derivadoPorEmail===usuario.email?d.asignadoA:d.derivadoPor;
@@ -773,7 +831,9 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
             </div>
           </div>
         );
-      })}
+          })}
+        </>
+      )}
     </div>
   );
 }

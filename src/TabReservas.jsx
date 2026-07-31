@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, memo, useCallback } from "react";
 import { db } from "./firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
 import OnboardingReservas from "./OnboardingReservas";
 
 const HORA_PRECIO = 3500;
@@ -77,7 +77,77 @@ function getLineaPct() {
 }
 
 // ── POPUP DE RESERVA ──────────────────────────────────────────────────────────
-function PopupReserva({ reserva, colorMap, usuarios, esAdmin, puedeEditar, onClose, onEditar, onEliminar, onNotificar, onAsociarUsuario }) {
+// ── CHAT DE RESERVA — mismo mecanismo que los chats de Lazos, pero
+// asociado a una reserva puntual en vez de a una ficha ──────────────────────
+function ChatReserva({ reserva, usuario, otroNombre, otroFotoUrl, onCerrar }) {
+  const [msgs, setMsgs] = useState([]);
+  const [texto, setTexto] = useState("");
+  const endRef = useRef(null);
+  const chatId = `reserva_${reserva.id}`;
+
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, `chats_derivacion/${chatId}/mensajes`), snap => {
+      setMsgs(snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>(a.creadoEn?.seconds||0)-(b.creadoEn?.seconds||0)));
+      setTimeout(()=>endRef.current?.scrollIntoView({behavior:"smooth"}),80);
+    });
+    return () => unsub();
+  }, [chatId]);
+
+  async function enviar() {
+    if (!texto.trim()) return;
+    await addDoc(collection(db, `chats_derivacion/${chatId}/mensajes`), {
+      texto: texto.trim(), autorEmail: usuario.email, autorNombre: usuario.nombre, creadoEn: serverTimestamp(),
+    });
+    setTexto("");
+  }
+
+  const ini = otroNombre?.[0]?.toUpperCase() || "?";
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"#000", zIndex:5000, display:"flex", flexDirection:"column" }}>
+      <div style={{ padding:"54px 16px 14px", background:"linear-gradient(180deg,#0a0a14,#000)", borderBottom:"1px solid rgba(124,106,255,0.15)", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
+        <button onClick={onCerrar} style={{ background:"none", border:"none", color:"white", fontSize:22, cursor:"pointer", padding:0 }}>
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
+        </button>
+        <div style={{ width:38, height:38, borderRadius:"50%", background:"linear-gradient(135deg,#667eea,#764ba2)", overflow:"hidden", border:"1.5px solid rgba(124,106,255,0.4)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800, color:"white", flexShrink:0 }}>
+          {otroFotoUrl ? <img src={otroFotoUrl} alt="" style={{ width:"100%", height:"100%", objectFit:"cover" }}/> : ini}
+        </div>
+        <div style={{ flex:1, minWidth:0 }}>
+          <div style={{ fontSize:15, fontWeight:800, color:"white" }}>{otroNombre}</div>
+          <div style={{ fontSize:11, color:"#7c6aff", fontWeight:600 }}>{reserva.consultorio} · {reserva.horaInicio}:00–{reserva.horaFin}:00</div>
+        </div>
+      </div>
+      <div style={{ flex:1, overflowY:"auto", padding:"16px 14px", display:"flex", flexDirection:"column", gap:10 }}>
+        {msgs.length===0 && (
+          <div style={{ textAlign:"center", padding:"40px 0" }}>
+            <div style={{ fontSize:32, marginBottom:10 }}>💬</div>
+            <p style={{ margin:0, fontSize:13, color:"#4a5270" }}>Empezá la conversación con {otroNombre}</p>
+          </div>
+        )}
+        {msgs.map(m => {
+          const esMio = m.autorEmail === usuario.email;
+          const fecha = m.creadoEn?.toDate?.()?.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"}) || "";
+          return (
+            <div key={m.id} style={{ display:"flex", flexDirection:"column", alignItems:esMio?"flex-end":"flex-start" }}>
+              {!esMio && <div style={{ fontSize:9, color:"#4a5270", marginBottom:3, marginLeft:4 }}>{m.autorNombre}</div>}
+              <div style={{ maxWidth:"80%", padding:"10px 14px", borderRadius:esMio?"18px 18px 4px 18px":"18px 18px 18px 4px", background:esMio?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(255,255,255,0.08)", color:"white", fontSize:14, lineHeight:1.4, wordBreak:"break-word" }}>{m.texto}</div>
+              <div style={{ fontSize:9, color:"#3a3a5a", marginTop:3 }}>{fecha}</div>
+            </div>
+          );
+        })}
+        <div ref={endRef}/>
+      </div>
+      <div style={{ padding:"10px 12px 24px", borderTop:"1px solid rgba(124,106,255,0.1)", background:"rgba(10,10,20,0.95)", display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
+        <input value={texto} onChange={e=>setTexto(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&enviar()} placeholder={`Escribile a ${otroNombre}...`} style={{ flex:1, padding:"11px 16px", borderRadius:24, border:"1px solid rgba(124,106,255,0.2)", background:"rgba(255,255,255,0.05)", color:"white", fontSize:14, outline:"none" }}/>
+        <button onClick={enviar} disabled={!texto.trim()} style={{ width:42, height:42, borderRadius:"50%", border:"none", background:texto.trim()?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(255,255,255,0.05)", cursor:texto.trim()?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PopupReserva({ reserva, colorMap, usuarios, esAdmin, puedeEditar, onClose, onEditar, onEliminar, onNotificar, onAsociarUsuario, onAbrirChat }) {
   const col = colorMap[reserva.profesional] || COLORES_PROF[0];
   const usuarioData = usuarios?.find(u => u.nombre === reserva.profesional);
   const duracion = reserva.horaFin - reserva.horaInicio;
@@ -163,6 +233,17 @@ function PopupReserva({ reserva, colorMap, usuarios, esAdmin, puedeEditar, onClo
             <button onClick={()=>{onEditar(reserva);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(255,255,255,0.1)", background:"transparent", color:"#a0a8c0", fontWeight:600, fontSize:12, cursor:"pointer" }}>✎ Editar</button>
             <button onClick={()=>{onEliminar(reserva.id);onClose();}} style={{ flex:1, padding:"10px", borderRadius:12, border:"1px solid rgba(239,83,80,0.3)", background:"rgba(239,83,80,0.08)", color:"#ef5350", fontWeight:600, fontSize:12, cursor:"pointer" }}>🗑 Eliminar</button>
           </div>
+        )}
+
+        {/* Chatear — visible para cualquiera que NO sea el dueño de la reserva.
+            No tiene sentido chatear con uno mismo. Requiere que el profesional
+            tenga cuenta registrada (usuarioData) para poder identificarlo. */}
+        {!puedeEditar && usuarioData && (
+          <button onClick={()=>{onAbrirChat(reserva, usuarioData); onClose();}}
+            style={{ width:"100%", padding:"11px", borderRadius:12, border:"1px solid rgba(124,106,255,0.3)", background:"rgba(124,106,255,0.12)", color:"#a78bfa", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8, marginBottom:12 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+            Chatear con {reserva.profesional}
+          </button>
         )}
 
         <button onClick={onClose} style={{ width:"100%", padding:"10px", borderRadius:12, border:"1px solid rgba(255,255,255,0.08)", background:"transparent", color:"#4a5270", fontWeight:600, fontSize:12, cursor:"pointer" }}>Cerrar</button>
@@ -394,6 +475,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
   const [lineaPct, setLineaPct] = useState(getLineaPct());
   const [scrollY, setScrollY] = useState(0);
   const [popupReserva, setPopupReserva] = useState(null);
+  const [chatReservaActivo, setChatReservaActivo] = useState(null);
   const [modalNotificar, setModalNotificar] = useState(null);
 
   const [paso, setPaso] = useState(null);
@@ -852,6 +934,18 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
           onEliminar={(id)=>{setConfirmDelete(id);setPopupReserva(null);}}
           onNotificar={(r)=>{setModalNotificar(r);setPopupReserva(null);}}
           onAsociarUsuario={asociarUsuarioAReserva}
+          onAbrirChat={(r, datosProf)=>setChatReservaActivo({ reserva:r, otroNombre:r.profesional, otroFotoUrl:datosProf?.fotoUrl })}
+        />
+      )}
+
+      {/* CHAT DE RESERVA */}
+      {chatReservaActivo && (
+        <ChatReserva
+          reserva={chatReservaActivo.reserva}
+          usuario={usuario}
+          otroNombre={chatReservaActivo.otroNombre}
+          otroFotoUrl={chatReservaActivo.otroFotoUrl}
+          onCerrar={()=>setChatReservaActivo(null)}
         />
       )}
 

@@ -120,7 +120,7 @@ export default function RedGrins({ usuario, t, reservas = [] }) {
               <button
                 onClick={() => {
                   window.dispatchEvent(
-                    new CustomEvent("abrirChatConexion", { detail: { email: seleccionado.email } })
+                    new CustomEvent("abrirChatConexion", { detail: { email: seleccionado.email, nombre: seleccionado.nombre } })
                   );
                 }}
                 style={{ width: "100%", padding: "10px 16px", borderRadius: 12, border: "1px solid rgba(124,106,255,0.2)", background: "rgba(124,106,255,0.1)", color: "#7c6aff", fontWeight: 600, fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginBottom: 10 }}>

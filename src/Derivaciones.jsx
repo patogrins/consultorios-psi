@@ -46,6 +46,57 @@ function FooterSubVista({ onVolver }) {
 }
 
 // ── CHAT FULLSCREEN (1:1 y GRUPAL) ──────────────────────────────────────────
+// ── ID determinístico para un chat directo entre dos personas, sin
+// depender de que exista una ficha asignada entre ellas. Mismos dos
+// emails, en cualquier orden, siempre generan el mismo id.
+function idChatDirecto(emailA, emailB) {
+  const [a, b] = [emailA, emailB].sort();
+  return `directo_${a}__${b}`;
+}
+
+// ── TARJETA DE PERFIL PROFESIONAL — misma info que en "Red", accesible
+// desde cualquier avatar de Conexiones. Permite chatear directo aunque
+// nunca haya habido una ficha asignada entre ambos.
+function PerfilProfesionalModal({ perfil, usuario, onCerrar, onAbrirChatDirecto }) {
+  const inicial = perfil.nombre?.[0]?.toUpperCase() || "?";
+  const esMio = perfil.email === usuario?.email;
+  return (
+    <div style={{ position:"fixed", inset:0, zIndex:4200, background:"rgba(0,0,0,0.8)", display:"flex", alignItems:"flex-end", justifyContent:"center" }}
+      onClick={e=>{ if(e.target===e.currentTarget) onCerrar(); }}>
+      <div style={{ width:"100%", maxWidth:420, background:"#0a0a14", borderRadius:"22px 22px 0 0", border:"1px solid rgba(124,106,255,0.2)", maxHeight:"85vh", overflowY:"auto" }}>
+        <div style={{ width:36, height:4, borderRadius:2, background:"rgba(255,255,255,0.1)", margin:"12px auto" }}/>
+        <div style={{ background:"linear-gradient(180deg,#0a0a18,#0d0d20)", padding:"12px 20px 20px", textAlign:"center" }}>
+          <div style={{ width:76, height:76, borderRadius:"50%", background:avatarColor(perfil.nombre||""), overflow:"hidden", border:"3px solid rgba(124,106,255,0.4)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:30, fontWeight:800, color:"white", margin:"0 auto 12px" }}>
+            {perfil.fotoUrl ? <img src={perfil.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/> : inicial}
+          </div>
+          <h2 style={{ margin:"0 0 4px", fontSize:19, fontWeight:800, color:"white" }}>{perfil.nombre}</h2>
+          {perfil.especialidad && <div style={{ fontSize:13, color:"#7c6aff", fontWeight:600 }}>{perfil.especialidad}</div>}
+        </div>
+        <div style={{ padding:"16px 20px 24px" }}>
+          {perfil.bio && (
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:10, color:"#4a5270", fontWeight:700, textTransform:"uppercase", letterSpacing:1, marginBottom:6 }}>Bio</div>
+              <p style={{ margin:0, fontSize:13, color:"#a0a8c0", lineHeight:1.6 }}>{perfil.bio}</p>
+            </div>
+          )}
+          {perfil.telefono && (
+            <div style={{ marginBottom:14 }}>
+              <a href={`tel:${perfil.telefono}`} style={{ fontSize:13, color:"#4fc3f7", textDecoration:"none", fontWeight:600 }}>📞 {perfil.telefono}</a>
+            </div>
+          )}
+          {!esMio && (
+            <button onClick={()=>onAbrirChatDirecto(perfil)}
+              style={{ width:"100%", padding:"11px", borderRadius:12, border:"1px solid rgba(124,106,255,0.3)", background:"rgba(124,106,255,0.12)", color:"#a78bfa", fontWeight:700, fontSize:13, cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:8 }}>
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" strokeWidth="2" strokeLinecap="round"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>
+              Chatear con {perfil.nombre}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ChatFullscreen({ derivacionId, usuario, otroNombre, otroPerfil, onCerrar, esGrupal, tituloGrupo, participantes }) {
   const [msgs, setMsgs] = useState([]);
   const [texto, setTexto] = useState("");
@@ -734,20 +785,53 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
     const n = d.interesadosEmails?.length || 0;
     return esParte && min > 0 && n >= min;
   });
+
+  // Modal de ficha: al tocar el título, se ve de qué trata ese chat.
+  const [fichaVista, setFichaVista] = useState(null);
+  // Modal de perfil profesional: al tocar una foto de participante.
+  const [perfilVisto, setPerfilVisto] = useState(null);
+
   useEffect(()=>{
-    if(!chatInicial) return;
-    const c=conexiones.find(d=>d.derivadoPorEmail===chatInicial||d.asignadoEmail===chatInicial);
-    if(c){const oE=c.derivadoPorEmail===usuario.email?c.asignadoEmail:c.derivadoPorEmail;const oN=c.derivadoPorEmail===usuario.email?c.asignadoA:c.derivadoPor;onAbrirChat(c.id,oN,oE);}
+    if(!chatInicial?.email) return;
+    const c=conexiones.find(d=>d.derivadoPorEmail===chatInicial.email||d.asignadoEmail===chatInicial.email);
+    if(c){
+      const oE=c.derivadoPorEmail===usuario.email?c.asignadoEmail:c.derivadoPorEmail;
+      const oN=c.derivadoPorEmail===usuario.email?c.asignadoA:c.derivadoPor;
+      onAbrirChat(c.id,oN,oE);
+    } else {
+      // No hay ninguna ficha asignada entre ambos todavía — igual se puede
+      // chatear directo, usando un id de chat determinístico por los emails.
+      onAbrirChat(idChatDirecto(usuario.email, chatInicial.email), chatInicial.nombre, chatInicial.email);
+    }
     onChatInicialUsado?.();
-    // Se dispara solo cuando cambia chatInicial en sí — "derivaciones" ya
-    // viaja como dependencia indirecta a través de "conexiones", pero usar
-    // el array filtrado completo como dependencia causaba que este efecto
-    // se re-ejecutara en cada render (el filter() crea una referencia
-    // nueva cada vez), consumiendo el chatInicial antes de tiempo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[chatInicial]);
 
   if(conexiones.length===0 && grupos.length===0) return <div style={{padding:"32px 20px",textAlign:"center"}}><div style={{fontSize:40,marginBottom:10}}>🔗</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>Aún no tenés conexiones activas.</p></div>;
+
+  // Fila de avatares superpuestos, reutilizada en ambas secciones
+  function AvatarStack({ emails, nombres }) {
+    const n = emails.length;
+    return (
+      <div style={{ display:"flex", flexShrink:0 }}>
+        {emails.slice(0,3).map((email,i) => {
+          const p = perfiles.find(x=>x.email===email);
+          const nombre = nombres?.[i] || email;
+          return (
+            <button key={email} onClick={(e)=>{ e.stopPropagation(); setPerfilVisto(p || { email, nombre }); }}
+              style={{ width:34, height:34, borderRadius:"50%", background:avatarColor(nombre), overflow:"hidden", border:"2px solid #0a0a14", marginLeft:i>0?-10:0, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"white", padding:0, cursor:"pointer", flexShrink:0 }}>
+              {p?.fotoUrl?<img src={p.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:nombre[0]?.toUpperCase()}
+            </button>
+          );
+        })}
+        {n > 3 && (
+          <div style={{width:34,height:34,borderRadius:"50%",background:"rgba(255,255,255,0.08)",border:"2px solid #0a0a14",marginLeft:-10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#a0a8c0"}}>
+            +{n-3}
+          </div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{padding:"12px 14px 20px"}}>
@@ -764,29 +848,14 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
               <div key={d.id} style={{background:"rgba(14,12,28,0.9)",borderRadius:18,marginBottom:10,overflow:"hidden",border:"1px solid rgba(56,161,105,0.25)"}}>
                 <div style={{height:3,background:fam.grad}}/>
                 <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:12}}>
-                  <div style={{ display:"flex", flexShrink:0 }}>
-                    {(d.interesadosEmails||[]).slice(0,3).map((email,i) => {
-                      const p = perfiles.find(x=>x.email===email);
-                      const nombre = d.interesados?.[i] || email;
-                      return (
-                        <div key={email} style={{width:34,height:34,borderRadius:"50%",background:avatarColor(nombre),overflow:"hidden",border:"2px solid #0a0a14",marginLeft:i>0?-10:0,display:"flex",alignItems:"center",justifyContent:"center",fontSize:13,fontWeight:800,color:"white"}}>
-                          {p?.fotoUrl?<img src={p.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:nombre[0]?.toUpperCase()}
-                        </div>
-                      );
-                    })}
-                    {n > 3 && (
-                      <div style={{width:34,height:34,borderRadius:"50%",background:"rgba(255,255,255,0.08)",border:"2px solid #0a0a14",marginLeft:-10,display:"flex",alignItems:"center",justifyContent:"center",fontSize:10,fontWeight:800,color:"#a0a8c0"}}>
-                        +{n-3}
-                      </div>
-                    )}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
+                  <AvatarStack emails={d.interesadosEmails||[]} nombres={d.interesados||[]}/>
+                  <button onClick={()=>setFichaVista(d)} style={{ flex:1, minWidth:0, background:"transparent", border:"none", textAlign:"left", cursor:"pointer", padding:0 }}>
                     <div style={{fontSize:13,fontWeight:800,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.titulo||d.especialidad||d.subtipo}</div>
                     <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2}}>
                       <FamiliaChip subtipo={d.subtipo||"Derivación"} small/>
                       <span style={{fontSize:10,color:"#4a5270"}}>{n} participante{n>1?"s":""}{esDueño?" · tu ficha":""}</span>
                     </div>
-                  </div>
+                  </button>
                   <button onClick={()=>onAbrirChatGrupal(d)} style={{padding:"9px 14px",borderRadius:12,border:"1px solid rgba(56,161,105,0.3)",background:"rgba(56,161,105,0.1)",color:"#66bb6a",fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>💬</button>
                 </div>
               </div>
@@ -795,44 +864,82 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
         </div>
       )}
 
-      {/* ── CONEXIONES 1:1 ── */}
+      {/* ── ASIGNACIONES DIRECTAS — mismo estilo compacto que los grupales ── */}
       {conexiones.length > 0 && (
-        <>
+        <div>
           {grupos.length > 0 && <div style={{ fontSize:11, fontWeight:700, color:"#a0a8c0", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>🔗 Asignaciones directas</div>}
           {conexiones.map(d=>{
-        const dp=perfiles.find(p=>p.email===d.derivadoPorEmail), ap=perfiles.find(p=>p.email===d.asignadoEmail);
-        const oE=d.derivadoPorEmail===usuario.email?d.asignadoEmail:d.derivadoPorEmail;
-        const oN=d.derivadoPorEmail===usuario.email?d.asignadoA:d.derivadoPor;
-        const fam=familiaDeSubtipo(d.subtipo||"Derivación");
+            const dp=perfiles.find(p=>p.email===d.derivadoPorEmail), ap=perfiles.find(p=>p.email===d.asignadoEmail);
+            const oE=d.derivadoPorEmail===usuario.email?d.asignadoEmail:d.derivadoPorEmail;
+            const oN=d.derivadoPorEmail===usuario.email?d.asignadoA:d.derivadoPor;
+            const fam=familiaDeSubtipo(d.subtipo||"Derivación");
+            const emailsPar = [d.derivadoPorEmail, d.asignadoEmail];
+            const nombresPar = [d.derivadoPor, d.asignadoA];
+            return (
+              <div key={d.id} style={{background:"rgba(14,12,28,0.9)",borderRadius:18,marginBottom:10,overflow:"hidden",border:"1px solid rgba(102,187,106,0.2)"}}>
+                <div style={{height:3,background:fam.grad}}/>
+                <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:12}}>
+                  {/* Avatares enfrentados, compactos, con la flechita de asignación */}
+                  <div style={{ display:"flex", alignItems:"center", flexShrink:0 }}>
+                    <button onClick={(e)=>{e.stopPropagation(); setPerfilVisto(dp || { email:d.derivadoPorEmail, nombre:d.derivadoPor });}}
+                      style={{ width:34, height:34, borderRadius:"50%", background:avatarColor(d.derivadoPor||""), overflow:"hidden", border:`2px solid ${d.derivadoPorEmail===usuario.email?"rgba(124,106,255,0.6)":"#0a0a14"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"white", padding:0, cursor:"pointer" }}>
+                      {dp?.fotoUrl?<img src={dp.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:d.derivadoPor?.[0]?.toUpperCase()}
+                    </button>
+                    <div style={{ width:14, height:14, borderRadius:"50%", background:"linear-gradient(135deg,#38a169,#2d8a5e)", display:"flex", alignItems:"center", justifyContent:"center", margin:"0 -4px", zIndex:2, border:"2px solid #0a0a14" }}>
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg>
+                    </div>
+                    <button onClick={(e)=>{e.stopPropagation(); setPerfilVisto(ap || { email:d.asignadoEmail, nombre:d.asignadoA });}}
+                      style={{ width:34, height:34, borderRadius:"50%", background:avatarColor(d.asignadoA||""), overflow:"hidden", border:`2px solid ${d.asignadoEmail===usuario.email?"rgba(124,106,255,0.6)":"#0a0a14"}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"white", padding:0, cursor:"pointer" }}>
+                      {ap?.fotoUrl?<img src={ap.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:d.asignadoA?.[0]?.toUpperCase()}
+                    </button>
+                  </div>
+                  <button onClick={()=>setFichaVista(d)} style={{ flex:1, minWidth:0, background:"transparent", border:"none", textAlign:"left", cursor:"pointer", padding:0 }}>
+                    <div style={{fontSize:13,fontWeight:800,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{d.titulo||d.especialidad||d.subtipo}</div>
+                    <div style={{display:"flex",alignItems:"center",gap:6,marginTop:2}}>
+                      <FamiliaChip subtipo={d.subtipo||"Derivación"} small/>
+                      <span style={{fontSize:10,color:"#4a5270"}}>con {oN}</span>
+                    </div>
+                  </button>
+                  <button onClick={()=>onAbrirChat(d.id,oN,oE)} style={{padding:"9px 14px",borderRadius:12,border:"1px solid rgba(124,106,255,0.3)",background:"rgba(124,106,255,0.1)",color:"#a78bfa",fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>💬</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── MODAL: DE QUÉ TRATA ESTE CHAT (ficha) ── */}
+      {fichaVista && (()=>{
+        const fam = familiaDeSubtipo(fichaVista.subtipo||"Derivación");
         return (
-          <div key={d.id} style={{background:"rgba(14,12,28,0.9)",borderRadius:18,marginBottom:12,overflow:"hidden",border:"1px solid rgba(102,187,106,0.2)"}}>
-            <div style={{height:3,background:fam.grad}}/>
-            <div style={{padding:"16px"}}>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:0,marginBottom:12}}>
-                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                  <div style={{width:48,height:48,borderRadius:"50%",background:avatarColor(d.derivadoPor||""),overflow:"hidden",border:`2px solid ${d.derivadoPorEmail===usuario.email?"rgba(124,106,255,0.6)":"rgba(102,187,106,0.3)"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"white"}}>{dp?.fotoUrl?<img src={dp.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:d.derivadoPor?.[0]?.toUpperCase()}</div>
-                  <div style={{fontSize:9,color:d.derivadoPorEmail===usuario.email?"#a78bfa":"#4a5270",fontWeight:700}}>{d.derivadoPorEmail===usuario.email?"Vos":d.derivadoPor}</div>
+          <div style={{ position:"fixed", inset:0, zIndex:3500, background:"rgba(0,0,0,0.75)", display:"flex", alignItems:"flex-end", justifyContent:"center" }}
+            onClick={e=>{ if(e.target===e.currentTarget) setFichaVista(null); }}>
+            <div style={{ width:"100%", maxWidth:420, background:"#0a0a14", borderRadius:"22px 22px 0 0", padding:"20px", border:"1px solid rgba(124,106,255,0.2)" }}>
+              <div style={{ width:36, height:4, borderRadius:2, background:"rgba(255,255,255,0.1)", margin:"0 auto 16px" }}/>
+              <div style={{ display:"flex", alignItems:"center", gap:12, marginBottom:14 }}>
+                <div style={{ width:44, height:44, borderRadius:14, background:fam.grad, display:"flex", alignItems:"center", justifyContent:"center", fontSize:20, flexShrink:0 }}>{fam.emoji}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:15, fontWeight:800, color:"white" }}>{fichaVista.titulo||fichaVista.especialidad||fichaVista.subtipo}</div>
+                  <FamiliaChip subtipo={fichaVista.subtipo||"Derivación"} small/>
                 </div>
-                <div style={{display:"flex",alignItems:"center",margin:"0 10px",paddingBottom:18}}>
-                  <div style={{width:20,height:1,background:"rgba(102,187,106,0.4)"}}/>
-                  <div style={{width:26,height:26,borderRadius:"50%",background:"linear-gradient(135deg,#38a169,#2d8a5e)",display:"flex",alignItems:"center",justifyContent:"center"}}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><polyline points="9 18 15 12 9 6"/></svg></div>
-                  <div style={{width:20,height:1,background:"rgba(102,187,106,0.4)"}}/>
-                </div>
-                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
-                  <div style={{width:48,height:48,borderRadius:"50%",background:avatarColor(d.asignadoA||""),overflow:"hidden",border:`2px solid ${d.asignadoEmail===usuario.email?"rgba(124,106,255,0.6)":"rgba(102,187,106,0.3)"}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:18,fontWeight:800,color:"white"}}>{ap?.fotoUrl?<img src={ap.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:d.asignadoA?.[0]?.toUpperCase()}</div>
-                  <div style={{fontSize:9,color:d.asignadoEmail===usuario.email?"#a78bfa":"#4a5270",fontWeight:700}}>{d.asignadoEmail===usuario.email?"Vos":d.asignadoA}</div>
-                </div>
+                <button onClick={()=>setFichaVista(null)} style={{ width:28, height:28, borderRadius:"50%", background:"rgba(255,255,255,0.06)", border:"none", color:"#4a5270", cursor:"pointer", fontSize:16 }}>✕</button>
               </div>
-              <div style={{textAlign:"center",marginBottom:12}}>
-                <FamiliaChip subtipo={d.subtipo||"Derivación"} small/>
-                <div style={{fontSize:12,fontWeight:700,color:"white",marginTop:6}}>{d.titulo||d.especialidad||d.subtipo}</div>
+              {fichaVista.nota && <p style={{ margin:"0 0 14px", fontSize:13, color:"#e2e8f0", lineHeight:1.6, padding:"10px 12px", background:"rgba(124,106,255,0.06)", borderRadius:10, borderLeft:`2px solid ${fam.color}66` }}>&ldquo;{fichaVista.nota}&rdquo;</p>}
+              <div style={{ display:"flex", flexWrap:"wrap", gap:5, marginBottom:16 }}>
+                {fichaVista.modalidad && <Tag label={`📍 ${fichaVista.modalidad}`}/>}
+                {fichaVista.dias?.length>0 && <Tag label={`📅 ${fichaVista.dias.join("·")}`}/>}
+                {fichaVista.franjas?.length>0 && <Tag label={`⏰ ${fichaVista.franjas.join("·")}`}/>}
               </div>
-              <button onClick={()=>onAbrirChat(d.id,oN,oE)} style={{width:"100%",padding:"10px",borderRadius:12,border:"1px solid rgba(124,106,255,0.2)",background:"rgba(124,106,255,0.1)",color:"#a78bfa",fontWeight:700,fontSize:12,cursor:"pointer"}}>💬 Abrir chat</button>
+              <button onClick={()=>setFichaVista(null)} style={{ width:"100%", padding:12, borderRadius:12, border:"1px solid rgba(124,106,255,0.2)", background:"transparent", color:"#a0a8c0", fontWeight:600, fontSize:13, cursor:"pointer" }}>Cerrar</button>
             </div>
           </div>
         );
-          })}
-        </>
+      })()}
+
+      {/* ── MODAL: TARJETA DE PERFIL PROFESIONAL ── */}
+      {perfilVisto && (
+        <PerfilProfesionalModal perfil={perfilVisto} usuario={usuario} onCerrar={()=>setPerfilVisto(null)}
+          onAbrirChatDirecto={(p)=>{ onAbrirChat(idChatDirecto(usuario.email,p.email), p.nombre, p.email); setPerfilVisto(null); }}/>
       )}
     </div>
   );

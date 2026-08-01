@@ -25,7 +25,8 @@ export default function TabLazos({ usuario, esAdmin, esPublico, t, onLogin, rese
 
   useEffect(() => {
     const handler = (e) => {
-      setChatInicial(e.detail?.email || null);
+      if (!e.detail?.email) return;
+      setChatInicial({ email: e.detail.email, nombre: e.detail.nombre || e.detail.email });
       setSeccion("conexiones");
       setVistaDerivaciones("conexiones");
     };

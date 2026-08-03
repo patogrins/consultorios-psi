@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, memo, useCallback } from "react";
 import { db } from "./firebase";
-import { collection, addDoc, serverTimestamp, onSnapshot } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, onSnapshot, setDoc, doc } from "firebase/firestore";
 import OnboardingReservas from "./OnboardingReservas";
 
 const HORA_PRECIO = 3500;
@@ -79,7 +79,7 @@ function getLineaPct() {
 // ── POPUP DE RESERVA ──────────────────────────────────────────────────────────
 // ── CHAT DE RESERVA — mismo mecanismo que los chats de Lazos, pero
 // asociado a una reserva puntual en vez de a una ficha ──────────────────────
-function ChatReserva({ reserva, usuario, otroNombre, otroFotoUrl, onCerrar }) {
+function ChatReserva({ reserva, usuario, otroNombre, otroFotoUrl, otroEmail, onCerrar }) {
   const [msgs, setMsgs] = useState([]);
   const [texto, setTexto] = useState("");
   const endRef = useRef(null);
@@ -92,6 +92,19 @@ function ChatReserva({ reserva, usuario, otroNombre, otroFotoUrl, onCerrar }) {
     });
     return () => unsub();
   }, [chatId]);
+
+  // Registrar este chat para que aparezca listado en Conexiones (Lazos),
+  // igual que los chats directos originados desde Red.
+  useEffect(() => {
+    if (!otroEmail) return;
+    setDoc(doc(db, "chats_directos", chatId), {
+      participantes: [usuario.email, otroEmail],
+      nombres: { [usuario.email]: usuario.nombre, [otroEmail]: otroNombre },
+      origen: "reserva",
+      contexto: `${reserva.consultorio} · ${reserva.horaInicio}:00–${reserva.horaFin}:00`,
+      actualizadoEn: serverTimestamp(),
+    }, { merge: true }).catch(()=>{});
+  }, [otroEmail, chatId]);
 
   async function enviar() {
     if (!texto.trim()) return;
@@ -138,7 +151,7 @@ function ChatReserva({ reserva, usuario, otroNombre, otroFotoUrl, onCerrar }) {
         <div ref={endRef}/>
       </div>
       <div style={{ padding:"10px 12px 24px", borderTop:"1px solid rgba(124,106,255,0.1)", background:"rgba(10,10,20,0.95)", display:"flex", gap:8, alignItems:"center", flexShrink:0 }}>
-        <input value={texto} onChange={e=>setTexto(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&enviar()} placeholder={`Escribile a ${otroNombre}...`} style={{ flex:1, padding:"11px 16px", borderRadius:24, border:"1px solid rgba(124,106,255,0.2)", background:"rgba(255,255,255,0.05)", color:"white", fontSize:14, outline:"none" }}/>
+        <input value={texto} onChange={e=>setTexto(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&enviar()} placeholder={`Escribile a ${otroNombre}...`} style={{ flex:1, padding:"11px 16px", borderRadius:24, border:"1px solid rgba(124,106,255,0.2)", background:"rgba(255,255,255,0.05)", color:"white", fontSize:16, outline:"none" }}/>
         <button onClick={enviar} disabled={!texto.trim()} style={{ width:42, height:42, borderRadius:"50%", border:"none", background:texto.trim()?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(255,255,255,0.05)", cursor:texto.trim()?"pointer":"not-allowed", display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
@@ -934,7 +947,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
           onEliminar={(id)=>{setConfirmDelete(id);setPopupReserva(null);}}
           onNotificar={(r)=>{setModalNotificar(r);setPopupReserva(null);}}
           onAsociarUsuario={asociarUsuarioAReserva}
-          onAbrirChat={(r, datosProf)=>setChatReservaActivo({ reserva:r, otroNombre:r.profesional, otroFotoUrl:datosProf?.fotoUrl })}
+          onAbrirChat={(r, datosProf)=>setChatReservaActivo({ reserva:r, otroNombre:r.profesional, otroFotoUrl:datosProf?.fotoUrl, otroEmail:datosProf?.email })}
         />
       )}
 
@@ -945,6 +958,7 @@ export default function TabReservas({ usuario, esAdmin, esPublico, reservas=[], 
           usuario={usuario}
           otroNombre={chatReservaActivo.otroNombre}
           otroFotoUrl={chatReservaActivo.otroFotoUrl}
+          otroEmail={chatReservaActivo.otroEmail}
           onCerrar={()=>setChatReservaActivo(null)}
         />
       )}

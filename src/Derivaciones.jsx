@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, runTransaction } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, runTransaction, setDoc } from "firebase/firestore";
 
 const FAMILIAS = [
   { id:"casos",       label:"Casos",         emoji:"🧩", color:"#667eea", grad:"linear-gradient(135deg,#667eea,#764ba2)", tipos:["Derivación","Supervisión","Dispositivo"] },
@@ -97,10 +97,12 @@ function PerfilProfesionalModal({ perfil, usuario, onCerrar, onAbrirChatDirecto 
   );
 }
 
-function ChatFullscreen({ derivacionId, usuario, otroNombre, otroPerfil, onCerrar, esGrupal, tituloGrupo, participantes }) {
+function ChatFullscreen({ derivacionId, usuario, otroNombre, otroEmail, otroPerfil, onCerrar, esGrupal, tituloGrupo, participantes }) {
   const [msgs, setMsgs] = useState([]);
   const [texto, setTexto] = useState("");
   const endRef = useRef(null);
+  const esDirecto = !esGrupal && derivacionId?.startsWith("directo_");
+
   useEffect(() => {
     const unsub = onSnapshot(collection(db,`chats_derivacion/${derivacionId}/mensajes`), snap => {
       setMsgs(snap.docs.map(d=>({...d.data(),id:d.id})).sort((a,b)=>(a.creadoEn?.seconds||0)-(b.creadoEn?.seconds||0)));
@@ -108,6 +110,20 @@ function ChatFullscreen({ derivacionId, usuario, otroNombre, otroPerfil, onCerra
     });
     return()=>unsub();
   },[derivacionId]);
+
+  // Registrar este chat directo para que aparezca listado en Conexiones.
+  // Se guarda con merge cada vez que se abre — no duplica, solo actualiza
+  // quién es el otro participante visto desde cada lado.
+  useEffect(() => {
+    if (!esDirecto || !otroEmail) return;
+    setDoc(doc(db, "chats_directos", derivacionId), {
+      participantes: [usuario.email, otroEmail],
+      nombres: { [usuario.email]: usuario.nombre, [otroEmail]: otroNombre },
+      origen: "red",
+      actualizadoEn: serverTimestamp(),
+    }, { merge: true }).catch(()=>{});
+  }, [esDirecto, derivacionId, usuario.email, otroEmail]);
+
   async function enviar() {
     if (!texto.trim()) return;
     await addDoc(collection(db,`chats_derivacion/${derivacionId}/mensajes`),{texto:texto.trim(),autorEmail:usuario.email,autorNombre:usuario.nombre,creadoEn:serverTimestamp()});
@@ -146,11 +162,12 @@ function ChatFullscreen({ derivacionId, usuario, otroNombre, otroPerfil, onCerra
               <div style={{fontSize:9,color:"#3a3a5a",marginTop:3}}>{fecha}</div>
             </div>
           );
+
         })}
         <div ref={endRef}/>
       </div>
       <div style={{padding:"10px 12px 24px",borderTop:"1px solid rgba(124,106,255,0.1)",background:"rgba(10,10,20,0.95)",display:"flex",gap:8,alignItems:"center",flexShrink:0}}>
-        <input value={texto} onChange={e=>setTexto(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&enviar()} placeholder={esGrupal?"Escribí al grupo...":"Escribile a "+otroNombre+"..."} style={{flex:1,padding:"11px 16px",borderRadius:24,border:"1px solid rgba(124,106,255,0.2)",background:"rgba(255,255,255,0.05)",color:"white",fontSize:14,outline:"none"}}/>
+        <input value={texto} onChange={e=>setTexto(e.target.value)} onKeyDown={e=>e.key==="Enter"&&!e.shiftKey&&enviar()} placeholder={esGrupal?"Escribí al grupo...":"Escribile a "+otroNombre+"..."} style={{flex:1,padding:"11px 16px",borderRadius:24,border:"1px solid rgba(124,106,255,0.2)",background:"rgba(255,255,255,0.05)",color:"white",fontSize:16,outline:"none"}}/>
         <button onClick={enviar} disabled={!texto.trim()} style={{width:42,height:42,borderRadius:"50%",border:"none",background:texto.trim()?"linear-gradient(135deg,#667eea,#764ba2)":"rgba(255,255,255,0.05)",cursor:texto.trim()?"pointer":"not-allowed",display:"flex",alignItems:"center",justifyContent:"center",flexShrink:0}}>
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
@@ -775,7 +792,8 @@ function MisPublicaciones({ derivaciones, usuario, perfiles, esAdmin, onAsignar,
 }
 
 // ── CONEXIONES ────────────────────────────────────────────────────────────────
-function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicialUsado, onAbrirChat, onAbrirChatGrupal }) {
+function Conexiones({ derivaciones, usuario, perfiles, chatsDirectos=[], chatInicial, onChatInicialUsado, onAbrirChat, onAbrirChatGrupal }) {
+  const directos = chatsDirectos.filter(c => c.participantes?.includes(usuario.email));
   const conexiones = derivaciones.filter(d=>d.estado==="asignada"&&(d.derivadoPorEmail===usuario.email||d.asignadoEmail===usuario.email));
   // Grupos donde el usuario participa: es el dueño de la ficha, o está
   // entre los interesados, y ya se alcanzó el mínimo requerido.
@@ -807,7 +825,7 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
     // eslint-disable-next-line react-hooks/exhaustive-deps
   },[chatInicial]);
 
-  if(conexiones.length===0 && grupos.length===0) return <div style={{padding:"32px 20px",textAlign:"center"}}><div style={{fontSize:40,marginBottom:10}}>🔗</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>Aún no tenés conexiones activas.</p></div>;
+  if(conexiones.length===0 && grupos.length===0 && directos.length===0) return <div style={{padding:"32px 20px",textAlign:"center"}}><div style={{fontSize:40,marginBottom:10}}>🔗</div><p style={{margin:0,color:"#4a5270",fontSize:13}}>Aún no tenés conexiones activas.</p></div>;
 
   // Fila de avatares superpuestos, reutilizada en ambas secciones
   function AvatarStack({ emails, nombres }) {
@@ -908,6 +926,36 @@ function Conexiones({ derivaciones, usuario, perfiles, chatInicial, onChatInicia
         </div>
       )}
 
+      {/* ── CHATS DIRECTOS — originados desde Red o desde un bloque
+          reservado, sin depender de una ficha o asignación ── */}
+      {directos.length > 0 && (
+        <div style={{ marginBottom: (grupos.length>0||conexiones.length>0) ? 20 : 0 }}>
+          {(grupos.length>0||conexiones.length>0) && <div style={{ fontSize:11, fontWeight:700, color:"#a0a8c0", textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>💬 Chats directos</div>}
+          {directos.map(c => {
+            const otroEmail = c.participantes.find(e => e !== usuario.email);
+            const otroNombre = c.nombres?.[otroEmail] || otroEmail;
+            const p = perfiles.find(x => x.email === otroEmail);
+            const esDeReserva = c.origen === "reserva";
+            return (
+              <div key={c.id} style={{background:"rgba(14,12,28,0.9)",borderRadius:18,marginBottom:10,overflow:"hidden",border:"1px solid rgba(124,106,255,0.18)"}}>
+                <div style={{height:3,background:esDeReserva?"linear-gradient(90deg,#4facfe,#00f2fe)":"linear-gradient(90deg,#a18cd1,#fbc2eb)"}}/>
+                <div style={{padding:"14px 16px", display:"flex", alignItems:"center", gap:12}}>
+                  <button onClick={()=>setPerfilVisto(p || { email:otroEmail, nombre:otroNombre })}
+                    style={{ width:34, height:34, borderRadius:"50%", background:avatarColor(otroNombre), overflow:"hidden", border:"none", display:"flex", alignItems:"center", justifyContent:"center", fontSize:13, fontWeight:800, color:"white", padding:0, cursor:"pointer", flexShrink:0 }}>
+                    {p?.fotoUrl?<img src={p.fotoUrl} alt="" style={{width:"100%",height:"100%",objectFit:"cover"}}/>:otroNombre[0]?.toUpperCase()}
+                  </button>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{fontSize:13,fontWeight:800,color:"white",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{otroNombre}</div>
+                    <div style={{fontSize:10,color:"#4a5270",marginTop:2}}>{esDeReserva ? `📅 ${c.contexto||"Reserva"}` : "🌐 Desde Red"}</div>
+                  </div>
+                  <button onClick={()=>onAbrirChat(c.id, otroNombre, otroEmail)} style={{padding:"9px 14px",borderRadius:12,border:"1px solid rgba(124,106,255,0.3)",background:"rgba(124,106,255,0.1)",color:"#a78bfa",fontWeight:700,fontSize:12,cursor:"pointer",flexShrink:0}}>💬</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
       {/* ── MODAL: DE QUÉ TRATA ESTE CHAT (ficha) ── */}
       {fichaVista && (()=>{
         const fam = familiaDeSubtipo(fichaVista.subtipo||"Derivación");
@@ -955,6 +1003,7 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
   }, [vistaInicial]);
   const [derivaciones, setDerivaciones] = useState([]);
   const [perfiles, setPerfiles] = useState([]);
+  const [chatsDirectos, setChatsDirectos] = useState([]);
   const [filtro, setFiltro] = useState("todas");
   const [mostrarForm, setMostrarForm] = useState(false);
   const [archivadas, setArchivadas] = useState([]);
@@ -1001,6 +1050,15 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
   useEffect(() => {
     const unsub = onSnapshot(collection(db, "usuarios"), (snap) => {
       setPerfiles(snap.docs.map(d => ({ email: d.id, ...d.data() })));
+    });
+    return () => unsub();
+  }, []);
+
+  // Escuchar chats directos (originados desde Red o desde Reservas, sin
+  // depender de una ficha asignada) para poder listarlos en Conexiones
+  useEffect(() => {
+    const unsub = onSnapshot(collection(db, "chats_directos"), (snap) => {
+      setChatsDirectos(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     });
     return () => unsub();
   }, []);
@@ -1190,6 +1248,7 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
           derivaciones={derivaciones}
           usuario={usuario}
           perfiles={perfiles}
+          chatsDirectos={chatsDirectos}
           chatInicial={chatInicial}
           onChatInicialUsado={onChatInicialUsado}
           onAbrirChat={(id, nombre, email) => setChatActivo({ id, nombre, email, esGrupal: false })}
@@ -1223,6 +1282,7 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
           derivacionId={chatActivo.id}
           usuario={usuario}
           otroNombre={chatActivo.nombre}
+          otroEmail={chatActivo.email}
           otroPerfil={perfiles?.find(p => p.email === chatActivo.email)}
           esGrupal={chatActivo.esGrupal}
           tituloGrupo={chatActivo.tituloGrupo}

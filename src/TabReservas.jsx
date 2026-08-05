@@ -1,6 +1,6 @@
 import { useState, useMemo, useRef, useEffect, memo, useCallback } from "react";
 import { db } from "./firebase";
-import { collection, addDoc, serverTimestamp, onSnapshot, setDoc, doc } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp, onSnapshot, setDoc, doc, getDocs, writeBatch } from "firebase/firestore";
 import OnboardingReservas from "./OnboardingReservas";
 
 const HORA_PRECIO = 3500;
@@ -82,6 +82,9 @@ function getLineaPct() {
 function ChatReserva({ reserva, usuario, otroNombre, otroFotoUrl, otroEmail, onCerrar }) {
   const [msgs, setMsgs] = useState([]);
   const [texto, setTexto] = useState("");
+  const [mostrarMenu, setMostrarMenu] = useState(false);
+  const [confirmarBorrado, setConfirmarBorrado] = useState(false);
+  const [borrando, setBorrando] = useState(false);
   const endRef = useRef(null);
   const chatId = `reserva_${reserva.id}`;
 
@@ -114,11 +117,27 @@ function ChatReserva({ reserva, usuario, otroNombre, otroFotoUrl, otroEmail, onC
     setTexto("");
   }
 
+  // Borra todos los mensajes y el registro del chat en chats_directos.
+  async function borrarChat() {
+    setBorrando(true);
+    try {
+      const snap = await getDocs(collection(db, `chats_derivacion/${chatId}/mensajes`));
+      const batch = writeBatch(db);
+      snap.docs.forEach(d => batch.delete(d.ref));
+      batch.delete(doc(db, "chats_directos", chatId));
+      await batch.commit();
+    } catch(e) {
+      console.error("Error al borrar el chat:", e);
+    }
+    setBorrando(false);
+    onCerrar();
+  }
+
   const ini = otroNombre?.[0]?.toUpperCase() || "?";
 
   return (
     <div style={{ position:"fixed", inset:0, background:"#000", zIndex:5000, display:"flex", flexDirection:"column" }}>
-      <div style={{ padding:"54px 16px 14px", background:"linear-gradient(180deg,#0a0a14,#000)", borderBottom:"1px solid rgba(124,106,255,0.15)", display:"flex", alignItems:"center", gap:12, flexShrink:0 }}>
+      <div style={{ padding:"54px 16px 14px", background:"linear-gradient(180deg,#0a0a14,#000)", borderBottom:"1px solid rgba(124,106,255,0.15)", display:"flex", alignItems:"center", gap:12, flexShrink:0, position:"relative" }}>
         <button onClick={onCerrar} style={{ background:"none", border:"none", color:"white", fontSize:22, cursor:"pointer", padding:0 }}>
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2" strokeLinecap="round"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
@@ -129,6 +148,18 @@ function ChatReserva({ reserva, usuario, otroNombre, otroFotoUrl, otroEmail, onC
           <div style={{ fontSize:15, fontWeight:800, color:"white" }}>{otroNombre}</div>
           <div style={{ fontSize:11, color:"#7c6aff", fontWeight:600 }}>{reserva.consultorio} · {reserva.horaInicio}:00–{reserva.horaFin}:00</div>
         </div>
+        <button onClick={()=>setMostrarMenu(v=>!v)} style={{ background:"none", border:"none", color:"#a0a8c0", fontSize:20, cursor:"pointer", padding:"4px 8px", flexShrink:0 }}>⋮</button>
+        {mostrarMenu && (
+          <>
+            <div onClick={()=>setMostrarMenu(false)} style={{ position:"fixed", inset:0, zIndex:5100 }}/>
+            <div style={{ position:"absolute", top:"100%", right:16, marginTop:4, background:"#14121f", border:"1px solid rgba(124,106,255,0.2)", borderRadius:12, overflow:"hidden", zIndex:5200, boxShadow:"0 8px 24px rgba(0,0,0,0.5)" }}>
+              <button onClick={()=>{setMostrarMenu(false);setConfirmarBorrado(true);}} style={{ display:"flex", alignItems:"center", gap:8, padding:"12px 16px", background:"transparent", border:"none", color:"#ef5350", fontSize:13, fontWeight:600, cursor:"pointer", whiteSpace:"nowrap" }}>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#ef5350" strokeWidth="2" strokeLinecap="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2"/></svg>
+                Borrar chat
+              </button>
+            </div>
+          </>
+        )}
       </div>
       <div style={{ flex:1, overflowY:"auto", padding:"16px 14px", display:"flex", flexDirection:"column", gap:10 }}>
         {msgs.length===0 && (
@@ -156,6 +187,24 @@ function ChatReserva({ reserva, usuario, otroNombre, otroFotoUrl, otroEmail, onC
           <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
         </button>
       </div>
+
+      {confirmarBorrado && (
+        <div style={{ position:"fixed", inset:0, zIndex:5300, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"flex-end", justifyContent:"center" }}
+          onClick={e=>{ if(e.target===e.currentTarget && !borrando) setConfirmarBorrado(false); }}>
+          <div style={{ width:"100%", maxWidth:420, background:"#0a0a14", borderRadius:"22px 22px 0 0", padding:"20px 20px 40px", textAlign:"center", border:"1px solid rgba(124,106,255,0.2)" }}>
+            <div style={{ width:36, height:4, borderRadius:2, background:"rgba(255,255,255,0.1)", margin:"0 auto 16px" }}/>
+            <div style={{ fontSize:36, marginBottom:10 }}>🗑️</div>
+            <h3 style={{ margin:"0 0 8px", color:"white", fontSize:16, fontWeight:800 }}>¿Borrar esta conversación?</h3>
+            <p style={{ margin:"0 0 20px", color:"#a0a8c0", fontSize:13, lineHeight:1.5 }}>Se van a borrar todos los mensajes de esta conversación. Esta acción no se puede deshacer.</p>
+            <div style={{ display:"flex", gap:10 }}>
+              <button onClick={()=>setConfirmarBorrado(false)} disabled={borrando} style={{ flex:1, padding:12, borderRadius:12, border:"1px solid rgba(124,106,255,0.2)", background:"transparent", cursor:"pointer", fontSize:13, fontWeight:600, color:"#a0a8c0" }}>Cancelar</button>
+              <button onClick={borrarChat} disabled={borrando} style={{ flex:1, padding:12, borderRadius:12, border:"none", background:"#ef4444", color:"white", cursor:borrando?"default":"pointer", fontSize:13, fontWeight:800, opacity:borrando?0.6:1 }}>
+                {borrando ? "Borrando..." : "Borrar"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

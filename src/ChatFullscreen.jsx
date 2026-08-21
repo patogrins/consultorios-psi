@@ -1,10 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { db } from "./firebase";
-import { collection, onSnapshot, addDoc, doc, serverTimestamp, setDoc, getDocs, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, doc, serverTimestamp, setDoc, getDocs, writeBatch, updateDoc, arrayRemove } from "firebase/firestore";
 import { avatarColor } from "./derivacionesHelpers";
 
 // ── CHAT FULLSCREEN (1:1 y GRUPAL) ────────────────────────────────────────────
-export default function ChatFullscreen({ derivacionId, usuario, otroNombre, otroEmail, otroPerfil, onCerrar, esGrupal, tituloGrupo, participantes }) {
+export default function ChatFullscreen({ derivacionId, usuario, otroNombre, otroEmail, otroPerfil, onCerrar, esGrupal, tituloGrupo, participantes, coleccionChat }) {
   const [msgs, setMsgs] = useState([]);
   const [texto, setTexto] = useState("");
   const [mostrarMenu, setMostrarMenu] = useState(false);
@@ -12,6 +12,9 @@ export default function ChatFullscreen({ derivacionId, usuario, otroNombre, otro
   const [borrando, setBorrando] = useState(false);
   const endRef = useRef(null);
   const esDirecto = !esGrupal && derivacionId?.startsWith("directo_");
+  // La colección donde vive el documento del chat (para poder tocar su
+  // campo "ocultoPara"): fichas (grupal o asignación 1:1) o chats directos.
+  const coleccion = coleccionChat || (esDirecto ? "chats_directos" : "derivaciones");
 
   useEffect(() => {
     const unsub = onSnapshot(collection(db,`chats_derivacion/${derivacionId}/mensajes`), snap => {
@@ -38,7 +41,19 @@ export default function ChatFullscreen({ derivacionId, usuario, otroNombre, otro
     if (!texto.trim()) return;
     await addDoc(collection(db,`chats_derivacion/${derivacionId}/mensajes`),{texto:texto.trim(),autorEmail:usuario.email,autorNombre:usuario.nombre,creadoEn:serverTimestamp()});
     setTexto("");
+
+    // Auto-desarchivar: si algún participante había archivado este chat
+    // (lo ocultó de su lista principal), un mensaje nuevo lo hace
+    // reaparecer automáticamente, igual que en WhatsApp. Solo se
+    // desarchiva para los demás — quien escribe ya lo tiene visible.
+    const otros = (participantes || [otroEmail]).filter(e => e && e !== usuario.email);
+    if (otros.length > 0) {
+      updateDoc(doc(db, coleccion, derivacionId), {
+        ocultoPara: arrayRemove(...otros),
+      }).catch(()=>{});
+    }
   }
+
 
   // Borra todos los mensajes del chat. Si es un chat directo (sin ficha
   // ni asignación detrás), también borra su registro en chats_directos

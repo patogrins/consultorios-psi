@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { db } from "./firebase";
-import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, runTransaction, arrayUnion, getDocs, writeBatch } from "firebase/firestore";
+import { collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, runTransaction, arrayUnion, arrayRemove, getDocs, writeBatch } from "firebase/firestore";
 import { familiaDeSubtipo } from "./derivacionesHelpers";
 import ChatFullscreen from "./ChatFullscreen";
 import CarteleraLoop from "./CarteleraLoop";
@@ -199,38 +199,33 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
     await deleteDoc(doc(db, "derivaciones", id));
   };
 
-  // Salir/borrar un chat: se oculta solo para quien lo pide. El chat real
-  // (mensajes) solo se borra de la base de datos cuando TODOS los
-  // participantes hicieron lo mismo. "tipo" distingue si el chat vive en
-  // la colección "derivaciones" (grupal o asignación 1:1) o en
-  // "chats_directos" (chat directo desde Red o desde una reserva).
-  const handleOcultarChat = async (tipo, id, participantesEmails) => {
+  // Archivar un chat: se oculta solo para quien lo pide (como en WhatsApp).
+  // Sigue existiendo intacto para los demás participantes. Si más tarde
+  // alguien escribe un mensaje nuevo, ChatFullscreen lo desarchiva solo.
+  const handleArchivarChat = async (tipo, id) => {
     const coleccion = tipo === "ficha" ? "derivaciones" : "chats_directos";
-    const ref = doc(db, coleccion, id);
+    await updateDoc(doc(db, coleccion, id), { ocultoPara: arrayUnion(usuario.email) });
+  };
 
-    // Agregar mi email a la lista de quienes ya salieron de este chat.
-    await updateDoc(ref, { ocultoPara: arrayUnion(usuario.email) });
+  // Desarchivar: vuelve a aparecer en la lista principal para mí.
+  const handleDesarchivarChat = async (tipo, id) => {
+    const coleccion = tipo === "ficha" ? "derivaciones" : "chats_directos";
+    await updateDoc(doc(db, coleccion, id), { ocultoPara: arrayRemove(usuario.email) });
+  };
 
-    // Revisar si con esto ya salieron todos los participantes. Si es así,
-    // se borra el chat de verdad: los mensajes y, si corresponde, el
-    // documento del chat directo.
-    const yaOcultoPara = new Set(participantesEmails.filter(Boolean));
-    // Leemos el doc recién actualizado para tener la lista completa y actual.
-    const snap = await getDocs(collection(db, coleccion));
-    const docActual = snap.docs.find(d => d.id === id);
-    const ocultoParaActual = docActual?.data()?.ocultoPara || [];
-    const todosSalieron = [...yaOcultoPara].every(email => ocultoParaActual.includes(email));
-
-    if (todosSalieron) {
-      try {
-        const msgsSnap = await getDocs(collection(db, `chats_derivacion/${id}/mensajes`));
-        const batch = writeBatch(db);
-        msgsSnap.docs.forEach(m => batch.delete(m.ref));
-        if (tipo === "directo") batch.delete(ref);
-        await batch.commit();
-      } catch (e) {
-        console.error("Error al borrar el chat definitivamente:", e);
-      }
+  // Borrar definitivamente desde la carpeta de Archivados: borra los
+  // mensajes y, si es un chat directo, también su registro. Esto es una
+  // decisión explícita del usuario sobre SU copia archivada — no espera
+  // a que los demás también borren, a diferencia de archivar.
+  const handleBorrarChatDefinitivo = async (tipo, id) => {
+    try {
+      const msgsSnap = await getDocs(collection(db, `chats_derivacion/${id}/mensajes`));
+      const batch = writeBatch(db);
+      msgsSnap.docs.forEach(m => batch.delete(m.ref));
+      if (tipo === "directo") batch.delete(doc(db, "chats_directos", id));
+      await batch.commit();
+    } catch (e) {
+      console.error("Error al borrar el chat definitivamente:", e);
     }
   };
 
@@ -290,8 +285,8 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
           onAsignar={handleAsignar}
           onCerrar={handleCerrarFicha}
           onEliminar={handleEliminarFicha}
-          onAbrirChat={(id, nombre, email) => setChatActivo({ id, nombre, email, esGrupal: false })}
-          onAbrirChatGrupal={(d) => setChatActivo({ id: d.id, esGrupal: true, tituloGrupo: d.titulo || d.subtipo, participantes: d.interesadosEmails })}
+          onAbrirChat={(id, nombre, email, coleccionChat, participantes) => setChatActivo({ id, nombre, email, esGrupal: false, coleccionChat, participantes })}
+          onAbrirChatGrupal={(d) => setChatActivo({ id: d.id, esGrupal: true, tituloGrupo: d.titulo || d.subtipo, participantes: d.interesadosEmails, coleccionChat: "derivaciones" })}
           onVolver={() => setVista("cartelera")}
         />
       )}
@@ -304,9 +299,11 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
           chatsDirectos={chatsDirectos}
           chatInicial={chatInicial}
           onChatInicialUsado={onChatInicialUsado}
-          onAbrirChat={(id, nombre, email) => setChatActivo({ id, nombre, email, esGrupal: false })}
-          onAbrirChatGrupal={(d) => setChatActivo({ id: d.id, esGrupal: true, tituloGrupo: d.titulo || d.subtipo, participantes: d.interesadosEmails })}
-          onOcultarChat={handleOcultarChat}
+          onAbrirChat={(id, nombre, email, coleccionChat, participantes) => setChatActivo({ id, nombre, email, esGrupal: false, coleccionChat, participantes })}
+          onAbrirChatGrupal={(d) => setChatActivo({ id: d.id, esGrupal: true, tituloGrupo: d.titulo || d.subtipo, participantes: d.interesadosEmails, coleccionChat: "derivaciones" })}
+          onArchivarChat={handleArchivarChat}
+          onDesarchivarChat={handleDesarchivarChat}
+          onBorrarChatDefinitivo={handleBorrarChatDefinitivo}
         />
       )}
 
@@ -341,6 +338,7 @@ export default function Derivaciones({ usuario, esAdmin, vistaInicial = "cartele
           esGrupal={chatActivo.esGrupal}
           tituloGrupo={chatActivo.tituloGrupo}
           participantes={chatActivo.participantes}
+          coleccionChat={chatActivo.coleccionChat}
           onCerrar={() => setChatActivo(null)}
         />
       )}
